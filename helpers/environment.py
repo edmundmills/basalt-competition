@@ -9,6 +9,11 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 
+environment_names = ['MineRLBasaltBuildVillageHouse-v0',
+                     'MineRLBasaltCreateVillageAnimalPen-v0',
+                     'MineRLBasaltFindCave-v0',
+                     'MineRLBasaltMakeWaterfall-v0']
+
 
 def pov_tensor_from_single_obs(obs):
     return th.from_numpy(obs['pov'].copy()).unsqueeze(0).permute(0, 3, 1, 2).float()
