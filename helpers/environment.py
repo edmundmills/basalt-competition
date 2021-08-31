@@ -28,9 +28,9 @@ class ActionSpace:
             action = 4
         elif action == 4:
             action = 3
-        elif action = 12:
+        elif action == 12:
             action = 11
-        elif action = 11:
+        elif action == 11:
             action = 12
         return action
 

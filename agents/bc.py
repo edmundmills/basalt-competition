@@ -1,8 +1,9 @@
-import torch as th
-import numpy as np
-import torch.nn.functional as F
-
 from helpers.environment import ObservationSpace, ActionSpace
+
+import numpy as np
+import torch as th
+from torch import nn
+import torch.nn.functional as F
 
 
 class BCAgent:
@@ -86,7 +87,7 @@ class BCAgent:
         return loss
 
 
-def BC(nn.Module):
+class BC(nn.Module):
     def __init__(self,
                  inventory_dim,
                  frame_shape=(3, 64, 64),

@@ -4,6 +4,8 @@ import torch as th
 import math
 import numpy as np
 
+from torch.utils.data import Dataset
+
 
 class StepDataset(Dataset):
     def __init__(self, data_root, environments):
@@ -11,7 +13,7 @@ class StepDataset(Dataset):
         self.data_root = Path(data_root)
         step_paths = []
         for environment_name in environments:
-            environment_path = self.root_dir / environment_name
+            environment_path = self.data_root / environment_name
             step_paths.extend(self._get_step_data(environment_path))
         self.step_paths = step_paths
 

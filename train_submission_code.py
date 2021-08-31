@@ -1,14 +1,17 @@
+from helpers.data import convert_data
+from helpers.datasets import MultiFrameDataset
+from agents.bc import BCAgent
+
+import torch as th
+import numpy as np
+
 import logging
 import os
-
-import numpy as np
-import aicrowd_helper
-import gym
-import minerl
-from utility.parser import Parser
-
+# import aicrowd_helper
+# from utility.parser import Parser
 import coloredlogs
 coloredlogs.install(logging.DEBUG)
+
 
 # You need to ensure that your submission is trained by launching less than MINERL_TRAINING_MAX_INSTANCES instances
 MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5))
@@ -22,14 +25,14 @@ MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5
 # Optional: You can view best effort status of your instances with the help of parser.py
 # This will give you current state like number of steps completed, instances launched and so on.
 # Make your you keep a tap on the numbers to avoid breaching any limits.
-parser = Parser(
-    'performance/',
-    maximum_instances=MINERL_TRAINING_MAX_INSTANCES,
-    raise_on_error=False,
-    no_entry_poll_timeout=600,
-    submission_timeout=MINERL_TRAINING_TIMEOUT * 60,
-    initial_poll_timeout=600
-)
+# parser = Parser(
+#     'performance/',
+#     maximum_instances=MINERL_TRAINING_MAX_INSTANCES,
+#     raise_on_error=False,
+#     no_entry_poll_timeout=600,
+#     submission_timeout=MINERL_TRAINING_TIMEOUT * 60,
+#     initial_poll_timeout=600
+# )
 
 
 def main():
@@ -37,34 +40,28 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    # How to sample minerl data is document here:
-    # http://minerl.io/docs/tutorials/data_sampling.html
-    data = minerl.data.make('MineRLBasaltFindCave-v0', data_dir=MINERL_DATA_ROOT)
 
-    # Sample code for illustration, add your training code below
-    env = gym.make('MineRLBasaltFindCave-v0')
+    # Preprocess Data
+    convert_data(MINERL_DATA_ROOT)
 
-    # For an example, lets just run one episode of MineRL for training
-    obs = env.reset()
-    done = False
-    while not done:
-        obs, reward, done, info = env.step(env.action_space.sample())
-        # Do your training here
+    # Train BC
+    agent_name = 'bc_agent_001'
+    epochs = 1
+    lr = 1e-4
+    dataset = MultiFrameDataset(MINERL_DATA_ROOT, ['MineRLBasaltFindCave-v0'])
+    bc_agent = BCAgent(agent_name, device=th.device('cuda'))
+    bc_agent.train(dataset, epochs, lr)
 
-        # To get better view in your training phase, it is suggested
-        # to register progress continuously, example when 54% completed
-        # aicrowd_helper.register_progress(0.54)
+    # Generate variable quality demonstrations
 
-        # To fetch latest information from instance manager, you can run below when you want to know the state
-        #>> parser.update_information()
-        #>> print(parser.payload)
+    # Train reward model
 
-    # Save trained model to train/ directory
-    # For a demonstration, we save some dummy data.
-    np.save("./train/parameters.npy", np.random.random((10,)))
+    # Train offline RL Agent
+
+    # Get feedback
 
     # Training 100% Completed
-    aicrowd_helper.register_progress(1)
+    # aicrowd_helper.register_progress(1)
     env.close()
 
 
