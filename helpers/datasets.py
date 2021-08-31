@@ -60,4 +60,4 @@ class MultiFrameDataset(StepDataset):
     def frame_indices(self, step_number):
         return [int(math.floor(step_number *
                                frame_number / (self.number_of_frames - 1)))
-                for frame_number in range(self.number_of_frames)]
+                for frame_number in range(self.number_of_frames - 1)]
