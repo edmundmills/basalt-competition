@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+import random
 
 
 class ActionShaping(gym.ActionWrapper):
@@ -34,10 +35,11 @@ class ActionShaping(gym.ActionWrapper):
     and making the camera actions discrete.
     """
 
-    def __init__(self, env, camera_angle=10):
+    def __init__(self, env, camera_angle=10, camera_noise=5):
         super().__init__(env)
 
         self.camera_angle = camera_angle
+        self.camera_noise = camera_noise
         self._actions = [
             [('attack', 1)],  # 0
             [('forward', 1)],  # 1
@@ -68,4 +70,7 @@ class ActionShaping(gym.ActionWrapper):
         self.action_list = action_list
 
     def action(self, action):
-        return self.actions[action]
+        action = self.actions[action]
+        action['camera'][0] += random.normal(scale=self.camera_noise)
+        action['camera'][1] += random.normal(scale=self.camera_noise)
+        return action
