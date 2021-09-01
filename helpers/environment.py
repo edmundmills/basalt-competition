@@ -1,3 +1,5 @@
+from environment.debug_env import DebugEnv
+
 import os
 
 import numpy as np
@@ -11,6 +13,15 @@ class EnvironmentHelper:
                          'MineRLBasaltFindCave-v0',
                          'MineRLBasaltMakeWaterfall-v0']
     max_episode_length = 2000
+
+    def start_env(debug_env=False):
+        if debug_env:
+            env = DebugEnv()
+        else:
+            environment = os.getenv('MINERL_ENVIRONMENT')
+            env = gym.make(environment)
+            env = ActionShaping(env)
+        return env
 
 
 class ObservationSpace:

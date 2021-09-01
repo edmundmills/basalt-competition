@@ -1,10 +1,9 @@
 import numpy as np
-from helpers.environment import ActionSpace
 
 
 class DebugEnv:
     def __init__(self):
-        self.action_list = ActionSpace.actions()
+        self.action_list = list(range(100))
 
     def step(self, _action):
         obs = {"pov": np.random.randint(0, 255, (64, 64, 3))}
