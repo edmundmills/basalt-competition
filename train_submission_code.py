@@ -45,7 +45,7 @@ def main():
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
 
     # Preprocess Data
-    preprocess_data = False
+    preprocess_data = True
     if preprocess_data:
         pre_process_expert_trajectories()
 

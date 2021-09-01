@@ -1,5 +1,6 @@
+from helpers.trajectories import Trajectory
+
 from pathlib import Path
-import shutil
 import os
 
 import numpy as np
@@ -36,15 +37,12 @@ def pre_process_expert_trajectories():
             if not trajectory_path.is_dir():
                 continue
 
-            step = 0
-            steps_path = trajectory_path / 'steps'
-            shutil.rmtree(steps_path, ignore_errors=True)
-            steps_path.mkdir()
+            trajectory = Trajectory()
             for obs, action, _, _, done in data.load_data(str(trajectory_path)):
-                step_name = f'step{str(step).zfill(5)}.npy'
-                step_dict = {'step': step, 'obs': obs, 'action': action, 'done': done}
-                np.save(file=steps_path / step_name, arr=step_dict)
-                step += 1
+                trajectory.obs.append(obs)
+                trajectory.action.append(action)
+                trajectory.done = done
+            trajectory.save(trajectory_path)
 
 
 if __name__ == "__main__":

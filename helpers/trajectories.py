@@ -41,7 +41,7 @@ class Trajectory:
         self.done = True
 
     def save(self, path):
-        os.makedirs(path, exist_ok=True)
+        path.mkdir(exist_ok=True)
         np.save(file=path / 'actions.npy', arr=np.array(self.actions))
         np.save(file=path / 'obs.npy', arr=np.array(self.observations))
         steps_path = path / 'steps'
