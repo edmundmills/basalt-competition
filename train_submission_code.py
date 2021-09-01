@@ -40,16 +40,24 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
+    MINERL_ENVIRONMENT = 'MineRLBasaltFindCave-v0'
+    RUN_NAME = '001'
+    os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
+    os.environ['TRAIN_PATH'] = 'train/'
+    os.environ['RUN_NAME'] = RUN_NAME
+
+    # Locally:
+    os.environ['MINERL_DATA_ROOT'] = '../../code/basalt/data'
 
     # Preprocess Data
-    convert_data(MINERL_DATA_ROOT)
+    # convert_data()
 
     # Train BC
-    agent_name = 'bc_agent_001'
     epochs = 1
     lr = 1e-4
-    dataset = MultiFrameDataset(MINERL_DATA_ROOT, ['MineRLBasaltFindCave-v0'])
-    bc_agent = BCAgent(agent_name, device=th.device('cuda'))
+    device = th.device('cpu')
+    dataset = MultiFrameDataset()
+    bc_agent = BCAgent(device=device)
     bc_agent.train(dataset, epochs, lr)
 
     # Generate variable quality demonstrations

@@ -1,4 +1,7 @@
+from helpers.environment import ObservationSpace
+
 from pathlib import Path
+import os
 
 import torch as th
 import math
@@ -8,8 +11,11 @@ from torch.utils.data import Dataset
 
 
 class StepDataset(Dataset):
-    def __init__(self, data_root, environments):
-        self.environments = environments
+    def __init__(self,
+                 data_root=os.getenv('MINERL_DATA_ROOT'),
+                 environments=[]):
+        self.environments = environments if environments is not [] else [
+            os.getenv('MINERL_ENVIRONMENT')]
         self.data_root = Path(data_root)
         step_paths = []
         for environment_name in environments:
@@ -41,9 +47,11 @@ class StepDataset(Dataset):
 
 
 class MultiFrameDataset(StepDataset):
-    def __init__(self, data_root, environments, number_of_frames=4):
+    def __init__(self,
+                 data_root=os.getenv('MINERL_DATA_ROOT'),
+                 environments=[]):
         super().__init__(data_root, environments)
-        self.number_of_frames = number_of_frames
+        self.number_of_frames = ObservationSpace.number_of_frames
 
     def __getitem__(self, idx):
         if th.is_tensor(idx):

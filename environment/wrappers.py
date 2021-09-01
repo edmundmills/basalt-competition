@@ -1,3 +1,5 @@
+from helpers.environment import ObservationSpace
+
 import gym
 import numpy as np
 import random
@@ -41,19 +43,20 @@ class ActionShaping(gym.ActionWrapper):
         self.camera_angle = camera_angle
         self.camera_noise = camera_noise
         self._actions = [
-            [('attack', 1)],  # 0
-            [('forward', 1)],  # 1
-            [('back', 1)],  # 2
-            [('left', 1)],  # 3
-            [('right', 1)],  # 4
-            [('jump', 1)],  # 5
-            [('use', 1)],  # 6
-            [('equip', 'snowball')],  # 7
-            [('forward', 1), ('jump', 1)],  # 8
-            [('camera', [-self.camera_angle, 0])],  # 9
-            [('camera', [self.camera_angle, 0])],  # 10
-            [('camera', [0, self.camera_angle])],  # 11
-            [('camera', [0, -self.camera_angle])],  # 12
+            [('forward', 1)],  # 0
+            [('back', 1)],  # 1
+            [('left', 1)],  # 2
+            [('right', 1)],  # 3
+            [('jump', 1)],  # 4
+            [('forward', 1), ('jump', 1)],  # 5
+            [('camera', [-self.camera_angle, 0])],  # 6
+            [('camera', [self.camera_angle, 0])],  # 7
+            [('camera', [0, self.camera_angle])],  # 8
+            [('camera', [0, -self.camera_angle])],  # 9
+            [('attack', 1)],  # 10
+            [('use', 1)],  # 11
+            *[[('equip', item)]
+              for item in ObservationSpace.items().keys()]
         ]
 
         self.actions = []

@@ -1,12 +1,14 @@
 from pathlib import Path
 import shutil
+import os
 
 import numpy as np
 
 import minerl
 
 
-def convert_data(data_dir):
+def convert_data():
+    data_dir = os.getenv('MINERL_DATA_ROOT')
     data_root = Path(data_dir)
     for environment_path in data_root.iterdir():
         environment_name = environment_path.name
@@ -24,7 +26,7 @@ def convert_data(data_dir):
                     if trajectory_path.is_dir():
                         target = sub_dir.parent / trajectory_path.name
                         trajectory_path.replace(target)
-            sub_dir.rmdir()
+                sub_dir.rmdir()
 
         data = minerl.data.make(environment_name,  data_dir=data_dir, num_workers=4)
         # trajectory_paths = environment_path.iterdir()
@@ -46,5 +48,5 @@ def convert_data(data_dir):
 
 
 if __name__ == "__main__":
-    data_dir = '../../code/basalt/data'
+    os.environ['MINERL_DATA_ROOT'] = '../../code/basalt/data'
     convert_data(data_dir)
