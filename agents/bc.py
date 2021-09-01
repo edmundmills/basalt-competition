@@ -12,12 +12,10 @@ from torch.utils.data import DataLoader
 
 
 class BCAgent:
-    def __init__(self, device=th.device('cpu')):
-        run_name = os.getenv('RUN_NAME')
-        self.agent_name = f'bc_agent_{run_name}'
-        self.device = device
+    def __init__(self):
         self.actions = ActionSpace.actions()
-        self.model = BC().to(device)
+        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.model = BC().to(self.device)
 
     def load_parameters(self, model_file_path):
         self.model.load_state_dict(
@@ -30,15 +28,13 @@ class BCAgent:
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
-    def train(self, dataset, epochs, lr):
-        optimizer = th.optim.Adam(self.model.parameters(), lr=lr)
+    def train(self, dataset, run):
+        optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
         dataloader = DataLoader(dataset, batch_size=32,
                                 shuffle=True, num_workers=4)
         iter_count = 0
-        losses = []
-        smoothed_losses = []
         iter_start_time = time.time()
-        for epoch in range(epochs):
+        for epoch in range(run.epochs):
             for _, (dataset_obs, dataset_actions, _done) in enumerate(dataloader):
                 loss = self.loss(dataset_obs, dataset_actions)
 
@@ -47,24 +43,12 @@ class BCAgent:
                 optimizer.step()
 
                 iter_count += 1
-                losses.append(loss.detach())
-                if (iter_count % 20) == 0:
-                    smoothed_loss = sum(losses)/len(losses)
-                    smoothed_losses.append(smoothed_loss)
-                    losses.clear()
-                    duration = time.time() - iter_start_time
-                    rate = 20 / duration
-                    print(
-                        f'Iteration {iter_count}. Loss: {smoothed_loss:.2f}, {rate:.2f} it/s')
-                    iter_start_time = time.time()
-
-                if (iter_count % 1000) == 0:
-                    mean_loss = sum(
-                        smoothed_losses[-50:-1])/len(smoothed_losses[-50:-1])
+                run.append_loss(loss.detach().cpu())
+                run.print_update(iter_count)
 
         print('Training complete')
-        th.save(self.model.state_dict(), os.path.join(
-            'train', f'{self.agent_name}.pth'))
+        th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
+        run.save_data()
         del dataloader
 
     def loss(self, dataset_obs, dataset_actions):

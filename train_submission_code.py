@@ -1,5 +1,6 @@
 from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import MultiFrameDataset
+from helpers.training_runs import TrainingRun
 from agents.bc import BCAgent
 
 import torch as th
@@ -41,21 +42,20 @@ def main():
     This should produce and save same files you upload during your submission.
     """
     MINERL_ENVIRONMENT = 'MineRLBasaltFindCave-v0'
-    RUN_NAME = '001'
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
-    os.environ['TRAIN_PATH'] = 'train/'
-    os.environ['RUN_NAME'] = RUN_NAME
 
     # Preprocess Data
-    # pre_process_expert_trajectories()
+    preprocess_data = False
+    if preprocess_data:
+        pre_process_expert_trajectories()
 
     # Train BC
-    epochs = 1
-    lr = 1e-4
-    device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+    run = TrainingRun(name='bc_001',
+                      epochs=1,
+                      lr=1e-4)
     dataset = MultiFrameDataset()
-    bc_agent = BCAgent(device=device)
-    bc_agent.train(dataset, epochs, lr)
+    bc_agent = BCAgent()
+    bc_agent.train(dataset, run)
 
     # Generate variable quality demonstrations
 
@@ -67,7 +67,7 @@ def main():
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
-    env.close()
+    # env.close()
 
 
 if __name__ == "__main__":
