@@ -22,8 +22,11 @@ class BCAgent:
             th.load(model_file_path, map_location=self.device), strict=False)
 
     def get_action(self, trajectory):
+        (current_pov, current_inventory,
+         current_equipped, frame_sequence) = trajectory.current_state()
         with th.no_grad():
-            probabilities = self.model(trajectory.get_current_state()).cpu().squeeze()
+            probabilities = self.model(current_pov, current_inventory,
+                                       current_equipped, frame_sequence).cpu().squeeze()
         probabilities = F.softmax(probabilities).numpy()
         action = np.random.choice(self.actions, p=probabilities)
         return action
@@ -52,10 +55,10 @@ class BCAgent:
         del dataloader
 
     def loss(self, dataset_obs, dataset_actions):
-        current_pov = ObservationSpace.dataset_obs_batch_to_pov(dataset_obs)
-        current_inventory = ObservationSpace.dataset_obs_batch_to_inventory(dataset_obs)
-        current_equipped = ObservationSpace.dataset_obs_batch_to_equipped(dataset_obs)
-        frame_sequence = ObservationSpace.dataset_obs_batch_to_frame_sequence(dataset_obs)
+        current_pov = ObservationSpace.obs_to_pov(dataset_obs)
+        current_inventory = ObservationSpace.obs_to_inventory(dataset_obs)
+        current_equipped = ObservationSpace.obs_to_equipped_item(dataset_obs)
+        frame_sequence = ObservationSpace.obs_to_frame_sequence(dataset_obs)
         actions = ActionSpace.dataset_action_batch_to_actions(dataset_actions)
 
         # Remove samples that had no corresponding action

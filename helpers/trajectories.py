@@ -5,31 +5,29 @@ import os
 import shutil
 
 import numpy as np
+import torch as th
 
 
 class Trajectory:
-    def __init__():
+    def __init__(self):
         self.obs = []
         self.actions = []
-        self.current_obs = None
         self.done = False
         self.number_of_frames = ObservationSpace.number_of_frames
 
     def __len__(self):
-        return len(self.actions)
+        return len(self.obs)
 
     def __getitem__(self, idx):
         done = idx + 1 == len(self) and self.done
         return(self.obs[idx], self.actions[idx], done)
 
-    def get_current_state():
+    def current_state(self):
         current_step = len(self)
         frame_sequence = self.spaced_frames(current_step)
-        current_pov = ObservationSpace.pov_tensor_from_single_obs(self.current_obs)
-        current_inventory = ObservationSpace.dataset_obs_batch_to_inventory(
-            self.current_obs)
-        current_equipped = ObservationSpace.dataset_obs_batch_to_equipped(
-            self.current_obs)
+        current_pov = ObservationSpace.obs_to_pov(self.obs[-1])
+        current_inventory = ObservationSpace.obs_to_inventory(self.obs[-1])
+        current_equipped = ObservationSpace.obs_to_equipped_item(self.obs[-1])
         return current_pov, current_inventory, current_equipped, frame_sequence
 
     def append_step(self, action):
@@ -59,8 +57,8 @@ class Trajectory:
         frame_indices = [int(math.floor(current_step *
                                         frame_number / (self.number_of_frames - 1)))
                          for frame_number in range(self.number_of_frames - 1)]
-        frames = np.array([self.obs[frame_idx]['pov']
-                           for frame_idx in frame_indices])
+        frames = th.cat([ObservationSpace.obs_to_pov(self.obs[frame_idx])
+                        for frame_idx in frame_indices])
         return frames
 
 
@@ -70,17 +68,14 @@ class TrajectoryGenerator:
         self.agent = agent
         self.max_episode_length = EnvironmentHelper.max_episode_length
 
-    def generate(self, path, save=False):
+    def generate(self):
         trajectory = Trajectory()
-        obs = env.reset()
-        trajectory.current_obs = obs
+        obs = self.env.reset()
 
         while not trajectory.done and len(trajectory) < self.max_episode_length:
+            trajectory.obs.append(obs)
             action = self.agent.get_action(trajectory)
-            trajectory.append_step(action)
-            obs, _, done, _ = env.step(action)
-            trajectory.current_obs = obs
+            trajectory.actions.append(action)
+            obs, _, done, _ = self.env.step(action)
             trajectory.done = done
-        if save:
-            trajectory.save(path)
         return trajectory

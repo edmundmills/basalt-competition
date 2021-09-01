@@ -73,17 +73,19 @@ class ObservationSpace:
         environment = os.getenv('MINERL_ENVIRONMENT')
         return ObservationSpace.environment_items[environment]
 
-    def pov_tensor_from_single_obs(obs):
-        return th.from_numpy(obs['pov'].copy()).unsqueeze(0).permute(0, 3, 1, 2).float()
+    def obs_to_pov(obs):
+        obs = obs['pov']
+        if isinstance(obs, np.ndarray) and len(obs.shape) == 3:
+            obs = th.from_numpy(obs).unsqueeze(0)
+        return obs.permute(0, 3, 1, 2).float() / 255.0
 
-    def dataset_obs_batch_to_pov(obs):
-        return obs['pov'].permute(0, 3, 1, 2).float()
-
-    def dataset_obs_batch_to_frame_sequence(obs):
+    def obs_to_frame_sequence(obs):
         return obs['frame_sequence'].permute(0, 1, 4, 2, 3).float()
 
-    def dataset_obs_batch_to_equipped(obs):
+    def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
+        if isinstance(equipped_item, str):
+            equipped_item = [equipped_item]
         items = list(ObservationSpace.items().keys())
         equipped = th.zeros((len(equipped_item), len(items))).long()
         for idx, item in enumerate(equipped_item):
@@ -92,8 +94,10 @@ class ObservationSpace:
             equipped[idx, items.index(item)] = 1
         return equipped
 
-    def dataset_obs_batch_to_inventory(obs):
+    def obs_to_inventory(obs):
         inventory = obs['inventory']
+        if isinstance(list(inventory.values())[0], int):
+            inventory = {k: th.FloatTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
         inventory = th.cat([inventory[item].unsqueeze(1) / ObservationSpace.items()[item]
                             for item in ObservationSpace.items().keys()], dim=1)
