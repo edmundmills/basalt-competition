@@ -7,7 +7,7 @@ import numpy as np
 import minerl
 
 
-def convert_data():
+def pre_process_expert_trajectories():
     data_dir = os.getenv('MINERL_DATA_ROOT')
     data_root = Path(data_dir)
     for environment_path in data_root.iterdir():
@@ -29,9 +29,9 @@ def convert_data():
                 sub_dir.rmdir()
 
         data = minerl.data.make(environment_name,  data_dir=data_dir, num_workers=4)
-        # trajectory_paths = environment_path.iterdir()
-        trajectory_paths = [environment_path /
-                            'v3_accomplished_pattypan_squash_ghost-6_765-1145']
+        trajectory_paths = environment_path.iterdir()
+        # trajectory_paths = [environment_path /
+        #                     'v3_accomplished_pattypan_squash_ghost-6_765-1145']
         for trajectory_path in trajectory_paths:
             if not trajectory_path.is_dir():
                 continue

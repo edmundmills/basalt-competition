@@ -71,18 +71,20 @@ class ObservationSpace:
 
     def dataset_obs_batch_to_equipped(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
-        print(equipped_item)
-        items = items().keys()
-        print(environment_items)
-        equipped_item_tensor = F.one_hot(items.index(equipped_item),
-                                         len(items))
-        return equipped_item_tensor
+        items = list(ObservationSpace.items().keys())
+        equipped = th.zeros((len(equipped_item), len(items))).long()
+        for idx, item in enumerate(equipped_item):
+            if item not in items:
+                continue
+            equipped[idx, items.index(item)] = 1
+        return equipped
 
     def dataset_obs_batch_to_inventory(obs):
         inventory = obs['inventory']
         # normalize inventory by starting inventory
-        print(inventory)
-        return
+        inventory = th.cat([inventory[item].unsqueeze(1) / ObservationSpace.items()[item]
+                            for item in ObservationSpace.items().keys()], dim=1)
+        return inventory
 
 
 class ActionSpace:
@@ -125,17 +127,17 @@ class ActionSpace:
         right_actions = dataset_actions["right"].squeeze()
         jump_actions = dataset_actions["jump"].squeeze()
         equip_actions = dataset_actions["equip"]
-        print(equip_actions)
         use_actions = dataset_actions["use"].squeeze()
 
         batch_size = len(camera_actions)
         actions = np.zeros((batch_size,), dtype=np.int)
+        items = list(ObservationSpace.items().keys())
 
         for i in range(batch_size):
             if use_actions[i] == 1:
                 actions[i] = 11
-            elif equip_actions[i] == 1:
-                actions[i] = 12
+            elif equip_actions[i] in items:
+                actions[i] = 12 + items.index(equip_actions[i])
             elif camera_actions[i][0] < -camera_margin:
                 actions[i] = 6
             elif camera_actions[i][0] > camera_margin:

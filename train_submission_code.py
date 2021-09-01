@@ -1,4 +1,4 @@
-from helpers.data import convert_data
+from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import MultiFrameDataset
 from agents.bc import BCAgent
 
@@ -46,16 +46,13 @@ def main():
     os.environ['TRAIN_PATH'] = 'train/'
     os.environ['RUN_NAME'] = RUN_NAME
 
-    # Locally:
-    os.environ['MINERL_DATA_ROOT'] = '../../code/basalt/data'
-
     # Preprocess Data
-    # convert_data()
+    # pre_process_expert_trajectories()
 
     # Train BC
     epochs = 1
     lr = 1e-4
-    device = th.device('cpu')
+    device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
     dataset = MultiFrameDataset()
     bc_agent = BCAgent(device=device)
     bc_agent.train(dataset, epochs, lr)

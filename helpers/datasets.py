@@ -14,11 +14,11 @@ class StepDataset(Dataset):
     def __init__(self,
                  data_root=os.getenv('MINERL_DATA_ROOT'),
                  environments=[]):
-        self.environments = environments if environments is not [] else [
+        self.environments = environments if environments != [] else [
             os.getenv('MINERL_ENVIRONMENT')]
         self.data_root = Path(data_root)
         step_paths = []
-        for environment_name in environments:
+        for environment_name in self.environments:
             environment_path = self.data_root / environment_name
             step_paths.extend(self._get_step_data(environment_path))
         self.step_paths = step_paths
@@ -61,9 +61,11 @@ class MultiFrameDataset(StepDataset):
         step_path = self.step_paths[idx]
         step_dict = np.load(step_path, allow_pickle=True).item()
         step_number = step_dict['step']
-        frame_indices = idx - step_number + self.frame_indices(step_number)
-        frame_sequence = np.array([np.load(step_path, allow_pickle=True).item()[
-            'obs']['pov'] for step_idx in step_idxes])
+        frame_indices = [idx - step_number + frame_idx
+                         for frame_idx in self.frame_indices(step_number)]
+        frame_sequence = np.array([np.load(self.step_paths[step_idx],
+                                           allow_pickle=True).item()['obs']['pov']
+                                   for step_idx in frame_indices])
         step_dict['obs']['frame_sequence'] = frame_sequence
         return step_dict['obs'], step_dict['action'], step_dict['done']
 
