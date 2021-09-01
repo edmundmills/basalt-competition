@@ -23,9 +23,9 @@ class BCAgent:
         self.model.load_state_dict(
             th.load(model_file_path, map_location=self.device), strict=False)
 
-    def get_action(self, observations):
+    def get_action(self, trajectory):
         with th.no_grad():
-            probabilities = self.model(observations).cpu().squeeze()
+            probabilities = self.model(trajectory.get_current_state()).cpu().squeeze()
         probabilities = F.softmax(probabilities).numpy()
         action = np.random.choice(self.actions, p=probabilities)
         return action

@@ -5,10 +5,12 @@ import torch as th
 import torch.nn.functional as F
 
 
-environment_names = ['MineRLBasaltBuildVillageHouse-v0',
-                     'MineRLBasaltCreateVillageAnimalPen-v0',
-                     'MineRLBasaltFindCave-v0',
-                     'MineRLBasaltMakeWaterfall-v0']
+class EnvironmentHelper:
+    environment_names = ['MineRLBasaltBuildVillageHouse-v0',
+                         'MineRLBasaltCreateVillageAnimalPen-v0',
+                         'MineRLBasaltFindCave-v0',
+                         'MineRLBasaltMakeWaterfall-v0']
+    max_episode_length = 2000
 
 
 class ObservationSpace:
