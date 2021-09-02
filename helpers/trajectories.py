@@ -144,6 +144,7 @@ class TrajectoryViewer:
         def on_keypress(event):
             if event.key == 'enter':
                 plt.close('all')
+                print('Viewer Closed')
             if len(self.trajectory) < 2:
                 return
             if event.key == ' ':
@@ -160,6 +161,8 @@ class TrajectoryViewer:
 
         fig = plt.figure(figsize=(9, 8))
         ax_pov = plt.subplot2grid((9, 8), (0, 0), colspan=5, rowspan=5)
+        ax_pov.get_xaxis().set_visible(False)
+        ax_pov.get_yaxis().set_visible(False)
         img = ax_pov.imshow(self.trajectory.obs[self.current_step]["pov"], animated=True)
         ax_text = plt.subplot2grid((9, 8), (6, 0), colspan=8, rowspan=2)
         ax_text.get_xaxis().set_visible(False)
