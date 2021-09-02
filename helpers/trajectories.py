@@ -1,4 +1,4 @@
-from helpers.environment import EnvironmentHelper, ObservationSpace
+from helpers.environment import EnvironmentHelper, ObservationSpace, ActionSpace
 
 import math
 import os
@@ -97,7 +97,7 @@ class TrajectoryViewer:
     def view(self):
         def play():
             if len(self.trajectory) > 1:
-                slider.set_val(self.current_frame)
+                slider.set_val(self.current_step)
                 slider.on_changed(update_slider)
                 fig.canvas.mpl_connect('button_press_event', on_click)
                 ani = animation.FuncAnimation(
@@ -116,21 +116,19 @@ class TrajectoryViewer:
             if step >= len(self.trajectory):
                 step = len(self.trajectory) - 1
                 slider.set_val(step)
-                return lines
+                return animated_elements
             slider.set_val(step)
             self.manual_control = False
             return animated_elements
 
         def update_slider(step):
             step = math.floor(step)
-            self.current_frame = step
+            self.current_step = step
             self.manual_control = True
             render_frame(step)
 
         def render_frame(step):
             frame = self.trajectory.obs[step]["pov"]
-            l2.set_xdata(step)
-            l3.set_xdata(step)
             action_name = ActionSpace.action_name(self.trajectory.actions[step])
             txt_action.set_text(f'Action: {action_name}')
             img.set_array(frame)
@@ -153,17 +151,20 @@ class TrajectoryViewer:
             else:
                 self.manual_control = True
                 if event.key == 'right':
-                    if self.current_frame < len(self.trajectory) - 1:
-                        self.current_frame += 1
+                    if self.current_step < len(self.trajectory) - 1:
+                        self.current_step += 1
                 elif event.key == 'left':
-                    if self.current_frame > 0:
-                        self.current_frame -= 1
-                slider.set_val(self.current_frame)
+                    if self.current_step > 0:
+                        self.current_step -= 1
+                slider.set_val(self.current_step)
 
         fig = plt.figure(figsize=(9, 8))
         ax_pov = plt.subplot2grid((9, 8), (0, 0), colspan=5, rowspan=5)
-        img = ax_pov.imshow(self.trajectory.obs[self.current_frame]["pov"], animated=True)
-        txt_action = ax4.text(.1, 1.35, 'Action:')
+        img = ax_pov.imshow(self.trajectory.obs[self.current_step]["pov"], animated=True)
+        ax_text = plt.subplot2grid((9, 8), (6, 0), colspan=8, rowspan=2)
+        ax_text.get_xaxis().set_visible(False)
+        ax_text.get_yaxis().set_visible(False)
+        txt_action = ax_text.text(.1, 1.35, 'Action:')
         animated_elements = [img, txt_action]
 
         if len(self.trajectory) > 0:

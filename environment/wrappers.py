@@ -3,6 +3,7 @@ from helpers.environment import ObservationSpace
 import gym
 import numpy as np
 import random
+import copy
 
 
 class ActionShaping(gym.ActionWrapper):
@@ -37,7 +38,7 @@ class ActionShaping(gym.ActionWrapper):
     and making the camera actions discrete.
     """
 
-    def __init__(self, env, camera_angle=10, camera_noise=5):
+    def __init__(self, env, camera_angle=10, camera_noise=0.5):
         super().__init__(env)
 
         self.camera_angle = camera_angle
@@ -74,6 +75,7 @@ class ActionShaping(gym.ActionWrapper):
 
     def action(self, action):
         action = self.actions[action]
-        action['camera'][0] += random.normal(scale=self.camera_noise)
-        action['camera'][1] += random.normal(scale=self.camera_noise)
+        action = copy.deepcopy(action)
+        action['camera'][0] += np.random.normal(loc=0., scale=self.camera_noise)
+        action['camera'][1] += np.random.normal(loc=0, scale=self.camera_noise)
         return action

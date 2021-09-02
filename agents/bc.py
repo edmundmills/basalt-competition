@@ -27,8 +27,9 @@ class BCAgent:
         with th.no_grad():
             probabilities = self.model(current_pov, current_inventory,
                                        current_equipped, frame_sequence).cpu().squeeze()
-        probabilities = F.softmax(probabilities).numpy()
+        probabilities = F.softmax(probabilities, dim=0).numpy()
         action = np.random.choice(self.actions, p=probabilities)
+        print(ActionSpace.action_name(action))
         return action
 
     def train(self, dataset, run):

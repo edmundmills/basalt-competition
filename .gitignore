@@ -1,2 +1,4 @@
 train/
 training_runs/
+logs/
+__pycache__/

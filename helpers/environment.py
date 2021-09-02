@@ -1,5 +1,3 @@
-from environment.debug_env import DebugEnv
-
 import os
 
 import numpy as np
@@ -12,16 +10,7 @@ class EnvironmentHelper:
                          'MineRLBasaltCreateVillageAnimalPen-v0',
                          'MineRLBasaltFindCave-v0',
                          'MineRLBasaltMakeWaterfall-v0']
-    max_episode_length = 2000
-
-    def start_env(debug_env=False):
-        if debug_env:
-            env = DebugEnv()
-        else:
-            environment = os.getenv('MINERL_ENVIRONMENT')
-            env = gym.make(environment)
-            env = ActionShaping(env)
-        return env
+    max_episode_length = 100
 
 
 class ObservationSpace:
@@ -76,7 +65,7 @@ class ObservationSpace:
     def obs_to_pov(obs):
         obs = obs['pov']
         if isinstance(obs, np.ndarray) and len(obs.shape) == 3:
-            obs = th.from_numpy(obs).unsqueeze(0)
+            obs = th.from_numpy(obs.copy()).unsqueeze(0)
         return obs.permute(0, 3, 1, 2).float() / 255.0
 
     def obs_to_frame_sequence(obs):
@@ -96,11 +85,13 @@ class ObservationSpace:
 
     def obs_to_inventory(obs):
         inventory = obs['inventory']
-        if isinstance(list(inventory.values())[0], int):
-            inventory = {k: th.FloatTensor([v]) for k, v in inventory.items()}
+        if isinstance(list(inventory.values())[0], np.ndarray):
+            inventory = {k: th.from_numpy(v).unsqueeze(0) for k, v in inventory.items()}
         # normalize inventory by starting inventory
-        inventory = th.cat([inventory[item].unsqueeze(1) / ObservationSpace.items()[item]
-                            for item in ObservationSpace.items().keys()], dim=1)
+        inventory = [inventory[item_name].unsqueeze(1) / starting_count
+                     for item_name, starting_count
+                     in iter(ObservationSpace.items().items())]
+        inventory = th.cat(inventory, dim=1)
         return inventory
 
 
@@ -120,6 +111,13 @@ class ActionSpace:
                         'Jump', 'Forward Jump',
                         'Look Up', 'Look Down', 'Look Right', 'Look Left',
                         'Attack', 'Use', 'Equip']
+
+    def action_name(action_number):
+        n_non_equip_actions = len(ActionSpace.action_name_list) - 1
+        if action_number >= n_non_equip_actions:
+            item = ObservationSpace.items().keys()[action_number - n_non_equip_actions]
+            return f'Equip {item}'
+        return ActionSpace.action_name_list[action_number]
 
     def actions():
         actions = list(range(len(ActionSpace.action_name_list) - 1 +

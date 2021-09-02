@@ -7,7 +7,7 @@ class DebugEnv:
 
     def step(self, _action):
         obs = {"pov": np.random.randint(0, 255, (64, 64, 3)),
-               "inventory": {'snowball': 1},
+               "inventory": {'snowball': np.array(1)},
                "equipped_items": {"mainhand": {'type': 'snowball'}}}
         _reward = None
         _info = None
