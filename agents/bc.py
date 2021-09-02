@@ -39,7 +39,8 @@ class BCAgent:
         iter_count = 0
         iter_start_time = time.time()
         for epoch in range(run.epochs):
-            for _, (dataset_obs, dataset_actions, _done) in enumerate(dataloader):
+            for _, (dataset_obs, dataset_actions,
+                    _next_obs, _done) in enumerate(dataloader):
                 loss = self.loss(dataset_obs, dataset_actions)
 
                 optimizer.zero_grad()

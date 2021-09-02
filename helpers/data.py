@@ -40,7 +40,7 @@ def pre_process_expert_trajectories():
             trajectory = Trajectory()
             for obs, action, _, _, done in data.load_data(str(trajectory_path)):
                 trajectory.obs.append(obs)
-                trajectory.action.append(action)
+                trajectory.actions.append(action)
                 trajectory.done = done
             trajectory.save(trajectory_path)
 

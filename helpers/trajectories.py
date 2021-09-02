@@ -3,6 +3,7 @@ from helpers.environment import EnvironmentHelper, ObservationSpace, ActionSpace
 import math
 import os
 import shutil
+from pathlib import Path
 
 import numpy as np
 import torch as th
@@ -23,47 +24,53 @@ class Trajectory:
         return len(self.obs)
 
     def __getitem__(self, idx):
-        done = idx + 1 == len(self) and self.done
-        return(self.obs[idx], self.actions[idx], done)
+        is_last_step = idx + 1 == len(self)
+        done = is_last_step and self.done
+        if done:
+            next_obs = self.obs[idx]
+        elif is_last_step:
+            next_obs = None
+        else:
+            next_obs = self.obs[idx + 1]
+        return(self.obs[idx], self.actions[idx], next_obs, done)
 
     def current_state(self):
-        current_step = len(self)
-        frame_sequence = self.spaced_frames(current_step)
-        current_pov = ObservationSpace.obs_to_pov(self.obs[-1])
-        current_inventory = ObservationSpace.obs_to_inventory(self.obs[-1])
-        current_equipped = ObservationSpace.obs_to_equipped_item(self.obs[-1])
-        return current_pov, current_inventory, current_equipped, frame_sequence
+        current_idx = len(self) - 1
+        return self.get_state(current_idx)
 
-    def append_step(self, action):
-        self.obs.append(current_obs)
-        self.current_obs = None
-        self.actions.append(action)
+    def get_state(self, idx):
+        frame_sequence = self.spaced_frames(idx)
+        obs = self.obs[idx]
+        pov = ObservationSpace.obs_to_pov(obs)
+        inventory = ObservationSpace.obs_to_inventory(obs)
+        equipped = ObservationSpace.obs_to_equipped_item(obs)
+        return pov, inventory, equipped, frame_sequence
 
-    def load(self, path):
-        self.obs = np.load(self.trajectory_path / 'obs.npy', allow_pickle=True)
-        self.actions = np.load(self.trajectory_path / 'actions.npy', allow_pickle=True)
-        self.done = True
-
-    def save(self, path):
-        path.mkdir(exist_ok=True)
-        np.save(file=path / 'actions.npy', arr=np.array(self.actions))
-        np.save(file=path / 'obs.npy', arr=np.array(self.observations))
-        steps_path = path / 'steps'
-        shutil.rmtree(steps_path, ignore_errors=True)
-        steps_path.mkdir()
-        for step in range(len(self)):
-            obs, action, done = self[step]
-            step_name = f'step{str(step).zfill(5)}.npy'
-            step_dict = {'step': step, 'obs': obs, 'action': action, 'done': done}
-            np.save(file=steps_path / step_name, arr=step_dict)
-
-    def spaced_frames(self, current_step):
-        frame_indices = [int(math.floor(current_step *
+    def spaced_frames(self, step):
+        frame_indices = [int(math.floor(step *
                                         frame_number / (self.number_of_frames - 1)))
                          for frame_number in range(self.number_of_frames - 1)]
         frames = th.cat([ObservationSpace.obs_to_pov(self.obs[frame_idx])
                         for frame_idx in frame_indices])
         return frames
+
+    def load(self, path):
+        self.obs = np.load(Path(path) / 'obs.npy', allow_pickle=True)
+        self.actions = np.load(Path(path) / 'actions.npy', allow_pickle=True)
+        self.done = True
+
+    def save(self, path):
+        path.mkdir(exist_ok=True)
+        np.save(file=path / 'actions.npy', arr=np.array(self.actions))
+        np.save(file=path / 'obs.npy', arr=np.array(self.obs))
+        steps_path = path / 'steps'
+        shutil.rmtree(steps_path, ignore_errors=True)
+        steps_path.mkdir()
+        for step in range(len(self)):
+            obs, action, next_obs, done = self[step]
+            step_name = f'step{str(step).zfill(5)}.npy'
+            step_dict = {'step': step, 'obs': obs, 'action': action, 'done': done}
+            np.save(file=steps_path / step_name, arr=step_dict)
 
     def view(self):
         viewer = TrajectoryViewer(self).view()

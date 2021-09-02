@@ -43,9 +43,13 @@ class StepDataset(Dataset):
             idx = idx.tolist()
         if idx + 1 > len(self):
             raise IndexError('list index out of range')
-        step_path = self.step_paths[idx]
-        step_dict = np.load(step_path, allow_pickle=True).item()
-        return step_dict['obs'], step_dict['action'], step_dict['done']
+        step_dict = self._load_step_dict(idx)
+        if step_dict['done']:
+            next_obs = step_dict['obs']
+        else:
+            next_step_dict = self._load_step_dict(idx + 1)
+            next_obs = next_step_dict['obs']
+        return step_dict['obs'], step_dict['action'], next_obs, step_dict['done']
 
 
 class MultiFrameDataset(StepDataset):
@@ -60,21 +64,30 @@ class MultiFrameDataset(StepDataset):
             idx = idx.tolist()
         if idx + 1 > len(self):
             raise IndexError('list index out of range')
+        step_dict = self._load_step_dict(idx)
+        step_dict['obs']['frame_sequence'] = self._frame_sequence(step_dict['step'], idx)
+        if step_dict['done']:
+            next_obs = step_dict['obs']
+        else:
+            next_step_dict = self._load_step_dict(idx + 1)
+            next_step_dict['obs']['frame_sequence'] = self._frame_sequence(
+                next_step_dict['step'], idx + 1)
+            next_obs = next_step_dict['obs']
+        return step_dict['obs'], step_dict['action'], next_obs, step_dict['done']
+
+    def _load_step_dict(self, idx):
         step_path = self.step_paths[idx]
         step_dict = np.load(step_path, allow_pickle=True).item()
-        step_number = step_dict['step']
-        frame_indices = [idx - step_number + frame_idx
-                         for frame_idx in self.frame_indices(step_number)]
-        frame_sequence = np.array([np.load(self.step_paths[step_idx],
-                                           allow_pickle=True).item()['obs']['pov']
-                                   for step_idx in frame_indices])
-        step_dict['obs']['frame_sequence'] = frame_sequence
-        return step_dict['obs'], step_dict['action'], step_dict['done']
+        return step_dict
 
-    def frame_indices(self, step_number):
-        return [int(math.floor(step_number *
-                               frame_number / (self.number_of_frames - 1)))
-                for frame_number in range(self.number_of_frames - 1)]
+    def _frame_sequence(self, step_number, idx_in_dataset):
+        frame_indices = [idx_in_dataset - step_number +
+                         int(math.floor(step_number *
+                                        frame_number / (self.number_of_frames - 1)))
+                         for frame_number in range(self.number_of_frames - 1)]
+        frame_sequence = np.array([self._load_step_dict(frame_idx)['obs']['pov']
+                                   for frame_idx in frame_indices])
+        return frame_sequence
 
 
 class ReplayBuffer:
