@@ -2,9 +2,11 @@ from helpers.environment import ObservationSpace
 
 from pathlib import Path
 import os
+from collections import deque
 
 import torch as th
 import math
+import random
 import numpy as np
 
 from torch.utils.data import Dataset
@@ -73,3 +75,26 @@ class MultiFrameDataset(StepDataset):
         return [int(math.floor(step_number *
                                frame_number / (self.number_of_frames - 1)))
                 for frame_number in range(self.number_of_frames - 1)]
+
+
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.buffer = deque([], maxlen=capacity)
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def push(self, state, action, next_state, done):
+        self.buffer.append((state, action, next_state, done))
+
+    def sample(self, batch_size):
+        replay_batch_size = min(batch_size, len(self.buffer))
+        replay_batch = random.sample(self.buffer, replay_batch_size)
+        (replay_states, replay_actions,
+         replay_next_states, replay_done) = zip(*replay_batch)
+        replay_states = th.cat(replay_states, dim=0)
+        replay_actions = th.LongTensor(replay_actions).unsqueeze(1)
+        replay_next_states = th.cat(replay_states, dim=0)
+        replay_done = th.LongTensor(replay_done).unsqueeze(1)
+        return replay_states, replay_actions, replay_next_states, replay_done
