@@ -57,7 +57,7 @@ class ActionShaping(gym.ActionWrapper):
             [('attack', 1)],  # 10
             [('use', 1)],  # 11
             *[[('equip', item)]
-              for item in ObservationSpace.items().keys()]
+              for item in ObservationSpace.items()]
         ]
 
         self.actions = []

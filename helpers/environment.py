@@ -10,7 +10,7 @@ class EnvironmentHelper:
                          'MineRLBasaltCreateVillageAnimalPen-v0',
                          'MineRLBasaltFindCave-v0',
                          'MineRLBasaltMakeWaterfall-v0']
-    max_episode_length = 100
+    max_episode_length = 1000
 
 
 class ObservationSpace:
@@ -60,6 +60,10 @@ class ObservationSpace:
 
     def items():
         environment = os.getenv('MINERL_ENVIRONMENT')
+        return list(ObservationSpace.environment_items[environment].keys())
+
+    def starting_inventory():
+        environment = os.getenv('MINERL_ENVIRONMENT')
         return ObservationSpace.environment_items[environment]
 
     def obs_to_pov(obs):
@@ -75,7 +79,7 @@ class ObservationSpace:
         equipped_item = obs['equipped_items']['mainhand']['type']
         if isinstance(equipped_item, str):
             equipped_item = [equipped_item]
-        items = list(ObservationSpace.items().keys())
+        items = ObservationSpace.items()
         equipped = th.zeros((len(equipped_item), len(items))).long()
         for idx, item in enumerate(equipped_item):
             if item not in items:
@@ -90,7 +94,7 @@ class ObservationSpace:
         # normalize inventory by starting inventory
         inventory = [inventory[item_name].unsqueeze(1) / starting_count
                      for item_name, starting_count
-                     in iter(ObservationSpace.items().items())]
+                     in iter(ObservationSpace.starting_inventory().items())]
         inventory = th.cat(inventory, dim=1)
         return inventory
 
@@ -115,13 +119,13 @@ class ActionSpace:
     def action_name(action_number):
         n_non_equip_actions = len(ActionSpace.action_name_list) - 1
         if action_number >= n_non_equip_actions:
-            item = ObservationSpace.items().keys()[action_number - n_non_equip_actions]
+            item = ObservationSpace.items()[action_number - n_non_equip_actions]
             return f'Equip {item}'
         return ActionSpace.action_name_list[action_number]
 
     def actions():
         actions = list(range(len(ActionSpace.action_name_list) - 1 +
-                             len(ObservationSpace.items().keys())))
+                             len(ObservationSpace.items())))
         return actions
 
     def dataset_action_batch_to_actions(dataset_actions, camera_margin=5):
@@ -146,7 +150,7 @@ class ActionSpace:
 
         batch_size = len(camera_actions)
         actions = np.zeros((batch_size,), dtype=np.int)
-        items = list(ObservationSpace.items().keys())
+        items = ObservationSpace.items()
 
         for i in range(batch_size):
             if use_actions[i] == 1:
