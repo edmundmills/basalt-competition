@@ -85,12 +85,26 @@ class BCAgent:
         return loss
 
 
+class NoisyBCAgent(BCAgent):
+    def __init__(self, epsilon):
+        self.epsilon = epsilon
+        super().__init__()
+
+    def get_action(self, trajectory):
+        if np.random.rand() < self.epsilon:
+            action = np.random.choice(ActionSpace.actions())
+            print(f'{ActionSpace.action_name(action)} (at random)')
+        else:
+            action = super().get_action(trajectory)
+        return action
+
+
 class BC(nn.Module):
     def __init__(self):
         super().__init__()
         self.frame_shape = ObservationSpace.frame_shape
-        self.inventory_dim = len(ObservationSpace.items().keys())
-        self.equip_dim = len(ObservationSpace.items().keys())
+        self.inventory_dim = len(ObservationSpace.items())
+        self.equip_dim = len(ObservationSpace.items())
         self.output_dim = len(ActionSpace.actions())
         self.number_of_frames = ObservationSpace.number_of_frames
         self.cnn = mobilenet_v3_small(pretrained=True, progress=True).features
