@@ -101,20 +101,29 @@ class ObservationSpace:
 
 class ActionSpace:
     def mirror_action(action):
-        if action == 3:
-            action = 4
-        elif action == 4:
+        if action == 2:
             action = 3
-        elif action == 12:
-            action = 11
-        elif action == 11:
-            action = 12
+        elif action == 3:
+            action = 2
+        elif action == 9:
+            action = 10
+        elif action == 10:
+            action = 9
         return action
 
-    action_name_list = ['Forward', 'Back', 'Left', 'Right',
-                        'Jump', 'Forward Jump',
-                        'Look Up', 'Look Down', 'Look Right', 'Look Left',
-                        'Attack', 'Use', 'Equip']
+    action_name_list = ['Forward',  # 0
+                        'Back',  # 1
+                        'Left',  # 2
+                        'Right',  # 3
+                        'Jump',  # 4
+                        'Forward Jump',  # 5
+                        'Look Up',  # 6
+                        'Look Down',  # 7
+                        'Look Right',  # 8
+                        'Look Left',  # 9
+                        'Attack',  # 10
+                        'Use',  # 11
+                        'Equip']  # 12
 
     def action_name(action_number):
         n_non_equip_actions = len(ActionSpace.action_name_list) - 1
