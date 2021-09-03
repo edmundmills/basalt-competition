@@ -6,6 +6,7 @@ from agents.bcx import BCXAgent
 import torch as th
 import numpy as np
 
+import argparse
 import logging
 import os
 # import aicrowd_helper
@@ -47,13 +48,17 @@ def main():
     MINERL_ENVIRONMENT = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
 
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--preprocess-false', dest='preprocess',
+                           action='store_false', default=True)
+    args = argparser.parse_args()
+
     # Preprocess Data
-    preprocess_data = False
-    if preprocess_data:
+    if args.preprocess:
         pre_process_expert_trajectories()
 
     # Train BC
-    run = TrainingRun(name='bcx_001',
+    run = TrainingRun(label='bcx',
                       epochs=2,
                       lr=1e-4)
     dataset = MultiFrameDataset()

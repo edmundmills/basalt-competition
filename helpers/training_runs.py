@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 
 
 class TrainingRun:
-    def __init__(self, name, lr, epochs):
-        self.name = name
+    def __init__(self, label, lr, epochs):
+        self.name = f'{int(round(time.time()))}_{label}'
         self.lr = lr
         self.epochs = epochs
         self.losses = []
@@ -27,6 +27,16 @@ class TrainingRun:
             print(
                 f'Iteration {iter_count}. Loss: {smoothed_loss:.2f}, {rate:.2f} it/s')
 
+    def smoothed_losses(self):
+        smoothed_losses = []
+        current_bucket = []
+        for loss in self.losses:
+            current_bucket.append(loss)
+            if len(current_bucket) == self.update_frequency:
+                smoothed_losses.append(sum(current_bucket)/len(current_bucket))
+                current_bucket.clear()
+        return smoothed_losses
+
     def save_data(self):
         save_path = Path('training_runs') / self.name
         save_path.mkdir(exist_ok=True)
@@ -37,6 +47,6 @@ class TrainingRun:
         np.save(file=save_path / 'data.npy', arr=np.array(data))
         fig = plt.figure()
         plt.ylabel('Loss')
-        plt.xlabel('iterations')
-        plt.plot(self.losses)
+        plt.xlabel(f'iterations (x{self.update_frequency})')
+        plt.plot(self.smoothed_losses())
         plt.savefig(save_path / 'loss_plot.png')

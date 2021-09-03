@@ -84,13 +84,12 @@ class TrajectoryGenerator:
     def __init__(self, env, agent):
         self.env = env
         self.agent = agent
-        self.max_episode_length = EnvironmentHelper.max_episode_length
 
-    def generate(self):
+    def generate(self, max_episode_length=10000):
         trajectory = Trajectory()
         obs = self.env.reset()
 
-        while not trajectory.done and len(trajectory) < self.max_episode_length:
+        while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.obs.append(obs)
             action = self.agent.get_action(trajectory)
             trajectory.actions.append(action)
