@@ -50,13 +50,15 @@ class BCXAgent(BCAgent):
              terminate_episode) = self.model(current_pov,
                                              current_inventory,
                                              current_equipped,
-                                             frame_sequence).cpu().squeeze()
-        probabilities = F.softmax(probabilities, dim=0).numpy()
+                                             frame_sequence)
+        probabilities = F.softmax(probabilities.squeeze(), dim=0).numpy()
         action = np.random.choice(self.actions, p=probabilities)
         while ActionSpace.threw_snowball(trajectory.current_obs(), action):
             action = np.random.choice(self.actions, p=probabilities)
         print(ActionSpace.action_name(action))
-        print(terminate_episode)
+        print(f'Termination prediction: {terminate_episode.item():.2f}')
+        if terminate_episode > 0.5:
+            action = 11
         return action
 
     def train(self, dataset, run):

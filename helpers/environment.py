@@ -133,8 +133,7 @@ class ActionSpace:
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
 
     def threw_snowball(obs, action):
-        print(equipped_item, action)
-        return action == 12 and obs['equipped_items']['mainhand']['type'] == 'snowball'
+        return action == 11 and obs['equipped_items']['mainhand']['type'] == 'snowball'
 
     def dataset_action_batch_to_actions(dataset_actions, camera_margin=5):
         """
