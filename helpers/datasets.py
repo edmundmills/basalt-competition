@@ -1,4 +1,4 @@
-from helpers.environment import ObservationSpace
+from helpers.environment import ObservationSpace, MirrorAugmentation
 
 from pathlib import Path
 import os
@@ -15,10 +15,12 @@ from torch.utils.data import Dataset
 class StepDataset(Dataset):
     def __init__(self,
                  data_root=os.getenv('MINERL_DATA_ROOT'),
-                 environments=[]):
+                 environments=[],
+                 transform=MirrorAugmentation()):
         self.environments = environments if environments != [] else [
             os.getenv('MINERL_ENVIRONMENT')]
         self.data_root = Path(data_root)
+        self.transform = transform
         step_paths = []
         for environment_name in self.environments:
             environment_path = self.data_root / environment_name
@@ -49,14 +51,18 @@ class StepDataset(Dataset):
         else:
             next_step_dict = self._load_step_dict(idx + 1)
             next_obs = next_step_dict['obs']
-        return step_dict['obs'], step_dict['action'], next_obs, step_dict['done']
+        sample = (step_dict['obs'], step_dict['action'], next_obs, step_dict['done'])
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
 
 
 class MultiFrameDataset(StepDataset):
     def __init__(self,
                  data_root=os.getenv('MINERL_DATA_ROOT'),
-                 environments=[]):
-        super().__init__(data_root, environments)
+                 environments=[],
+                 transform=MirrorAugmentation()):
+        super().__init__(data_root, environments, transform)
         self.number_of_frames = ObservationSpace.number_of_frames
 
     def __getitem__(self, idx):
@@ -73,7 +79,10 @@ class MultiFrameDataset(StepDataset):
             next_step_dict['obs']['frame_sequence'] = self._frame_sequence(
                 next_step_dict['step'], idx + 1)
             next_obs = next_step_dict['obs']
-        return step_dict['obs'], step_dict['action'], next_obs, step_dict['done']
+        sample = (step_dict['obs'], step_dict['action'], next_obs, step_dict['done'])
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
 
     def _load_step_dict(self, idx):
         step_path = self.step_paths[idx]

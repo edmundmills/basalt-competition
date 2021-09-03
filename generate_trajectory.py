@@ -14,7 +14,7 @@ if __name__ == "__main__":
     saved_agent_path = Path('train') / 'bcx_001.pth'
     agent.load_parameters(saved_agent_path)
     generator = TrajectoryGenerator(env, agent)
-    trajectory = generator.generate()
+    trajectory = generator.generate(max_episode_length=10)
     trajectory.view()
     save_path = Path('data') / 'eval' / 'run_001'
     del trajectory

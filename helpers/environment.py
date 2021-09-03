@@ -10,7 +10,6 @@ class EnvironmentHelper:
                          'MineRLBasaltCreateVillageAnimalPen-v0',
                          'MineRLBasaltFindCave-v0',
                          'MineRLBasaltMakeWaterfall-v0']
-    max_episode_length = 1000
 
 
 class ObservationSpace:
@@ -73,7 +72,7 @@ class ObservationSpace:
         return obs.permute(0, 3, 1, 2).float() / 255.0
 
     def obs_to_frame_sequence(obs):
-        return obs['frame_sequence'].permute(0, 1, 4, 2, 3).float()
+        return obs['frame_sequence'].permute(0, 1, 4, 2, 3).float() / 255.0
 
     def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
@@ -100,17 +99,6 @@ class ObservationSpace:
 
 
 class ActionSpace:
-    def mirror_action(action):
-        if action == 2:
-            action = 3
-        elif action == 3:
-            action = 2
-        elif action == 9:
-            action = 10
-        elif action == 10:
-            action = 9
-        return action
-
     action_name_list = ['Forward',  # 0
                         'Back',  # 1
                         'Left',  # 2
@@ -198,3 +186,34 @@ class ActionSpace:
             else:
                 actions[i] = -1
         return actions
+
+
+class MirrorAugmentation():
+    def __init__(self):
+        return
+
+    def __call__(self, sample):
+        if np.random.choice([True, False]):
+            return sample
+        obs, action, next_obs, done = sample
+        action = self.mirror_action(action)
+        obs['pov'] = np.ascontiguousarray(np.flip(obs['pov'], axis=1))
+        next_obs['pov'] = np.ascontiguousarray(np.flip(obs['pov'], axis=1))
+        if 'frame_sequence' in list(obs.keys()):
+            obs['frame_sequence'] = np.ascontiguousarray(
+                np.flip(obs['frame_sequence'], axis=2))
+            next_obs['frame_sequence'] = np.ascontiguousarray(
+                np.flip(next_obs['frame_sequence'], axis=2))
+        sample = obs, action, next_obs, done
+        return sample
+
+    def mirror_action(self, action):
+        if action == 2:
+            action = 3
+        elif action == 3:
+            action = 2
+        elif action == 9:
+            action = 10
+        elif action == 10:
+            action = 9
+        return action
