@@ -128,6 +128,14 @@ class ActionSpace:
                              len(ObservationSpace.items())))
         return actions
 
+    def one_hot_snowball():
+        snowball_number = ObservationSpace.items().index('snowball')
+        return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
+
+    def threw_snowball(obs, action):
+        print(equipped_item, action)
+        return action == 12 and obs['equipped_items']['mainhand']['type'] == 'snowball'
+
     def dataset_action_batch_to_actions(dataset_actions, camera_margin=5):
         """
         Turn a batch of actions from dataset to a numpy

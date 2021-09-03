@@ -46,11 +46,17 @@ class BCXAgent(BCAgent):
         (current_pov, current_inventory,
          current_equipped, frame_sequence) = trajectory.current_state()
         with th.no_grad():
-            probabilities = self.model(current_pov, current_inventory,
-                                       current_equipped, frame_sequence).cpu().squeeze()
+            (probabilities,
+             terminate_episode) = self.model(current_pov,
+                                             current_inventory,
+                                             current_equipped,
+                                             frame_sequence).cpu().squeeze()
         probabilities = F.softmax(probabilities, dim=0).numpy()
         action = np.random.choice(self.actions, p=probabilities)
+        while ActionSpace.threw_snowball(trajectory.current_obs(), action):
+            action = np.random.choice(self.actions, p=probabilities)
         print(ActionSpace.action_name(action))
+        print(terminate_episode)
         return action
 
     def train(self, dataset, run):
@@ -58,8 +64,9 @@ class BCXAgent(BCAgent):
         dataloader = DataLoader(dataset, batch_size=32,
                                 shuffle=True, num_workers=4)
         termination_dataset = TerminateEpisodeDataset(dataset)
-        termination_data_iter = iter(DataLoader(termination_dataset, batch_size=16,
-                                                shuffle=True, num_workers=4))
+        termination_data_iter = iter(DataLoader(termination_dataset,
+                                                batch_size=16, shuffle=True,
+                                                num_workers=4, drop_last=True))
         iter_count = 0
         iter_start_time = time.time()
         for epoch in range(run.epochs):
@@ -135,10 +142,7 @@ class BCXAgent(BCAgent):
         actions = ActionSpace.dataset_action_batch_to_actions(termination_actions)
 
         use_actions = th.from_numpy(actions == 11).unsqueeze(1)
-        snowball_number = ObservationSpace.items().index('snowball')
-        one_hot_snowball = F.one_hot(th.LongTensor([snowball_number]),
-                                     len(ObservationSpace.items()))
-        snowball_equipped = current_equipped == one_hot_snowball
+        snowball_equipped = current_equipped == ActionSpace.one_hot_snowball()
         terminated = use_actions * snowball_equipped
 
         _action_logits, predict_terminate = self.model(current_pov.to(self.device),
@@ -146,7 +150,8 @@ class BCXAgent(BCAgent):
                                                        current_equipped.to(self.device),
                                                        frame_sequence.to(self.device))
 
-        loss = F.binary_cross_entropy(predict_terminate, terminated.float())
+        loss = F.binary_cross_entropy(predict_terminate,
+                                      terminated.float().to(self.device))
         return loss
 
 
@@ -156,7 +161,10 @@ class NoisyBCXAgent(NoisyBCAgent):
         super().__init__()
 
     def get_action(self, trajectory):
-        if np.random.rand() < self.epsilon:
+        if np.random.rand() < self.epsilon / 1000:
+            action = 11
+            print(f'Threw Snowball (at random)')
+        elif np.random.rand() < self.epsilon:
             action = np.random.choice(ActionSpace.actions())
             print(f'{ActionSpace.action_name(action)} (at random)')
         else:
