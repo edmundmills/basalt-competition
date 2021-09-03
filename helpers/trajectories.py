@@ -34,6 +34,10 @@ class Trajectory:
             next_obs = self.obs[idx + 1]
         return(self.obs[idx], self.actions[idx], next_obs, done)
 
+    def current_obs(self):
+        current_idx = len(self) - 1
+        return self.obs[current_idx]
+
     def current_state(self):
         current_idx = len(self) - 1
         return self.get_state(current_idx)

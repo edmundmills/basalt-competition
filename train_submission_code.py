@@ -1,7 +1,7 @@
 from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import MultiFrameDataset
 from helpers.training_runs import TrainingRun
-from agents.bc import BCAgent
+from agents.bcx import BCXAgent
 
 import torch as th
 import numpy as np
@@ -14,17 +14,20 @@ import coloredlogs
 coloredlogs.install(logging.DEBUG)
 
 
-# You need to ensure that your submission is trained by launching less than MINERL_TRAINING_MAX_INSTANCES instances
+# You need to ensure that your submission is trained by launching less
+# than MINERL_TRAINING_MAX_INSTANCES instances
 MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5))
 # The dataset is available in data/ directory from repository root.
 MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
 # You need to ensure that your submission is trained within allowed training time.
 MINERL_TRAINING_TIMEOUT = int(os.getenv('MINERL_TRAINING_TIMEOUT_MINUTES', 4 * 24 * 60))
-# You need to ensure that your submission is trained by launching less than MINERL_TRAINING_MAX_INSTANCES instances
+# You need to ensure that your submission is trained by launching
+# less than MINERL_TRAINING_MAX_INSTANCES instances
 MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5))
 
 # Optional: You can view best effort status of your instances with the help of parser.py
-# This will give you current state like number of steps completed, instances launched and so on.
+# This will give you current state like number of steps completed, instances launched
+# and so on.
 # Make your you keep a tap on the numbers to avoid breaching any limits.
 # parser = Parser(
 #     'performance/',
@@ -45,16 +48,16 @@ def main():
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
 
     # Preprocess Data
-    preprocess_data = True
+    preprocess_data = False
     if preprocess_data:
         pre_process_expert_trajectories()
 
     # Train BC
-    run = TrainingRun(name='bc_001',
-                      epochs=1,
+    run = TrainingRun(name='bcx_001',
+                      epochs=2,
                       lr=1e-4)
     dataset = MultiFrameDataset()
-    bc_agent = BCAgent()
+    bc_agent = BCXAgent()
     bc_agent.train(dataset, run)
 
     # Generate variable quality demonstrations
