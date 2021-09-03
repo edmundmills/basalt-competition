@@ -1,5 +1,5 @@
 from helpers.environment import ObservationSpace, ActionSpace
-from torchvision.models.mobilenetv3 import mobilenet_v3_small
+from torchvision.models.mobilenetv3 import mobilenet_v3_large
 
 import os
 import time
@@ -108,7 +108,7 @@ class BC(nn.Module):
         self.equip_dim = len(ObservationSpace.items())
         self.output_dim = len(ActionSpace.actions())
         self.number_of_frames = ObservationSpace.number_of_frames
-        self.cnn = mobilenet_v3_small(pretrained=True, progress=True).features
+        self.cnn = mobilenet_v3_large(pretrained=True, progress=True).features
         self.visual_feature_dim = self._visual_features_dim()
         self.linear_input_dim = sum([self.visual_feature_dim * self.number_of_frames,
                                      self.inventory_dim,
