@@ -1,7 +1,7 @@
 from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import MultiFrameDataset
 from helpers.training_runs import TrainingRun
-from agents.bc import BCAgent
+from agents.bcx import BCXAgent
 
 import torch as th
 import numpy as np
@@ -45,16 +45,16 @@ def main():
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
 
     # Preprocess Data
-    preprocess_data = True
+    preprocess_data = False
     if preprocess_data:
         pre_process_expert_trajectories()
 
     # Train BC
-    run = TrainingRun(name='bc_001',
+    run = TrainingRun(name='bcx_001',
                       epochs=1,
                       lr=1e-4)
     dataset = MultiFrameDataset()
-    bc_agent = BCAgent()
+    bc_agent = BCXAgent()
     bc_agent.train(dataset, run)
 
     # Generate variable quality demonstrations
