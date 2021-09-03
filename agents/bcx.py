@@ -169,6 +169,8 @@ class NoisyBCXAgent(BCXAgent):
             print(f'Threw Snowball (at random)')
         elif np.random.rand() < self.epsilon:
             action = np.random.choice(ActionSpace.actions())
+            while ActionSpace.threw_snowball(trajectory.current_obs(), action):
+                action = np.random.choice(self.actions)
             print(f'{ActionSpace.action_name(action)} (at random)')
         else:
             action = super().get_action(trajectory)

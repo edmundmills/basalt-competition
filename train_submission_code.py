@@ -14,17 +14,20 @@ import coloredlogs
 coloredlogs.install(logging.DEBUG)
 
 
-# You need to ensure that your submission is trained by launching less than MINERL_TRAINING_MAX_INSTANCES instances
+# You need to ensure that your submission is trained by launching less
+# than MINERL_TRAINING_MAX_INSTANCES instances
 MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5))
 # The dataset is available in data/ directory from repository root.
 MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
 # You need to ensure that your submission is trained within allowed training time.
 MINERL_TRAINING_TIMEOUT = int(os.getenv('MINERL_TRAINING_TIMEOUT_MINUTES', 4 * 24 * 60))
-# You need to ensure that your submission is trained by launching less than MINERL_TRAINING_MAX_INSTANCES instances
+# You need to ensure that your submission is trained by launching
+# less than MINERL_TRAINING_MAX_INSTANCES instances
 MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5))
 
 # Optional: You can view best effort status of your instances with the help of parser.py
-# This will give you current state like number of steps completed, instances launched and so on.
+# This will give you current state like number of steps completed, instances launched
+# and so on.
 # Make your you keep a tap on the numbers to avoid breaching any limits.
 # parser = Parser(
 #     'performance/',
@@ -51,7 +54,7 @@ def main():
 
     # Train BC
     run = TrainingRun(name='bcx_001',
-                      epochs=1,
+                      epochs=2,
                       lr=1e-4)
     dataset = MultiFrameDataset()
     bc_agent = BCXAgent()
