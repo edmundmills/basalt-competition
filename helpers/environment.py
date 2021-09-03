@@ -10,7 +10,7 @@ class EnvironmentHelper:
                          'MineRLBasaltCreateVillageAnimalPen-v0',
                          'MineRLBasaltFindCave-v0',
                          'MineRLBasaltMakeWaterfall-v0']
-    max_episode_length = 4000
+    max_episode_length = 1000
 
 
 class ObservationSpace:

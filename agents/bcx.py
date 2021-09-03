@@ -158,7 +158,7 @@ class BCXAgent(BCAgent):
         return loss
 
 
-class NoisyBCXAgent(NoisyBCAgent):
+class NoisyBCXAgent(BCXAgent):
     def __init__(self, epsilon):
         self.epsilon = epsilon
         super().__init__()
