@@ -55,8 +55,9 @@ class BCXAgent(BCAgent):
         action = np.random.choice(self.actions, p=probabilities)
         while ActionSpace.threw_snowball(trajectory.current_obs(), action):
             action = np.random.choice(self.actions, p=probabilities)
-        print(ActionSpace.action_name(action))
-        print(f'Termination prediction: {terminate_episode.item():.2f}')
+            print('Preemptively attempted to end the episode')
+        # print(ActionSpace.action_name(action))
+        print(f'Termination prediction: {terminate_episode.item()}')
         if terminate_episode > 0.5:
             action = 11
         return action
