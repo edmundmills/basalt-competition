@@ -1,4 +1,5 @@
 from helpers.data import pre_process_expert_trajectories
+from generate_trajectories import generate_variable_demonstrations
 from helpers.datasets import MultiFrameDataset
 from helpers.training_runs import TrainingRun
 from agents.bcx import BCXAgent
@@ -66,6 +67,9 @@ def main():
     bc_agent.train(dataset, run)
 
     # Generate variable quality demonstrations
+    demo_count = 100
+    max_episode_length = 3000
+    generate_variable_demonstrations(bc_agent, demo_count, max_episode_length)
 
     # Train reward model
 

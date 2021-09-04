@@ -47,17 +47,17 @@ class BCXAgent(BCAgent):
          current_equipped, frame_sequence) = trajectory.current_state()
         with th.no_grad():
             (probabilities,
-             terminate_episode) = self.model(current_pov,
-                                             current_inventory,
-                                             current_equipped,
-                                             frame_sequence)
-        probabilities = F.softmax(probabilities.squeeze(), dim=0).numpy()
+             terminate_episode) = self.model(current_pov.to(self.device),
+                                             current_inventory.to(self.device),
+                                             current_equipped.to(self.device),
+                                             frame_sequence.to(self.device))
+        probabilities = F.softmax(probabilities.squeeze(), dim=0).cpu().numpy()
         action = np.random.choice(self.actions, p=probabilities)
         while ActionSpace.threw_snowball(trajectory.current_obs(), action):
             action = np.random.choice(self.actions, p=probabilities)
-            print('Preemptively attempted to end the episode')
+            # print('Preemptively attempted to end the episode')
         # print(ActionSpace.action_name(action))
-        print(f'Termination prediction: {terminate_episode.item()}')
+        # print(f'Termination prediction: {terminate_episode.item()}')
         if terminate_episode > 0.5:
             action = 11
         return action
@@ -166,12 +166,12 @@ class NoisyBCXAgent(BCXAgent):
     def get_action(self, trajectory):
         if np.random.rand() < self.epsilon / 1000:
             action = 11
-            print(f'Threw Snowball (at random)')
+            # print(f'Threw Snowball (at random)')
         elif np.random.rand() < self.epsilon:
             action = np.random.choice(ActionSpace.actions())
             while ActionSpace.threw_snowball(trajectory.current_obs(), action):
                 action = np.random.choice(self.actions)
-            print(f'{ActionSpace.action_name(action)} (at random)')
+            # print(f'{ActionSpace.action_name(action)} (at random)')
         else:
             action = super().get_action(trajectory)
         return action

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 class TrainingRun:
     def __init__(self, label, lr, epochs):
-        self.name = f'{int(round(time.time()))}_{label}'
+        self.name = f'{label}_{int(round(time.time()))}'
         self.lr = lr
         self.epochs = epochs
         self.losses = []

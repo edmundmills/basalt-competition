@@ -25,8 +25,10 @@ class BCAgent:
         (current_pov, current_inventory,
          current_equipped, frame_sequence) = trajectory.current_state()
         with th.no_grad():
-            probabilities = self.model(current_pov, current_inventory,
-                                       current_equipped, frame_sequence).cpu().squeeze()
+            probabilities = self.model(current_pov.to(self.device),
+                                       current_inventory.to(self.device),
+                                       current_equipped.to(self.device),
+                                       frame_sequence.to(self.device)).cpu().squeeze()
         probabilities = F.softmax(probabilities, dim=0).numpy()
         action = np.random.choice(self.actions, p=probabilities)
         print(ActionSpace.action_name(action))

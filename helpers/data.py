@@ -2,6 +2,10 @@ from helpers.trajectories import Trajectory
 
 from pathlib import Path
 import os
+from zipfile import ZipFile
+import time
+import shutil
+
 
 import numpy as np
 
@@ -43,6 +47,19 @@ def pre_process_expert_trajectories():
                 trajectory.actions.append(action)
                 trajectory.done = done
             trajectory.save(trajectory_path)
+
+
+def zip_demonstrations(paths, filename):
+    parent_dir = paths[0].parent
+    zip_dir = parent_dir / f'zip_temp_{time.time()}'
+    zip_dir.mkdir(exist_ok=True)
+    for path in paths:
+        target = zip_dir / path.name
+        path.replace(target)
+    with ZipFile(parent_dir / filename, 'w') as zip:
+        zip.write(zip_dir)
+    shutil.rmtree(zip_dir, ignore_errors=True)
+    print('Files Zipped')
 
 
 if __name__ == "__main__":
