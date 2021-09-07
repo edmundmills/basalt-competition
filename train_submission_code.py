@@ -2,7 +2,7 @@ from helpers.data import pre_process_expert_trajectories
 from generate_trajectories import generate_variable_demonstrations
 from helpers.datasets import MultiFrameDataset
 from helpers.training_runs import TrainingRun
-from agents.bcx import BCXAgent
+from agents.bc import BCAgent
 
 import torch as th
 import numpy as np

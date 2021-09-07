@@ -1,5 +1,4 @@
-from agents.bc import BCAgent, NoisyBCAgent
-from agents.bcx import BCXAgent, NoisyBCXAgent
+from agents.bc import BCAgent
 from helpers.trajectories import Trajectory, TrajectoryGenerator
 from environment.start import start_env
 
@@ -11,7 +10,7 @@ if __name__ == "__main__":
     MINERL_ENVIRONMENT = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
     env = start_env(debug_env=False)
-    agent = BCXAgent()
+    agent = BCAgent()
     saved_agent_path = Path('train') / '1630688204_bcx.pth'
     agent.load_parameters(saved_agent_path)
     generator = TrajectoryGenerator(env, agent)

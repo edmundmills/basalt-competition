@@ -1,5 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from helpers.datasets import MultiFrameDataset
 
 import os
 import time
@@ -11,35 +12,42 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 
-class BCAgent:
-    def __init__(self):
-        self.actions = ActionSpace.actions()
-        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.model = BC().to(self.device)
+class TerminateEpisodeDataset(MultiFrameDataset):
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.sample_interval = 100
+        self.included_steps = self._get_included_steps()
 
-    def load_parameters(self, model_file_path):
-        self.model.load_state_dict(
-            th.load(model_file_path, map_location=self.device), strict=False)
+    def _get_included_steps(self):
+        included_steps = []
+        for idx, step_path in enumerate(self.dataset.step_paths):
+            step_dict = self.dataset._load_step_dict(idx)
+            equipped_item = step_dict['obs']['equipped_items']['mainhand']['type']
+            action = step_dict['action']
+            if (step_dict['step'] % self.sample_interval == 0
+                    or (equipped_item == 'snowball' and action['use'] == 1)):
+                included_steps.append(idx)
+        return included_steps
 
-    def get_action(self, trajectory):
-        (current_pov, current_inventory,
-         current_equipped, frame_sequence) = trajectory.current_state()
-        with th.no_grad():
-            probabilities = self.model(current_pov.to(self.device),
-                                       current_inventory.to(self.device),
-                                       current_equipped.to(self.device),
-                                       frame_sequence.to(self.device)).cpu().squeeze()
-        probabilities = F.softmax(probabilities, dim=0).numpy()
-        action = np.random.choice(self.actions, p=probabilities)
-        print(ActionSpace.action_name(action))
-        return action
+    def __len__(self):
+        return len(self.included_steps)
+
+    def __getitem__(self, idx):
+        step_idx = self.included_steps[idx]
+        return self.dataset[step_idx]
+
+
+class TerminationCritic():
+    self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+    self.model = CriticNetwork().to(self.device)
 
     def train(self, dataset, run):
         optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
-        dataloader = DataLoader(dataset, batch_size=32,
+        termination_dataset = TerminateEpisodeDataset(dataset)
+        dataloader = DataLoader(termination_dataset, batch_size=32,
                                 shuffle=True, num_workers=4)
+
         iter_count = 0
-        iter_start_time = time.time()
         for epoch in range(run.epochs):
             for _, (dataset_obs, dataset_actions,
                     _next_obs, _done) in enumerate(dataloader):
@@ -58,37 +66,28 @@ class BCAgent:
         run.save_data()
         del dataloader
 
-    def loss(self, dataset_obs, dataset_actions):
-        current_pov = ObservationSpace.obs_to_pov(dataset_obs)
-        current_inventory = ObservationSpace.obs_to_inventory(dataset_obs)
-        current_equipped = ObservationSpace.obs_to_equipped_item(dataset_obs)
-        frame_sequence = ObservationSpace.obs_to_frame_sequence(dataset_obs)
-        actions = ActionSpace.dataset_action_batch_to_actions(dataset_actions)
+    def loss(self, termination_obs, termination_actions):
+        current_pov = ObservationSpace.obs_to_pov(termination_obs)
+        current_inventory = ObservationSpace.obs_to_inventory(termination_obs)
+        current_equipped = ObservationSpace.obs_to_equipped_item(termination_obs)
+        frame_sequence = ObservationSpace.obs_to_frame_sequence(termination_obs)
+        actions = ActionSpace.dataset_action_batch_to_actions(termination_actions)
 
-        # Remove samples that had no corresponding action
-        mask = actions != -1
-        current_pov = current_pov[mask]
-        current_inventory = current_inventory[mask]
-        frame_sequence = frame_sequence[mask]
-        current_equipped = current_equipped[mask]
-        actions = actions[mask]
+        use_actions = th.from_numpy(actions == 11).unsqueeze(1)
+        snowball_equipped = current_equipped == ActionSpace.one_hot_snowball()
+        terminated = use_actions * snowball_equipped
 
-        if len(actions) == 0:
-            return 0
+        _action_logits, predict_terminate = self.model(current_pov.to(self.device),
+                                                       current_inventory.to(self.device),
+                                                       current_equipped.to(self.device),
+                                                       frame_sequence.to(self.device))
 
-        # Obtain logits of each action
-        logits = self.model(current_pov.to(self.device),
-                            current_inventory.to(self.device),
-                            current_equipped.to(self.device),
-                            frame_sequence.to(self.device))
-
-        actions = th.from_numpy(actions).long().to(self.device)
-
-        loss = F.cross_entropy(logits, actions)
+        loss = F.binary_cross_entropy(predict_terminate,
+                                      terminated.float().to(self.device))
         return loss
 
 
-class BC(nn.Module):
+class CriticNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.frame_shape = ObservationSpace.frame_shape
@@ -108,7 +107,7 @@ class BC(nn.Module):
             nn.Linear(self.linear_input_dim, 1024),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(1024, self.output_dim)
+            nn.Linear(1024, 1)
         )
 
     def forward(self, current_pov, current_inventory, current_equipped, frame_sequence):
@@ -118,7 +117,7 @@ class BC(nn.Module):
         current_visual_features = self.cnn(current_pov).reshape(batch_size, -1)
         x = th.cat((current_visual_features, current_inventory,
                     current_equipped, past_visual_features), dim=1)
-        return self.linear(x)
+        return th.sigmoid(self.linear(x))
 
     def _visual_features_shape(self):
         with th.no_grad():
