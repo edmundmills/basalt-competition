@@ -43,17 +43,16 @@ class Trajectory:
         return self.get_state(current_idx)
 
     def get_state(self, idx):
-        frame_sequence = self.spaced_frames(idx)
+        frame_sequence = self.additional_frames(idx)
         obs = self.obs[idx]
         pov = ObservationSpace.obs_to_pov(obs)
         inventory = ObservationSpace.obs_to_inventory(obs)
         equipped = ObservationSpace.obs_to_equipped_item(obs)
         return pov, inventory, equipped, frame_sequence
 
-    def spaced_frames(self, step):
-        frame_indices = [int(math.floor(step *
-                                        frame_number / (self.number_of_frames - 1)))
-                         for frame_number in range(self.number_of_frames - 1)]
+    def additional_frames(self, step):
+        frame_indices = [max(0, step - 1 - frame_number)
+                         for frame_number in reversed(range(self.number_of_frames - 1))]
         frames = th.cat([ObservationSpace.obs_to_pov(self.obs[frame_idx])
                         for frame_idx in frame_indices])
         return frames

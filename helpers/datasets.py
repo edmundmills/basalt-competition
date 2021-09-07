@@ -90,10 +90,9 @@ class MultiFrameDataset(StepDataset):
         return step_dict
 
     def _frame_sequence(self, step_number, idx_in_dataset):
-        frame_indices = [idx_in_dataset - step_number +
-                         int(math.floor(step_number *
-                                        frame_number / (self.number_of_frames - 1)))
-                         for frame_number in range(self.number_of_frames - 1)]
+        initial_step_idx = idx_in_dataset - step_number
+        frame_indices = [max(initial_step_idx, idx_in_dataset - 1 - frame_number)
+                         for frame_number in reversed(range(self.number_of_frames - 1))]
         frame_sequence = np.array([self._load_step_dict(frame_idx)['obs']['pov']
                                    for frame_idx in frame_indices])
         return frame_sequence
