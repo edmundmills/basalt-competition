@@ -120,18 +120,19 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-    def push(self, state, action, next_state, done):
-        self.buffer.append((state, action, next_state, done))
+    def __getitem__(self, idx):
+        return self.buffer[idx]
+
+    def push(self, obs, action, next_obs, done):
+        self.buffer.append((obs, action, next_obs, done))
 
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.buffer))
-        replay_batch = random.sample(self.buffer, replay_batch_size)
-        (replay_obs, replay_actions,
-         replay_next_obs, replay_done) = zip(*replay_batch)
-        replay_obs = th.cat(replay_states, dim=0)
-        replay_actions = th.LongTensor(replay_actions).unsqueeze(1)
-        replay_next_obs = th.cat(replay_next_obs, dim=0)
-        replay_done = th.LongTensor(replay_done).unsqueeze(1)
+        dataloader = iter(DataLoader(self,
+                                     shuffle=True,
+                                     batch_size=replay_batch_size))
+        (replay_obs, replay_actions, replay_next_obs,
+            replay_done) = next(dataloader)
         return replay_obs, replay_actions, replay_next_obs, replay_done
 
 
