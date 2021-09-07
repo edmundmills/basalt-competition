@@ -57,6 +57,8 @@ def main():
                            action='store_false', default=True)
     argparser.add_argument('--train-critic-false', dest='train_critic',
                            action='store_false', default=True)
+    argparser.add_argument('--debug-env', dest='debug_env',
+                           action='store_true', default=False)
     args = argparser.parse_args()
 
     # Preprocess Data
@@ -84,7 +86,7 @@ def main():
                       lr=1e-4,
                       discount_factor=0.99)
     bc_agent = SqilAgent(termination_critic=critic)
-    env = start_env()
+    env = start_env(debug_env=args.debug_env)
     bc_agent.train(env, run)
 
     # Training 100% Completed

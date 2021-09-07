@@ -42,6 +42,9 @@ class TerminateEpisodeDataset(StepDataset):
 class CriticNetwork(Network):
     def __init__(self):
         super().__init__()
+        self.linear_input_dim = sum([self.visual_feature_dim,
+                                     self.inventory_dim,
+                                     self.equip_dim])
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Flatten(),

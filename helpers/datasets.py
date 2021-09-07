@@ -10,7 +10,7 @@ import math
 import random
 import numpy as np
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 
 class StepDataset(Dataset):
@@ -39,9 +39,9 @@ class StepDataset(Dataset):
             steps_dir_path = trajectory_path / 'steps'
             if not steps_dir_path.is_dir():
                 continue
-            trajecory_step_paths = sorted(steps_dir_path.iterdir())
+            trajectory_step_paths = sorted(steps_dir_path.iterdir())
             trajectory_length = len(trajectory_step_paths)
-            step_paths.extend(trajecory_step_paths)
+            step_paths.extend(trajectory_step_paths)
             trajectory_lengths.append(trajectory_length)
         return step_paths, trajectory_lengths
 
@@ -115,7 +115,7 @@ class MultiFrameDataset(StepDataset):
 class ReplayBuffer:
     def __init__(self, capacity):
         self.capacity = capacity
-        self.buffer = deque([], maxlen=capacity)
+        self.buffer = deque([], maxlen=int(capacity))
 
     def __len__(self):
         return len(self.buffer)

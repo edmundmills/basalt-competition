@@ -101,8 +101,10 @@ class ObservationSpace:
         return inventory
 
     def obs_to_states(obs):
-        return (obs_to_pov(obs), obs_to_inventory(obs),
-                obs_to_equipped_item(obs), obs_to_frame_sequence(obs))
+        return (ObservationSpace.obs_to_pov(obs),
+                ObservationSpace.obs_to_inventory(obs),
+                ObservationSpace.obs_to_equipped_item(obs),
+                ObservationSpace.obs_to_frame_sequence(obs))
 
 
 class ActionSpace:

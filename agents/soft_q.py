@@ -66,7 +66,7 @@ class SoftQAgent:
         current_trajectory.obs.append(obs)
 
         for step in range(self.run.training_steps):
-            current_obs = trajectory.current_obs()
+            current_obs = current_trajectory.current_obs()
             action = self.get_action(current_obs)
             if action == 11:
                 print(f'Threw Snowball at step {step}')
@@ -74,7 +74,7 @@ class SoftQAgent:
             obs, _, done, _ = env.step(action)
             current_trajectory.obs.append(obs)
             current_trajectory.done = done
-            next_obs = trajectory.current_obs()
+            next_obs = current_trajectory.current_obs()
             replay_buffer.push(current_obs, action, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
