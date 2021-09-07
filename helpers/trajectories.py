@@ -4,6 +4,7 @@ import math
 import os
 import shutil
 from pathlib import Path
+from collections import OrderedDict
 
 import numpy as np
 import torch as th
@@ -19,6 +20,7 @@ class Trajectory:
         self.actions = []
         self.done = False
         self.number_of_frames = ObservationSpace.number_of_frames
+        self.additional_data = OrderedDict()
 
     def __len__(self):
         return len(self.obs)
@@ -66,6 +68,9 @@ class Trajectory:
         path.mkdir(exist_ok=True)
         np.save(file=path / 'actions.npy', arr=np.array(self.actions))
         np.save(file=path / 'obs.npy', arr=np.array(self.obs))
+        if len(self.additional_data) > 0:
+            np.save(file=path / 'additional_data.npy', arr=np.array(self.additional_data))
+
         steps_path = path / 'steps'
         shutil.rmtree(steps_path, ignore_errors=True)
         steps_path.mkdir()
@@ -138,9 +143,16 @@ class TrajectoryViewer:
 
         def render_frame(step):
             frame = self.trajectory.obs[step]["pov"]
-            action_name = ActionSpace.action_name(self.trajectory.actions[step])
+            action = self.trajectory.actions[step]
+            if not isinstance(action, int):
+                action = ActionSpace.dataset_action_batch_to_actions(action)[0]
+            action_name = ActionSpace.action_name(action)
             txt_action.set_text(f'Action: {action_name}')
             img.set_array(frame)
+            if first_plot_marker:
+                first_plot_marker.set_xdata(step)
+            if second_plot_marker:
+                second_plot_marker.set_xdata(step)
             fig.canvas.flush_events()
             fig.canvas.draw_idle()
 
@@ -178,6 +190,22 @@ class TrajectoryViewer:
         ax_text.get_yaxis().set_visible(False)
         txt_action = ax_text.text(.1, 1.35, 'Action:')
         animated_elements = [img, txt_action]
+        if len(list(self.trajectory.additional_data.keys())) > 0:
+            ax_first_plot = plt.subplot2grid((9, 8), (0, 6), colspan=4, rowspan=2)
+            ax_first_plot.set(ylabel=list(self.trajectory.additional_data.keys())[0],
+                              xlim=(0, len(self.trajectory)))
+            ax_first_plot.plot(range(len(self.trajectory)),
+                               list(self.trajectory.additional_data.values())[0], 'b-')
+            first_plot_marker = ax_first_plot.axvline(x=-1, color='r')
+            animated_elements.append(first_plot_marker)
+        if len(list(self.trajectory.additional_data.keys())) > 1:
+            ax_second_plot = plt.subplot2grid((9, 8), (3, 6), colspan=4, rowspan=2)
+            ax_second_plot.set(ylabel=list(self.trajectory.additional_data.keys())[1],
+                               xlim=(0, len(self.trajectory)))
+            ax_second_plot.plot(range(len(self.trajectory)),
+                                list(self.trajectory.additional_data.values())[1], 'b-')
+            second_plot_marker = ax_second_plot.axvline(x=-1, color='r')
+            animated_elements.append(second_plot_marker)
 
         if len(self.trajectory) > 0:
             ax_steps = plt.axes([0.2, 0.15, 0.65, 0.03])

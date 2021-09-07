@@ -1,8 +1,8 @@
 from helpers.data import pre_process_expert_trajectories
-from generate_trajectories import generate_variable_demonstrations
-from helpers.datasets import MultiFrameDataset
+from helpers.datasets import StepDataset, MultiFrameDataset
 from helpers.training_runs import TrainingRun
 from agents.bc import BCAgent
+from agents.termination_critic import TerminationCritic
 
 import torch as th
 import numpy as np
@@ -58,24 +58,21 @@ def main():
     if args.preprocess:
         pre_process_expert_trajectories()
 
-    # Train BC
-    run = TrainingRun(label='bcx',
-                      epochs=2,
+    # Train termination critic
+    run = TrainingRun(label='termination_critic',
+                      epochs=5,
                       lr=1e-4)
-    dataset = MultiFrameDataset()
-    bc_agent = BCXAgent()
-    bc_agent.train(dataset, run)
+    dataset = StepDataset()
+    critic = TerminationCritic()
+    critic.train(dataset, run)
 
-    # Generate variable quality demonstrations
-    demo_count = 100
-    max_episode_length = 3000
-    generate_variable_demonstrations(bc_agent, demo_count, max_episode_length)
-
-    # Train reward model
-
-    # Train offline RL Agent
-
-    # Get feedback
+    # # Train Agent
+    # run = TrainingRun(label='bcx',
+    #                   epochs=2,
+    #                   lr=1e-4)
+    # dataset = MultiFrameDataset()
+    # bc_agent = BCXAgent()
+    # bc_agent.train(dataset, run)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)

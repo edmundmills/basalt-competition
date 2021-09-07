@@ -3,6 +3,7 @@ from helpers.environment import ObservationSpace, MirrorAugmentation
 from pathlib import Path
 import os
 from collections import deque
+import json
 
 import torch as th
 import math
@@ -22,20 +23,33 @@ class StepDataset(Dataset):
         self.data_root = Path(data_root)
         self.transform = transform
         step_paths = []
+        trajectory_lengths = []
         for environment_name in self.environments:
             environment_path = self.data_root / environment_name
-            step_paths.extend(self._get_step_data(environment_path))
+            paths, lengths = self._get_step_data(environment_path)
+            step_paths.extend(paths)
+            trajectory_lengths.extend(lengths)
         self.step_paths = step_paths
+        self.trajectory_lengths = trajectory_lengths
 
     def _get_step_data(self, environment_path):
         step_paths = []
+        trajectory_lengths = []
         for trajectory_path in sorted(environment_path.iterdir()):
             steps_dir_path = trajectory_path / 'steps'
             if not steps_dir_path.is_dir():
                 continue
             trajecory_step_paths = sorted(steps_dir_path.iterdir())
+            trajectory_length = len(trajectory_step_paths)
             step_paths.extend(trajecory_step_paths)
-        return step_paths
+            trajectory_lengths.append(trajectory_length)
+        return step_paths, trajectory_lengths
+
+    def trajectory_length(self, step_path):
+        trajectory_path = step_path.parent.parent
+        trajectory_index = self.trajectory_paths.index(trajectory_path)
+        length = self.trajectory_lengths[trajectory_index]
+        return length
 
     def __len__(self):
         return len(self.step_paths)
@@ -55,6 +69,11 @@ class StepDataset(Dataset):
         if self.transform:
             sample = self.transform(sample)
         return sample
+
+    def _load_step_dict(self, idx):
+        step_path = self.step_paths[idx]
+        step_dict = np.load(step_path, allow_pickle=True).item()
+        return step_dict
 
 
 class MultiFrameDataset(StepDataset):
@@ -83,11 +102,6 @@ class MultiFrameDataset(StepDataset):
         if self.transform:
             sample = self.transform(sample)
         return sample
-
-    def _load_step_dict(self, idx):
-        step_path = self.step_paths[idx]
-        step_dict = np.load(step_path, allow_pickle=True).item()
-        return step_dict
 
     def _frame_sequence(self, step_number, idx_in_dataset):
         initial_step_idx = idx_in_dataset - step_number

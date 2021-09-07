@@ -1,6 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
-from helpers.datasets import MultiFrameDataset
+from helpers.datasets import StepDataset
 
 import os
 import time
@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 
-class TerminateEpisodeDataset(MultiFrameDataset):
+class TerminateEpisodeDataset(StepDataset):
     def __init__(self, dataset):
         self.dataset = dataset
         self.sample_interval = 100
@@ -21,10 +21,12 @@ class TerminateEpisodeDataset(MultiFrameDataset):
     def _get_included_steps(self):
         included_steps = []
         for idx, step_path in enumerate(self.dataset.step_paths):
+            trajectory_length = self.trajectory_length(step_path)
             step_dict = self.dataset._load_step_dict(idx)
             equipped_item = step_dict['obs']['equipped_items']['mainhand']['type']
             action = step_dict['action']
-            if (step_dict['step'] % self.sample_interval == 0
+            if ((step_dict['step'] % self.sample_interval == 0
+                 and step_dict['step'] < trajectory_length - self.sample_interval)
                     or (equipped_item == 'snowball' and action['use'] == 1)):
                 included_steps.append(idx)
         return included_steps
@@ -38,8 +40,39 @@ class TerminateEpisodeDataset(MultiFrameDataset):
 
 
 class TerminationCritic():
-    self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-    self.model = CriticNetwork().to(self.device)
+    def __init__(self):
+        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.model = CriticNetwork().to(self.device)
+
+    def critique_trajectory(self, trajectory):
+        termination_ratings = []
+        termination_rewards = []
+        for step in range(len(trajectory)):
+            (current_pov, current_inventory,
+             current_equipped, frame_sequence) = trajectory.get_state(step)
+            with th.no_grad():
+                rating = self.model.forward(current_pov, current_inventory,
+                                            current_equipped)
+                print(rating.item())
+            termination_ratings.append(rating.detach().cpu())
+            reward = self.termination_reward(current_pov, current_inventory,
+                                             current_equipped, frame_sequence)
+            termination_rewards.append(reward)
+        trajectory.additional_data['termination_ratings'] = termination_ratings
+        trajectory.additional_data['termination_rewards'] = termination_rewards
+        return termination_ratings
+
+    def termination_reward(self, current_pov, current_inventory,
+                           current_equipped, frame_sequence):
+        frames = frame_sequence.chunk(ObservationSpace.number_of_frames - 1, dim=0)
+        with th.no_grad():
+            ratings = [self.model(frame, current_inventory, current_equipped).detach()
+                       for frame in frames]
+            ratings.append(self.model(current_pov, current_inventory,
+                                      current_equipped).detach())
+        average_rating = sum(ratings) / len(ratings)
+        reward = (average_rating * 4000) - 1
+        return reward
 
     def train(self, dataset, run):
         optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
@@ -64,27 +97,30 @@ class TerminationCritic():
         print('Training complete')
         th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
         run.save_data()
+        del termination_dataset
         del dataloader
 
     def loss(self, termination_obs, termination_actions):
         current_pov = ObservationSpace.obs_to_pov(termination_obs)
         current_inventory = ObservationSpace.obs_to_inventory(termination_obs)
         current_equipped = ObservationSpace.obs_to_equipped_item(termination_obs)
-        frame_sequence = ObservationSpace.obs_to_frame_sequence(termination_obs)
         actions = ActionSpace.dataset_action_batch_to_actions(termination_actions)
 
         use_actions = th.from_numpy(actions == 11).unsqueeze(1)
         snowball_equipped = current_equipped == ActionSpace.one_hot_snowball()
         terminated = use_actions * snowball_equipped
 
-        _action_logits, predict_terminate = self.model(current_pov.to(self.device),
-                                                       current_inventory.to(self.device),
-                                                       current_equipped.to(self.device),
-                                                       frame_sequence.to(self.device))
+        predict_terminate = self.model(current_pov.to(self.device),
+                                       current_inventory.to(self.device),
+                                       current_equipped.to(self.device))
 
         loss = F.binary_cross_entropy(predict_terminate,
                                       terminated.float().to(self.device))
         return loss
+
+    def load_parameters(self, model_file_path):
+        self.model.load_state_dict(
+            th.load(model_file_path, map_location=self.device), strict=False)
 
 
 class CriticNetwork(nn.Module):
@@ -94,10 +130,9 @@ class CriticNetwork(nn.Module):
         self.inventory_dim = len(ObservationSpace.items())
         self.equip_dim = len(ObservationSpace.items())
         self.output_dim = len(ActionSpace.actions())
-        self.number_of_frames = ObservationSpace.number_of_frames
         self.cnn = mobilenet_v3_large(pretrained=True, progress=True).features
         self.visual_feature_dim = self._visual_features_dim()
-        self.linear_input_dim = sum([self.visual_feature_dim * self.number_of_frames,
+        self.linear_input_dim = sum([self.visual_feature_dim,
                                      self.inventory_dim,
                                      self.equip_dim])
 
@@ -110,13 +145,10 @@ class CriticNetwork(nn.Module):
             nn.Linear(1024, 1)
         )
 
-    def forward(self, current_pov, current_inventory, current_equipped, frame_sequence):
+    def forward(self, current_pov, current_inventory, current_equipped):
         batch_size = current_pov.size()[0]
-        frame_sequence = frame_sequence.reshape((-1, *self.frame_shape))
-        past_visual_features = self.cnn(frame_sequence).reshape(batch_size, -1)
         current_visual_features = self.cnn(current_pov).reshape(batch_size, -1)
-        x = th.cat((current_visual_features, current_inventory,
-                    current_equipped, past_visual_features), dim=1)
+        x = th.cat((current_visual_features, current_inventory, current_equipped), dim=1)
         return th.sigmoid(self.linear(x))
 
     def _visual_features_shape(self):

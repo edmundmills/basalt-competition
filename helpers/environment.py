@@ -88,8 +88,11 @@ class ObservationSpace:
 
     def obs_to_inventory(obs):
         inventory = obs['inventory']
-        if isinstance(list(inventory.values())[0], np.ndarray):
+        first_item = list(inventory.values())[0]
+        if isinstance(first_item, np.ndarray):
             inventory = {k: th.from_numpy(v).unsqueeze(0) for k, v in inventory.items()}
+        elif isinstance(first_item, np.int32):
+            inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
         inventory = [inventory[item_name].unsqueeze(1) / starting_count
                      for item_name, starting_count
@@ -142,17 +145,17 @@ class ActionSpace:
         Array elements are integers corresponding to actions, or "-1"
         for actions that did not have any corresponding discrete match.
         """
-        camera_actions = dataset_actions["camera"].squeeze()
-        attack_actions = dataset_actions["attack"].squeeze()
-        forward_actions = dataset_actions["forward"].squeeze()
-        back_actions = dataset_actions["back"].squeeze()
-        left_actions = dataset_actions["left"].squeeze()
-        right_actions = dataset_actions["right"].squeeze()
-        jump_actions = dataset_actions["jump"].squeeze()
+        camera_actions = dataset_actions["camera"].reshape((-1, 2))
+        attack_actions = dataset_actions["attack"].reshape(-1)
+        forward_actions = dataset_actions["forward"].reshape(-1)
+        back_actions = dataset_actions["back"].reshape(-1)
+        left_actions = dataset_actions["left"].reshape(-1)
+        right_actions = dataset_actions["right"].reshape(-1)
+        jump_actions = dataset_actions["jump"].reshape(-1)
         equip_actions = dataset_actions["equip"]
-        use_actions = dataset_actions["use"].squeeze()
+        use_actions = dataset_actions["use"].reshape(-1)
 
-        batch_size = len(camera_actions)
+        batch_size = len(attack_actions)
         actions = np.zeros((batch_size,), dtype=np.int)
         items = ObservationSpace.items()
 
