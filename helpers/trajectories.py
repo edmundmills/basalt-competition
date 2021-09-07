@@ -38,7 +38,9 @@ class Trajectory:
 
     def current_obs(self):
         current_idx = len(self) - 1
-        return self.obs[current_idx]
+        obs = self.obs[current_idx]
+        obs['frame_sequence'] = self.additional_frames(current_idx)
+        return obs
 
     def current_state(self):
         current_idx = len(self) - 1

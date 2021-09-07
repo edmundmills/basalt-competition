@@ -126,10 +126,49 @@ class ReplayBuffer:
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.buffer))
         replay_batch = random.sample(self.buffer, replay_batch_size)
-        (replay_states, replay_actions,
-         replay_next_states, replay_done) = zip(*replay_batch)
-        replay_states = th.cat(replay_states, dim=0)
+        (replay_obs, replay_actions,
+         replay_next_obs, replay_done) = zip(*replay_batch)
+        replay_obs = th.cat(replay_states, dim=0)
         replay_actions = th.LongTensor(replay_actions).unsqueeze(1)
-        replay_next_states = th.cat(replay_states, dim=0)
+        replay_next_obs = th.cat(replay_next_obs, dim=0)
         replay_done = th.LongTensor(replay_done).unsqueeze(1)
-        return replay_states, replay_actions, replay_next_states, replay_done
+        return replay_obs, replay_actions, replay_next_obs, replay_done
+
+
+class MixedReplayBuffer(ReplayBuffer):
+    '''
+    Samples a fraction from the expert trajectories
+    and the remainder from the replay buffer.
+    '''
+
+    def __init__(self,
+                 expert_data_path,
+                 capacity,
+                 batch_size=64,
+                 expert_sample_fraction=0.5):
+        self.batch_size = batch_size
+        self.expert_sample_fraction = expert_sample_fraction
+        self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
+        self.replay_batch_size = self.batch_size - self.expert_batch_size
+        super().__init__(capacity)
+        self.expert_dataset = MultiFrameDataset(expert_data_path)
+        self.expert_dataloader = self._initialize_dataloader()
+
+    def _initialize_dataloader(self):
+        return iter(DataLoader(self.expert_dataset,
+                               shuffle=True,
+                               batch_size=self.expert_batch_size,
+                               drop_last=True))
+
+    def sample_replay(self):
+        return self.sample(self.replay_batch_size)
+
+    def sample_expert(self):
+        try:
+            (expert_obs, expert_actions, expert_next_obs,
+                expert_done) = next(self.expert_dataloader)
+        except StopIteration:
+            self.expert_dataloader = self._initialize_dataloader()
+            (expert_obs, expert_actions, expert_next_obs,
+                expert_done) = next(self.expert_dataloader)
+        return expert_obs, expert_actions, expert_next_obs, expert_done

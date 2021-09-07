@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 
 
 class TrainingRun:
-    def __init__(self, label, lr, epochs):
+    def __init__(self, label, lr, epochs=None, training_steps=None, discount_factor=None):
         self.name = f'{label}_{int(round(time.time()))}'
         self.lr = lr
         self.epochs = epochs
+        self.training_steps = training_steps
+        self.discount_factor = discount_factor
         self.losses = []
         self.update_frequency = 100
         self.timestamps = []
@@ -43,7 +45,10 @@ class TrainingRun:
         data = {'timestamps': self.timestamps,
                 'losses': self.losses,
                 'lr': self.lr,
-                'epochs': self.epochs}
+                'epochs': self.epochs,
+                'training_steps': self.training_steps,
+                'discount_factor': self.discount_factor,
+                }
         np.save(file=save_path / 'data.npy', arr=np.array(data))
         fig = plt.figure()
         plt.ylabel('Loss')

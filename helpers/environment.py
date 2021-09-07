@@ -100,6 +100,10 @@ class ObservationSpace:
         inventory = th.cat(inventory, dim=1)
         return inventory
 
+    def obs_to_states(obs):
+        return (obs_to_pov(obs), obs_to_inventory(obs),
+                obs_to_equipped_item(obs), obs_to_frame_sequence(obs))
+
 
 class ActionSpace:
     action_name_list = ['Forward',  # 0

@@ -66,13 +66,14 @@ def main():
     critic = TerminationCritic()
     critic.train(dataset, run)
 
-    # # Train Agent
-    # run = TrainingRun(label='bcx',
-    #                   epochs=2,
-    #                   lr=1e-4)
-    # dataset = MultiFrameDataset()
-    # bc_agent = BCXAgent()
-    # bc_agent.train(dataset, run)
+    # Train Agent
+    run = TrainingRun(label='sqil',
+                      training_steps=1000,
+                      lr=1e-4,
+                      discount_factor=0.99)
+    dataset = MultiFrameDataset()
+    bc_agent = SqilAgent(termination_critic=critic)
+    bc_agent.train(dataset, run)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
