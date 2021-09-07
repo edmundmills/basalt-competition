@@ -2,11 +2,14 @@ from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import StepDataset, MultiFrameDataset
 from helpers.training_runs import TrainingRun
 from agents.bc import BCAgent
+from agents.soft_q import SqilAgent
 from agents.termination_critic import TerminationCritic
+from environment.start import start_env
 
 import torch as th
 import numpy as np
 
+from pathlib import Path
 import argparse
 import logging
 import os
@@ -52,6 +55,8 @@ def main():
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--preprocess-false', dest='preprocess',
                            action='store_false', default=True)
+    argparser.add_argument('--train-critic-false', dest='train_critic',
+                           action='store_false', default=True)
     args = argparser.parse_args()
 
     # Preprocess Data
@@ -59,25 +64,31 @@ def main():
         pre_process_expert_trajectories()
 
     # Train termination critic
-    run = TrainingRun(label='termination_critic',
-                      epochs=5,
-                      lr=1e-4)
-    dataset = StepDataset()
     critic = TerminationCritic()
-    critic.train(dataset, run)
+    if args.train_critic:
+        run = TrainingRun(label='termination_critic',
+                          epochs=5,
+                          lr=1e-4)
+        dataset = StepDataset()
+        critic.train(dataset, run)
+    else:
+        for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+            if 'termination_critic' in saved_agent_path.name:
+                print(f'Loading {saved_agent_path.name} as termination critic')
+                critic.load_parameters(saved_agent_path)
+                break
 
     # Train Agent
     run = TrainingRun(label='sqil',
                       training_steps=1000,
                       lr=1e-4,
                       discount_factor=0.99)
-    dataset = MultiFrameDataset()
     bc_agent = SqilAgent(termination_critic=critic)
-    bc_agent.train(dataset, run)
+    env = start_env()
+    bc_agent.train(env, run)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
-    # env.close()
 
 
 if __name__ == "__main__":

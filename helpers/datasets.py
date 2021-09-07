@@ -142,8 +142,7 @@ class MixedReplayBuffer(ReplayBuffer):
     '''
 
     def __init__(self,
-                 expert_data_path,
-                 capacity,
+                 capacity=1e6,
                  batch_size=64,
                  expert_sample_fraction=0.5):
         self.batch_size = batch_size
@@ -151,7 +150,7 @@ class MixedReplayBuffer(ReplayBuffer):
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
         super().__init__(capacity)
-        self.expert_dataset = MultiFrameDataset(expert_data_path)
+        self.expert_dataset = MultiFrameDataset()
         self.expert_dataloader = self._initialize_dataloader()
 
     def _initialize_dataloader(self):
