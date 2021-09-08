@@ -9,10 +9,11 @@ from torch import nn
 class Network(nn.Module):
     def __init__(self):
         super().__init__()
+        self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.inventory_dim = len(ObservationSpace.items())
         self.equip_dim = len(ObservationSpace.items())
-        self.output_dim = len(ActionSpace.actions())
+        self.output_dim = len(self.actions)
         self.number_of_frames = ObservationSpace.number_of_frames
         self.cnn = mobilenet_v3_large(pretrained=True, progress=True).features
         self.visual_feature_dim = self._visual_features_dim()

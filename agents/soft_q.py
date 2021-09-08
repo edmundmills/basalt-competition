@@ -45,12 +45,12 @@ class SoftQAgent:
             th.load(model_file_path, map_location=self.device), strict=False)
 
     def save(self, path):
-        th.save(agent.model.state_dict(), path)
+        th.save(self.model.state_dict(), path)
 
-    def get_action(self, obs):
-        states = ObservationSpace.obs_to_states(obs)
+    def get_action(self, state):
+        state = [state_component.to(self.device) for state_component in state]
         with th.no_grad():
-            Q = self.model.get_Q(states)
+            Q = self.model.get_Q(state)
             probabilities = self.model.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
         return action
@@ -67,7 +67,7 @@ class SoftQAgent:
 
         for step in range(self.run.training_steps):
             current_obs = current_trajectory.current_obs()
-            action = self.get_action(current_obs)
+            action = self.get_action(ObservationSpace.obs_to_state(current_obs))
             if action == 11:
                 print(f'Threw Snowball at step {step}')
             current_trajectory.actions.append(action)
@@ -78,11 +78,11 @@ class SoftQAgent:
             replay_buffer.push(current_obs, action, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
-                loss = agent.train_one_batch(replay_buffer.sample_expert(),
-                                             replay_buffer.sample_replay())
+                loss = self.train_one_batch(replay_buffer.sample_expert(),
+                                            replay_buffer.sample_replay())
                 run.append_loss(loss.detach().item())
 
-            run.print_update()
+            run.print_update(step)
 
             if done:
                 print(f'Trajectory completed at step {step}')
@@ -102,44 +102,50 @@ class SqilAgent(SoftQAgent):
         replay_obs, replay_actions, replay_next_obs, _replay_done = replay_batch
 
         expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
-        expert_actions = th.from_numpy(expert_actions).unsqueeze(1).to(self.device)
+        expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
+        replay_actions = replay_actions.unsqueeze(1)
+
+        expert_states = ObservationSpace.obs_to_state(expert_obs)
+        expert_next_states = ObservationSpace.obs_to_state(expert_next_obs)
+        replay_states = ObservationSpace.obs_to_state(replay_obs)
+        replay_next_states = ObservationSpace.obs_to_state(replay_next_obs)
 
         # remove expert no-op actions
-        mask = expert_actions != -1
-        expert_obs = expert_obs[mask]
+        mask = (expert_actions != -1).squeeze()
         expert_actions = expert_actions[mask]
-        expert_next_obs = expert_next_obs[mask]
+        expert_states = [state_component[mask] for state_component in expert_states]
+        expert_next_states = [state_component[mask]
+                              for state_component in expert_next_states]
+
         masked_expert_batch_size = len(expert_actions)
         replay_batch_size = len(replay_actions)
-
-        expert_states = ObservationSpace.obs_to_states(expert_obs).to(self.device)
-        expert_next_states = ObservationSpace.obs_to_states(
-            expert_next_obs).to(self.device)
-        replay_states = ObservationSpace.obs_to_states(replay_obs).to(self.device)
-        replay_next_states = ObservationSpace.obs_to_states(
-            replay_next_obs).to(self.device)
 
         expert_rewards = th.ones(masked_expert_batch_size, 1)
         replay_rewards = th.zeros(replay_batch_size, 1)
 
         # update replay rewards with termination critic
         if self.termination_critic is not None:
-            threw_snowball = ActionSpace.threw_snowball(replay_obs, replay_actions)
+            threw_snowball = ActionSpace.threw_snowball_list(replay_obs, replay_actions)
             for idx, termination in enumerate(threw_snowball):
                 if termination:
+                    termination_state = [state_component[idx].unsqueeze(0)
+                                         for state_component in replay_states]
                     reward = self.termination_critic.termination_reward(
-                        replay_states[idx])
+                        termination_state)
                     replay_rewards[idx] = reward
 
-        batch_rewards = th.cat([expert_rewards, replay_rewards], dim=0).to(self.device)
-        batch_actions = th.cat([expert_actions, replay_actions], dim=0)
-        batch_states = th.cat([expert_states, replay_states,
-                               expert_next_states, replay_next_states], dim=0)
+        batch_rewards = th.cat([expert_rewards.to(self.device),
+                                replay_rewards.to(self.device)], dim=0)
+        batch_actions = th.cat([expert_actions.to(self.device),
+                                replay_actions.to(self.device)], dim=0)
+        batch_states = [th.cat(state_component, dim=0).to(self.device) for state_component
+                        in zip(expert_states, replay_states,
+                               expert_next_states, replay_next_states)]
 
         batch_Qs = self.model.get_Q(batch_states)
         current_Qs, next_Qs = th.chunk(batch_Qs, 2, dim=0)
-
         predicted_Qs = th.gather(current_Qs, 1, batch_actions)
+
         V_next = self.model.get_V(next_Qs)
         y = batch_rewards + self.run.discount_factor * V_next
 

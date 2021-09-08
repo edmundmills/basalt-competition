@@ -72,7 +72,11 @@ class ObservationSpace:
         return obs.permute(0, 3, 1, 2).float() / 255.0
 
     def obs_to_frame_sequence(obs):
-        return obs['frame_sequence'].permute(0, 1, 4, 2, 3).float() / 255.0
+        frame_sequence = obs['frame_sequence']
+        frame_sequence = frame_sequence.reshape((-1,
+                                                 ObservationSpace.number_of_frames - 1,
+                                                 64, 64, 3))
+        return frame_sequence.permute(0, 1, 4, 2, 3).float() / 255.0
 
     def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
@@ -100,7 +104,7 @@ class ObservationSpace:
         inventory = th.cat(inventory, dim=1)
         return inventory
 
-    def obs_to_states(obs):
+    def obs_to_state(obs):
         return (ObservationSpace.obs_to_pov(obs),
                 ObservationSpace.obs_to_inventory(obs),
                 ObservationSpace.obs_to_equipped_item(obs),
@@ -139,7 +143,15 @@ class ActionSpace:
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
 
     def threw_snowball(obs, action):
-        return action == 11 and obs['equipped_items']['mainhand']['type'] == 'snowball'
+        equipped_item = obs['equipped_items']['mainhand']['type']
+        return action == 11 and equipped_item == 'snowball'
+
+    def threw_snowball_list(obs, actions):
+        equipped_items = obs['equipped_items']['mainhand']['type']
+        if isinstance(actions, th.Tensor):
+            actions = actions.squeeze().tolist()
+        return [item == 'snowball' and action == 11
+                for item, action in zip(equipped_items, actions)]
 
     def dataset_action_batch_to_actions(dataset_actions, camera_margin=5):
         """

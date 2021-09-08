@@ -70,30 +70,31 @@ class TerminationCritic():
         termination_ratings = []
         termination_rewards = []
         for step in range(len(trajectory)):
-            (current_pov, current_inventory,
-             current_equipped, frame_sequence) = trajectory.get_state(step)
+            state = trajectory.get_state(step)
+            current_pov, current_inventory, current_equipped, frame_sequence = state
             with th.no_grad():
                 rating = self.model.forward(current_pov, current_inventory,
                                             current_equipped)
                 print(rating.item())
             termination_ratings.append(rating.detach().cpu())
-            reward = self.termination_reward(current_pov, current_inventory,
-                                             current_equipped, frame_sequence)
+            reward = self.termination_reward(state)
             termination_rewards.append(reward)
         trajectory.additional_data['termination_ratings'] = termination_ratings
         trajectory.additional_data['termination_rewards'] = termination_rewards
         return termination_ratings
 
-    def termination_reward(self, current_pov, current_inventory,
-                           current_equipped, frame_sequence):
-        frames = frame_sequence.chunk(ObservationSpace.number_of_frames - 1, dim=0)
+    def termination_reward(self, state):
+        state = [state_component.to(self.device) for state_component in state]
+        current_pov, current_inventory, current_equipped, frame_sequence = state
+        current_inventory = current_inventory.repeat(ObservationSpace.number_of_frames, 1)
+        current_equipped = current_equipped.repeat(ObservationSpace.number_of_frames, 1)
+        frames = th.cat((frame_sequence.reshape(-1, *ObservationSpace.frame_shape),
+                         current_pov), dim=0)
         with th.no_grad():
-            ratings = [self.model(frame, current_inventory, current_equipped).detach()
-                       for frame in frames]
-            ratings.append(self.model(current_pov, current_inventory,
-                                      current_equipped).detach())
+            ratings = self.model(frames, current_inventory,
+                                 current_equipped).cpu().squeeze().tolist()
         average_rating = sum(ratings) / len(ratings)
-        reward = (average_rating * 4000) - 1
+        reward = min((average_rating * 4000) - 1, 2.0)
         return reward
 
     def train(self, dataset, run):

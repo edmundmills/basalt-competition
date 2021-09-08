@@ -21,7 +21,9 @@ class TrainingRun:
         self.timestamps.append(time.time())
 
     def print_update(self, iter_count):
-        if (iter_count % self.update_frequency) == 0:
+        if iter_count == 0:
+            print('Training Starting')
+        elif (iter_count % self.update_frequency) == 0:
             smoothed_loss = sum(
                 self.losses[-self.update_frequency:-1])/self.update_frequency
             duration = self.timestamps[-1] - self.timestamps[-self.update_frequency]
