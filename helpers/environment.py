@@ -73,9 +73,8 @@ class ObservationSpace:
 
     def obs_to_frame_sequence(obs):
         frame_sequence = obs['frame_sequence']
-        frame_sequence = frame_sequence.reshape((-1,
-                                                 ObservationSpace.number_of_frames - 1,
-                                                 64, 64, 3))
+        if len(frame_sequence.size()) == 4:
+            frame_sequence = frame_sequence.unsqueeze(0)
         return frame_sequence.permute(0, 1, 4, 2, 3).float() / 255.0
 
     def obs_to_equipped_item(obs):

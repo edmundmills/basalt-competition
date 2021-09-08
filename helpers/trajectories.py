@@ -47,18 +47,15 @@ class Trajectory:
         return self.get_state(current_idx)
 
     def get_state(self, idx):
-        frame_sequence = self.additional_frames(idx)
         obs = self.obs[idx]
-        pov = ObservationSpace.obs_to_pov(obs)
-        inventory = ObservationSpace.obs_to_inventory(obs)
-        equipped = ObservationSpace.obs_to_equipped_item(obs)
-        return pov, inventory, equipped, frame_sequence
+        obs['frame_sequence'] = self.additional_frames(idx)
+        return ObservationSpace.obs_to_state(obs)
 
     def additional_frames(self, step):
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number in reversed(range(self.number_of_frames - 1))]
-        frames = th.cat([ObservationSpace.obs_to_pov(self.obs[frame_idx])
-                        for frame_idx in frame_indices])
+        frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'])
+                           for frame_idx in frame_indices], dim=0)
         return frames
 
     def load(self, path):
@@ -71,7 +68,8 @@ class Trajectory:
         np.save(file=path / 'actions.npy', arr=np.array(self.actions))
         np.save(file=path / 'obs.npy', arr=np.array(self.obs))
         if len(self.additional_data) > 0:
-            np.save(file=path / 'additional_data.npy', arr=np.array(self.additional_data))
+            np.save(file=path / 'additional_data.npy',
+                    arr=np.array(self.additional_data))
 
         steps_path = path / 'steps'
         shutil.rmtree(steps_path, ignore_errors=True)

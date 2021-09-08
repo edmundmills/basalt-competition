@@ -21,7 +21,7 @@ class TerminateEpisodeDataset(StepDataset):
     def _get_included_steps(self):
         included_steps = []
         for idx, step_path in enumerate(self.dataset.step_paths):
-            trajectory_length = self.trajectory_length(step_path)
+            trajectory_length = self.dataset.trajectory_length(step_path)
             step_dict = self.dataset._load_step_dict(idx)
             equipped_item = step_dict['obs']['equipped_items']['mainhand']['type']
             action = step_dict['action']
@@ -46,17 +46,14 @@ class CriticNetwork(Network):
                                      self.inventory_dim,
                                      self.equip_dim])
         self.linear = nn.Sequential(
-            nn.Dropout(p=0.5),
             nn.Flatten(),
             nn.Linear(self.linear_input_dim, 1024),
             nn.ReLU(),
-            nn.Dropout(p=0.5),
             nn.Linear(1024, 1)
         )
 
     def forward(self, current_pov, current_inventory, current_equipped):
-        batch_size = current_pov.size()[0]
-        current_visual_features = self.cnn(current_pov).reshape(batch_size, -1)
+        current_visual_features = self.cnn(current_pov).flatten(start_dim=1)
         x = th.cat((current_visual_features, current_inventory, current_equipped), dim=1)
         return th.sigmoid(self.linear(x))
 
@@ -76,7 +73,7 @@ class TerminationCritic():
                 rating = self.model.forward(current_pov, current_inventory,
                                             current_equipped)
                 print(rating.item())
-            termination_ratings.append(rating.detach().cpu())
+            termination_ratings.append(rating.item())
             reward = self.termination_reward(state)
             termination_rewards.append(reward)
         trajectory.additional_data['termination_ratings'] = termination_ratings
@@ -86,15 +83,15 @@ class TerminationCritic():
     def termination_reward(self, state):
         state = [state_component.to(self.device) for state_component in state]
         current_pov, current_inventory, current_equipped, frame_sequence = state
-        current_inventory = current_inventory.repeat(ObservationSpace.number_of_frames, 1)
-        current_equipped = current_equipped.repeat(ObservationSpace.number_of_frames, 1)
-        frames = th.cat((frame_sequence.reshape(-1, *ObservationSpace.frame_shape),
-                         current_pov), dim=0)
+        frames = frame_sequence.squeeze(dim=0).chunk(
+            ObservationSpace.number_of_frames - 1, dim=0)
+        frames = (*frames, current_pov)
         with th.no_grad():
-            ratings = self.model(frames, current_inventory,
-                                 current_equipped).cpu().squeeze().tolist()
+            ratings = [self.model(frame, current_inventory, current_equipped).item()
+                       for frame in frames]
+        print(ratings)
         average_rating = sum(ratings) / len(ratings)
-        reward = min((average_rating * 4000) - 1, 2.0)
+        reward = min((average_rating * 20000) - 1, 2.0)
         return reward
 
     def train(self, dataset, run):
