@@ -75,6 +75,7 @@ class TerminationCritic():
                 print(rating.item())
             termination_ratings.append(rating.item())
             reward = self.termination_reward(state)
+            print(reward)
             termination_rewards.append(reward)
         trajectory.additional_data['termination_ratings'] = termination_ratings
         trajectory.additional_data['termination_rewards'] = termination_rewards
@@ -89,7 +90,6 @@ class TerminationCritic():
         with th.no_grad():
             ratings = [self.model(frame, current_inventory, current_equipped).item()
                        for frame in frames]
-        print(ratings)
         average_rating = sum(ratings) / len(ratings)
         reward = min((average_rating * 20000) - 1, 2.0)
         return reward

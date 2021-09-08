@@ -54,7 +54,7 @@ class Trajectory:
     def additional_frames(self, step):
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number in reversed(range(self.number_of_frames - 1))]
-        frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'])
+        frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'].copy())
                            for frame_idx in frame_indices], dim=0)
         return frames
 
