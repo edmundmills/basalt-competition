@@ -85,7 +85,7 @@ def main():
 
     # Train Agent
     run = TrainingRun(label='sqil',
-                      training_steps=1000,
+                      training_steps=5000,
                       lr=1e-4,
                       discount_factor=0.99)
     bc_agent = SqilAgent(termination_critic=critic)

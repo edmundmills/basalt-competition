@@ -95,7 +95,8 @@ class SoftQAgent:
                 currnet_trajectory = Trajectory()
                 current_trajectory.obs.append(obs)
 
-        self.save()
+        print('Training complete')
+        th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
         self.run.save_data()
         self.optimizer = None
         self.run = None
