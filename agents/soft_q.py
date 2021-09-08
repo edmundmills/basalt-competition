@@ -53,6 +53,7 @@ class SoftQAgent:
             Q = self.model.get_Q(state)
             probabilities = self.model.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
+        print(action)
         return action
 
     def train(self, env, run):

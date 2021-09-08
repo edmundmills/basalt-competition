@@ -13,7 +13,10 @@ if __name__ == "__main__":
     trajectory = Trajectory()
     trajectory.load(trajectory_path)
     critic = TerminationCritic()
-    saved_agent_path = Path('train') / 'termination_critic_1631119402.pth'
-    critic.load_parameters(saved_agent_path)
+    for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+        if 'termination_critic' in saved_agent_path.name:
+            print(f'Loading {saved_agent_path.name} as termination critic')
+            critic.load_parameters(saved_agent_path)
+            break
     critic.critique_trajectory(trajectory)
     trajectory.view()

@@ -95,7 +95,7 @@ class TrajectoryGenerator:
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.obs.append(obs)
-            action = self.agent.get_action(trajectory)
+            action = self.agent.get_action(trajectory.current_state())
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
@@ -144,7 +144,7 @@ class TrajectoryViewer:
         def render_frame(step):
             frame = self.trajectory.obs[step]["pov"]
             action = self.trajectory.actions[step]
-            if not isinstance(action, int):
+            if not isinstance(action, (int, np.int64)):
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
             action_name = ActionSpace.action_name(action)
             txt_action.set_text(f'Action: {action_name}')
@@ -198,6 +198,8 @@ class TrajectoryViewer:
                                list(self.trajectory.additional_data.values())[0], 'b-')
             first_plot_marker = ax_first_plot.axvline(x=-1, color='r')
             animated_elements.append(first_plot_marker)
+        else:
+            first_plot_marker = None
         if len(list(self.trajectory.additional_data.keys())) > 1:
             ax_second_plot = plt.subplot2grid((9, 8), (3, 6), colspan=4, rowspan=2)
             ax_second_plot.set(ylabel=list(self.trajectory.additional_data.keys())[1],
@@ -206,6 +208,8 @@ class TrajectoryViewer:
                                 list(self.trajectory.additional_data.values())[1], 'b-')
             second_plot_marker = ax_second_plot.axvline(x=-1, color='r')
             animated_elements.append(second_plot_marker)
+        else:
+            second_plot_marker = None
 
         if len(self.trajectory) > 0:
             ax_steps = plt.axes([0.2, 0.15, 0.65, 0.03])
