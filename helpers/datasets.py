@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 from collections import deque
 import json
+import copy
 
 import torch as th
 import math
@@ -124,7 +125,8 @@ class ReplayBuffer:
         return self.buffer[idx]
 
     def push(self, obs, action, next_obs, done):
-        self.buffer.append((obs, action, next_obs, done))
+        self.buffer.append((copy.deepcopy(obs), action.copy(),
+                            copy.deepcopy(next_obs), done))
 
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.buffer))

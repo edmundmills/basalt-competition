@@ -61,6 +61,9 @@ def main():
                            action='store_true', default=False)
     args = argparser.parse_args()
 
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
+
     # Preprocess Data
     if args.preprocess:
         pre_process_expert_trajectories()

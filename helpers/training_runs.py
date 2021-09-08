@@ -26,8 +26,9 @@ class TrainingRun:
         elif (iter_count % self.update_frequency) == 0:
             smoothed_loss = sum(
                 self.losses[-self.update_frequency:-1])/self.update_frequency
-            duration = self.timestamps[-1] - self.timestamps[-self.update_frequency]
-            rate = self.update_frequency / duration
+            iterations = min(self.update_frequency, len(self.timestamps) - 1)
+            duration = self.timestamps[-1] - self.timestamps[-iterations]
+            rate = iterations / duration
             print(
                 f'Iteration {iter_count}. Loss: {smoothed_loss:.2f}, {rate:.2f} it/s')
 
