@@ -12,6 +12,7 @@ import numpy as np
 from pathlib import Path
 import argparse
 import logging
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
 import os
 # import aicrowd_helper
 # from utility.parser import Parser
@@ -59,6 +60,8 @@ def main():
                            action='store_false', default=True)
     argparser.add_argument('--debug-env', dest='debug_env',
                            action='store_true', default=False)
+    argparser.add_argument('--profile', dest='profile',
+                           action='store_true', default=False)
     args = argparser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -85,12 +88,23 @@ def main():
 
     # Train Agent
     run = TrainingRun(label='sqil',
-                      training_steps=5000,
+                      training_steps=20000,
                       lr=1e-4,
                       discount_factor=0.99)
     bc_agent = SqilAgent(termination_critic=critic)
+    if args.debug_env:
+        print('Starting Debug Env')
     env = start_env(debug_env=args.debug_env)
-    bc_agent.train(env, run)
+    if args.profile:
+        print('Training with profiler')
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                     schedule=schedule(skip_first=10, wait=5,
+                     warmup=1, active=3, repeat=2)) as prof:
+            with record_function("model_inference"):
+                bc_agent.train(env, run, profiler=prof)
+            print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+    else:
+        bc_agent.train(env, run)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)

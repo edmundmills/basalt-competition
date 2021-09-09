@@ -128,18 +128,17 @@ class ReplayBuffer:
     def __getitem__(self, idx):
         return self.buffer[idx]
 
-    def push(self, obs, action, next_obs, done):
+    def push(self, obs, action, next_obs, done, reward):
         self.buffer.append((copy.deepcopy(obs), action.copy(),
-                            copy.deepcopy(next_obs), done))
+                            copy.deepcopy(next_obs), done, reward))
 
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.buffer))
         dataloader = iter(DataLoader(self,
                                      shuffle=True,
                                      batch_size=replay_batch_size))
-        (replay_obs, replay_actions, replay_next_obs,
-            replay_done) = next(dataloader)
-        return replay_obs, replay_actions, replay_next_obs, replay_done
+        sample = next(dataloader)
+        return sample
 
 
 class MixedReplayBuffer(ReplayBuffer):

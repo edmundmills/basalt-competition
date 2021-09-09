@@ -53,10 +53,9 @@ class SoftQAgent:
             Q = self.model.get_Q(state)
             probabilities = self.model.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
-        print(action)
         return action
 
-    def train(self, env, run):
+    def train(self, env, run, profiler=None):
         self.optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
         self.run = run
         replay_buffer = MixedReplayBuffer(capacity=1e6, batch_size=64,
@@ -75,13 +74,17 @@ class SoftQAgent:
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
+                else:
+                    reward = 0
+            else:
+                reward = 0
 
             current_trajectory.actions.append(action)
             obs, _, done, _ = env.step(action)
             current_trajectory.obs.append(obs)
             current_trajectory.done = done
             next_obs = current_trajectory.current_obs()
-            replay_buffer.push(current_obs, action, next_obs, done)
+            replay_buffer.push(current_obs, action, next_obs, done, reward)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 loss = self.train_one_batch(replay_buffer.sample_expert(),
@@ -96,6 +99,9 @@ class SoftQAgent:
                 currnet_trajectory = Trajectory()
                 current_trajectory.obs.append(obs)
 
+            if profiler:
+                profiler.step()
+
         print('Training complete')
         th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
         self.run.save_data()
@@ -106,7 +112,8 @@ class SoftQAgent:
 class SqilAgent(SoftQAgent):
     def train_one_batch(self, expert_batch, replay_batch):
         expert_obs, expert_actions, expert_next_obs, _expert_done = expert_batch
-        replay_obs, replay_actions, replay_next_obs, _replay_done = replay_batch
+        (replay_obs, replay_actions, replay_next_obs,
+         _replay_done, replay_rewards) = replay_batch
 
         expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
         expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
@@ -127,22 +134,11 @@ class SqilAgent(SoftQAgent):
         masked_expert_batch_size = len(expert_actions)
         replay_batch_size = len(replay_actions)
 
-        expert_rewards = th.ones(masked_expert_batch_size, 1)
-        replay_rewards = th.zeros(replay_batch_size, 1)
+        expert_rewards = th.ones(masked_expert_batch_size, 1, device=self.device)
+        replay_rewards = replay_rewards.unsqueeze(1).float().to(self.device)
 
-        # update replay rewards with termination critic
-        if self.termination_critic is not None:
-            threw_snowball = ActionSpace.threw_snowball_list(replay_obs, replay_actions)
-            for idx, termination in enumerate(threw_snowball):
-                if termination:
-                    termination_state = [state_component[idx].unsqueeze(0)
-                                         for state_component in replay_states]
-                    reward = self.termination_critic.termination_reward(
-                        termination_state)
-                    replay_rewards[idx] = reward
-
-        batch_rewards = th.cat([expert_rewards.to(self.device),
-                                replay_rewards.to(self.device)], dim=0)
+        batch_rewards = th.cat([expert_rewards,
+                                replay_rewards], dim=0)
         batch_actions = th.cat([expert_actions.to(self.device),
                                 replay_actions.to(self.device)], dim=0)
         batch_states = [th.cat(state_component, dim=0).to(self.device) for state_component
