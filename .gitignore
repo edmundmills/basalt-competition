@@ -2,3 +2,5 @@ train/
 training_runs/
 logs/
 __pycache__/
+output.pstats
+*.png
