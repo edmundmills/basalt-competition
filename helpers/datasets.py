@@ -4,13 +4,14 @@ from pathlib import Path
 import os
 from collections import deque
 import json
+import copy
 
 import torch as th
 import math
 import random
 import numpy as np
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 
 class StepDataset(Dataset):
@@ -23,27 +24,31 @@ class StepDataset(Dataset):
         self.data_root = Path(data_root)
         self.transform = transform
         step_paths = []
+        trajectory_paths = []
         trajectory_lengths = []
         for environment_name in self.environments:
             environment_path = self.data_root / environment_name
-            paths, lengths = self._get_step_data(environment_path)
-            step_paths.extend(paths)
+            s_paths, t_paths, lengths = self._get_step_data(environment_path)
+            step_paths.extend(s_paths)
+            trajectory_paths.extend(t_paths)
             trajectory_lengths.extend(lengths)
         self.step_paths = step_paths
+        self.trajectory_paths = trajectory_paths
         self.trajectory_lengths = trajectory_lengths
 
     def _get_step_data(self, environment_path):
         step_paths = []
         trajectory_lengths = []
-        for trajectory_path in sorted(environment_path.iterdir()):
+        trajectory_paths = sorted(environment_path.iterdir())
+        for trajectory_path in trajectory_paths:
             steps_dir_path = trajectory_path / 'steps'
             if not steps_dir_path.is_dir():
                 continue
-            trajecory_step_paths = sorted(steps_dir_path.iterdir())
+            trajectory_step_paths = sorted(steps_dir_path.iterdir())
             trajectory_length = len(trajectory_step_paths)
-            step_paths.extend(trajecory_step_paths)
+            step_paths.extend(trajectory_step_paths)
             trajectory_lengths.append(trajectory_length)
-        return step_paths, trajectory_lengths
+        return step_paths, trajectory_paths, trajectory_lengths
 
     def trajectory_length(self, step_path):
         trajectory_path = step_path.parent.parent
@@ -115,21 +120,60 @@ class MultiFrameDataset(StepDataset):
 class ReplayBuffer:
     def __init__(self, capacity):
         self.capacity = capacity
-        self.buffer = deque([], maxlen=capacity)
+        self.buffer = deque([], maxlen=int(capacity))
 
     def __len__(self):
         return len(self.buffer)
 
-    def push(self, state, action, next_state, done):
-        self.buffer.append((state, action, next_state, done))
+    def __getitem__(self, idx):
+        return self.buffer[idx]
+
+    def push(self, obs, action, next_obs, done, reward):
+        self.buffer.append((copy.deepcopy(obs), action.copy(),
+                            copy.deepcopy(next_obs), done, reward))
 
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.buffer))
-        replay_batch = random.sample(self.buffer, replay_batch_size)
-        (replay_states, replay_actions,
-         replay_next_states, replay_done) = zip(*replay_batch)
-        replay_states = th.cat(replay_states, dim=0)
-        replay_actions = th.LongTensor(replay_actions).unsqueeze(1)
-        replay_next_states = th.cat(replay_states, dim=0)
-        replay_done = th.LongTensor(replay_done).unsqueeze(1)
-        return replay_states, replay_actions, replay_next_states, replay_done
+        dataloader = iter(DataLoader(self,
+                                     shuffle=True,
+                                     batch_size=replay_batch_size))
+        sample = next(dataloader)
+        return sample
+
+
+class MixedReplayBuffer(ReplayBuffer):
+    '''
+    Samples a fraction from the expert trajectories
+    and the remainder from the replay buffer.
+    '''
+
+    def __init__(self,
+                 capacity=1e6,
+                 batch_size=64,
+                 expert_sample_fraction=0.5):
+        self.batch_size = batch_size
+        self.expert_sample_fraction = expert_sample_fraction
+        self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
+        self.replay_batch_size = self.batch_size - self.expert_batch_size
+        super().__init__(capacity)
+        self.expert_dataset = MultiFrameDataset()
+        self.expert_dataloader = self._initialize_dataloader()
+
+    def _initialize_dataloader(self):
+        return iter(DataLoader(self.expert_dataset,
+                               shuffle=True,
+                               batch_size=self.expert_batch_size,
+                               drop_last=True))
+
+    def sample_replay(self):
+        return self.sample(self.replay_batch_size)
+
+    def sample_expert(self):
+        try:
+            (expert_obs, expert_actions, expert_next_obs,
+                expert_done) = next(self.expert_dataloader)
+        except StopIteration:
+            self.expert_dataloader = self._initialize_dataloader()
+            (expert_obs, expert_actions, expert_next_obs,
+                expert_done) = next(self.expert_dataloader)
+        return expert_obs, expert_actions, expert_next_obs, expert_done

@@ -9,11 +9,14 @@ if __name__ == "__main__":
 
     MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
     trajectory_path = Path(MINERL_DATA_ROOT) / MINERL_ENVIRONMENT / \
-        'v3_accomplished_pattypan_squash_ghost-6_1739-2809'
+        'v3_organic_gourd_yeti-2_3492-3909'
     trajectory = Trajectory()
     trajectory.load(trajectory_path)
     critic = TerminationCritic()
-    saved_agent_path = Path('train') / 'termination_critic_1630986816.pth'
-    critic.load_parameters(saved_agent_path)
+    for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+        if 'termination_critic' in saved_agent_path.name:
+            print(f'Loading {saved_agent_path.name} as termination critic')
+            critic.load_parameters(saved_agent_path)
+            break
     critic.critique_trajectory(trajectory)
     trajectory.view()

@@ -38,25 +38,24 @@ class Trajectory:
 
     def current_obs(self):
         current_idx = len(self) - 1
-        return self.obs[current_idx]
+        obs = self.obs[current_idx]
+        obs['frame_sequence'] = self.additional_frames(current_idx)
+        return obs
 
     def current_state(self):
         current_idx = len(self) - 1
         return self.get_state(current_idx)
 
     def get_state(self, idx):
-        frame_sequence = self.additional_frames(idx)
         obs = self.obs[idx]
-        pov = ObservationSpace.obs_to_pov(obs)
-        inventory = ObservationSpace.obs_to_inventory(obs)
-        equipped = ObservationSpace.obs_to_equipped_item(obs)
-        return pov, inventory, equipped, frame_sequence
+        obs['frame_sequence'] = self.additional_frames(idx)
+        return ObservationSpace.obs_to_state(obs)
 
     def additional_frames(self, step):
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number in reversed(range(self.number_of_frames - 1))]
-        frames = th.cat([ObservationSpace.obs_to_pov(self.obs[frame_idx])
-                        for frame_idx in frame_indices])
+        frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'].copy())
+                           for frame_idx in frame_indices], dim=0)
         return frames
 
     def load(self, path):
@@ -69,7 +68,8 @@ class Trajectory:
         np.save(file=path / 'actions.npy', arr=np.array(self.actions))
         np.save(file=path / 'obs.npy', arr=np.array(self.obs))
         if len(self.additional_data) > 0:
-            np.save(file=path / 'additional_data.npy', arr=np.array(self.additional_data))
+            np.save(file=path / 'additional_data.npy',
+                    arr=np.array(self.additional_data))
 
         steps_path = path / 'steps'
         shutil.rmtree(steps_path, ignore_errors=True)
@@ -95,7 +95,7 @@ class TrajectoryGenerator:
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.obs.append(obs)
-            action = self.agent.get_action(trajectory)
+            action = self.agent.get_action(trajectory.current_state())
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
@@ -144,7 +144,7 @@ class TrajectoryViewer:
         def render_frame(step):
             frame = self.trajectory.obs[step]["pov"]
             action = self.trajectory.actions[step]
-            if not isinstance(action, int):
+            if not isinstance(action, (int, np.int64)):
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
             action_name = ActionSpace.action_name(action)
             txt_action.set_text(f'Action: {action_name}')
@@ -198,6 +198,8 @@ class TrajectoryViewer:
                                list(self.trajectory.additional_data.values())[0], 'b-')
             first_plot_marker = ax_first_plot.axvline(x=-1, color='r')
             animated_elements.append(first_plot_marker)
+        else:
+            first_plot_marker = None
         if len(list(self.trajectory.additional_data.keys())) > 1:
             ax_second_plot = plt.subplot2grid((9, 8), (3, 6), colspan=4, rowspan=2)
             ax_second_plot.set(ylabel=list(self.trajectory.additional_data.keys())[1],
@@ -206,6 +208,8 @@ class TrajectoryViewer:
                                 list(self.trajectory.additional_data.values())[1], 'b-')
             second_plot_marker = ax_second_plot.axvline(x=-1, color='r')
             animated_elements.append(second_plot_marker)
+        else:
+            second_plot_marker = None
 
         if len(self.trajectory) > 0:
             ax_steps = plt.axes([0.2, 0.15, 0.65, 0.03])

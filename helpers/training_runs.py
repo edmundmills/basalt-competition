@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 
 
 class TrainingRun:
-    def __init__(self, label, lr, epochs):
+    def __init__(self, label, lr, epochs=None, training_steps=None, discount_factor=None):
         self.name = f'{label}_{int(round(time.time()))}'
         self.lr = lr
         self.epochs = epochs
+        self.training_steps = training_steps
+        self.discount_factor = discount_factor
         self.losses = []
         self.update_frequency = 100
         self.timestamps = []
@@ -19,11 +21,14 @@ class TrainingRun:
         self.timestamps.append(time.time())
 
     def print_update(self, iter_count):
-        if (iter_count % self.update_frequency) == 0:
+        if iter_count == 0:
+            print('Training Starting')
+        elif (iter_count % self.update_frequency) == 0:
             smoothed_loss = sum(
                 self.losses[-self.update_frequency:-1])/self.update_frequency
-            duration = self.timestamps[-1] - self.timestamps[-self.update_frequency]
-            rate = self.update_frequency / duration
+            iterations = min(self.update_frequency, len(self.timestamps) - 1)
+            duration = self.timestamps[-1] - self.timestamps[-iterations]
+            rate = iterations / duration
             print(
                 f'Iteration {iter_count}. Loss: {smoothed_loss:.2f}, {rate:.2f} it/s')
 
@@ -43,7 +48,10 @@ class TrainingRun:
         data = {'timestamps': self.timestamps,
                 'losses': self.losses,
                 'lr': self.lr,
-                'epochs': self.epochs}
+                'epochs': self.epochs,
+                'training_steps': self.training_steps,
+                'discount_factor': self.discount_factor,
+                }
         np.save(file=save_path / 'data.npy', arr=np.array(data))
         fig = plt.figure()
         plt.ylabel('Loss')

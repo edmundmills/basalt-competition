@@ -2,13 +2,17 @@ from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import StepDataset, MultiFrameDataset
 from helpers.training_runs import TrainingRun
 from agents.bc import BCAgent
+from agents.soft_q import SqilAgent
 from agents.termination_critic import TerminationCritic
+from environment.start import start_env
 
 import torch as th
 import numpy as np
 
+from pathlib import Path
 import argparse
 import logging
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
 import os
 # import aicrowd_helper
 # from utility.parser import Parser
@@ -52,31 +56,58 @@ def main():
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--preprocess-false', dest='preprocess',
                            action='store_false', default=True)
+    argparser.add_argument('--train-critic-false', dest='train_critic',
+                           action='store_false', default=True)
+    argparser.add_argument('--debug-env', dest='debug_env',
+                           action='store_true', default=False)
+    argparser.add_argument('--profile', dest='profile',
+                           action='store_true', default=False)
     args = argparser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
 
     # Preprocess Data
     if args.preprocess:
         pre_process_expert_trajectories()
 
     # Train termination critic
-    run = TrainingRun(label='termination_critic',
-                      epochs=5,
-                      lr=1e-4)
-    dataset = StepDataset()
     critic = TerminationCritic()
-    critic.train(dataset, run)
+    if args.train_critic:
+        run = TrainingRun(label='termination_critic',
+                          epochs=5,
+                          lr=1e-4)
+        dataset = StepDataset()
+        critic.train(dataset, run)
+    else:
+        for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+            if 'termination_critic' in saved_agent_path.name:
+                print(f'Loading {saved_agent_path.name} as termination critic')
+                critic.load_parameters(saved_agent_path)
+                break
 
-    # # Train Agent
-    # run = TrainingRun(label='bcx',
-    #                   epochs=2,
-    #                   lr=1e-4)
-    # dataset = MultiFrameDataset()
-    # bc_agent = BCXAgent()
-    # bc_agent.train(dataset, run)
+    # Train Agent
+    run = TrainingRun(label='sqil',
+                      training_steps=20000,
+                      lr=1e-4,
+                      discount_factor=0.99)
+    bc_agent = SqilAgent(termination_critic=critic)
+    if args.debug_env:
+        print('Starting Debug Env')
+    env = start_env(debug_env=args.debug_env)
+    if args.profile:
+        print('Training with profiler')
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                     schedule=schedule(skip_first=10, wait=5,
+                     warmup=1, active=3, repeat=2)) as prof:
+            with record_function("model_inference"):
+                bc_agent.train(env, run, profiler=prof)
+            print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+    else:
+        bc_agent.train(env, run)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
-    # env.close()
 
 
 if __name__ == "__main__":
