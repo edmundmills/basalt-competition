@@ -15,6 +15,9 @@ class TrainingRun:
         self.losses = []
         self.update_frequency = 100
         self.timestamps = []
+        save_path = Path('training_runs') / self.name
+        save_path.mkdir(exist_ok=True)
+        self.save_path = save_path
 
     def append_loss(self, loss):
         self.losses.append(loss)
@@ -43,8 +46,6 @@ class TrainingRun:
         return smoothed_losses
 
     def save_data(self):
-        save_path = Path('training_runs') / self.name
-        save_path.mkdir(exist_ok=True)
         data = {'timestamps': self.timestamps,
                 'losses': self.losses,
                 'lr': self.lr,
@@ -52,9 +53,9 @@ class TrainingRun:
                 'training_steps': self.training_steps,
                 'discount_factor': self.discount_factor,
                 }
-        np.save(file=save_path / 'data.npy', arr=np.array(data))
+        np.save(file=self.save_path / 'data.npy', arr=np.array(data))
         fig = plt.figure()
         plt.ylabel('Loss')
         plt.xlabel(f'iterations (x{self.update_frequency})')
         plt.plot(self.smoothed_losses())
-        plt.savefig(save_path / 'loss_plot.png')
+        plt.savefig(self.save_path / 'loss_plot.png')

@@ -132,8 +132,6 @@ class SqilAgent(SoftQAgent):
                               for state_component in expert_next_states]
 
         masked_expert_batch_size = len(expert_actions)
-        replay_batch_size = len(replay_actions)
-
         expert_rewards = th.ones(masked_expert_batch_size, 1, device=self.device)
         replay_rewards = replay_rewards.unsqueeze(1).float().to(self.device)
 

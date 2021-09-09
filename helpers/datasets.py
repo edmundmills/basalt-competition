@@ -136,7 +136,8 @@ class ReplayBuffer:
         replay_batch_size = min(batch_size, len(self.buffer))
         dataloader = iter(DataLoader(self,
                                      shuffle=True,
-                                     batch_size=replay_batch_size))
+                                     batch_size=replay_batch_size,
+                                     num_workers=4))
         sample = next(dataloader)
         return sample
 
@@ -163,6 +164,7 @@ class MixedReplayBuffer(ReplayBuffer):
         return iter(DataLoader(self.expert_dataset,
                                shuffle=True,
                                batch_size=self.expert_batch_size,
+                               num_workers=4,
                                drop_last=True))
 
     def sample_replay(self):
