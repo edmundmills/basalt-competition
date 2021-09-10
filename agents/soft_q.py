@@ -22,13 +22,12 @@ class SoftQNetwork(Network):
 
     def get_V(self, Qs):
         v = self.alpha * \
-            th.log(th.sum(th.exp(Qs / self.alpha), dim=1, keepdim=True))
+            th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
         return v
 
     def action_probabilities(self, Qs):
         Vs = self.get_V(Qs).repeat(1, len(self.actions))
-        probabilities = th.exp((Qs - Vs)/self.alpha)
-        probabilities /= th.sum(probabilities)
+        probabilities = F.softmax((Qs - Vs)/self.alpha, dim=1)
         return probabilities
 
 
