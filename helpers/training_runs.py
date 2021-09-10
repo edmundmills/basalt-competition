@@ -6,14 +6,20 @@ import matplotlib.pyplot as plt
 
 
 class TrainingRun:
-    def __init__(self, label, lr, epochs=None, training_steps=None, discount_factor=None):
+    def __init__(self,
+                 label,
+                 lr,
+                 epochs=None,
+                 training_steps=None,
+                 update_frequency=100,
+                 checkpoint_freqency=None):
         self.name = f'{label}_{int(round(time.time()))}'
         self.lr = lr
         self.epochs = epochs
         self.training_steps = training_steps
-        self.discount_factor = discount_factor
+        self.update_frequency = update_frequency
+        self.checkpoint_freqency = checkpoint_freqency
         self.losses = []
-        self.update_frequency = 100
         self.timestamps = []
         save_path = Path('training_runs') / self.name
         save_path.mkdir(exist_ok=True)
@@ -24,9 +30,11 @@ class TrainingRun:
         self.timestamps.append(time.time())
 
     def print_update(self, iter_count):
-        if iter_count == 0:
+        if iter_count == 1:
             print('Training Starting')
         elif (iter_count % self.update_frequency) == 0:
+            if len(self.losses) == 0:
+                return
             smoothed_loss = sum(
                 self.losses[-self.update_frequency:-1])/self.update_frequency
             iterations = min(self.update_frequency, len(self.timestamps) - 1)
@@ -51,7 +59,6 @@ class TrainingRun:
                 'lr': self.lr,
                 'epochs': self.epochs,
                 'training_steps': self.training_steps,
-                'discount_factor': self.discount_factor,
                 }
         np.save(file=self.save_path / 'data.npy', arr=np.array(data))
         fig = plt.figure()

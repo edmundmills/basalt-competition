@@ -33,9 +33,10 @@ class SoftQNetwork(Network):
 
 
 class SoftQAgent:
-    def __init__(self, alpha=1, termination_critic=None):
+    def __init__(self, alpha=1, termination_critic=None, discount_factor=0.99):
         self.actions = ActionSpace.actions()
         self.alpha = alpha
+        self.discount_factor = discount_factor
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.model = SoftQNetwork(alpha=self.alpha).to(self.device)
         self.termination_critic = termination_critic
@@ -66,11 +67,13 @@ class SoftQAgent:
         current_trajectory.obs.append(obs)
 
         for step in range(self.run.training_steps):
+            iter_count = step + 1
+
             current_obs = current_trajectory.current_obs()
             current_state = ObservationSpace.obs_to_state(current_obs)
             action = self.get_action(current_state)
             if action == 11:
-                print(f'Threw Snowball at step {step}')
+                print(f'Threw Snowball at step {iter_count}')
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
@@ -91,16 +94,20 @@ class SoftQAgent:
                                             replay_buffer.sample_replay())
                 run.append_loss(loss.detach().item())
 
-            run.print_update(step)
+            run.print_update(iter_count)
 
             if done:
-                print(f'Trajectory completed at step {step}')
+                print(f'Trajectory completed at step {iter_count}')
                 obs = env.reset()
                 currnet_trajectory = Trajectory()
                 current_trajectory.obs.append(obs)
 
             if profiler:
                 profiler.step()
+            if (run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0
+                    and iter_count < run.training_steps):
+                th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
+                print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
         th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
@@ -148,7 +155,7 @@ class SqilAgent(SoftQAgent):
         predicted_Qs = th.gather(current_Qs, 1, batch_actions)
 
         V_next = self.model.get_V(next_Qs)
-        y = batch_rewards + self.run.discount_factor * V_next
+        y = batch_rewards + self.discount_factor * V_next
 
         objective = F.mse_loss(predicted_Qs, y)
 
@@ -160,43 +167,61 @@ class SqilAgent(SoftQAgent):
 
 class IQLearnAgent(SoftQAgent):
     def train_one_batch(self, expert_batch, replay_batch):
-        expert_states, expert_actions, expert_next_states, _expert_done = expert_batch
-        replay_states, replay_actions, replay_next_states, _replay_done = replay_batch
-        replay_states, replay_actions, replay_next_states = (
-            replay_states.to(self.device), replay_actions.to(self.device),
-            replay_next_states.to(self.device))
-        expert_actions = dataset_action_batch_to_actions(expert_actions)
-        expert_states = dataset_obs_batch_to_obs(expert_states).to(self.device)
-        expert_next_states = dataset_obs_batch_to_obs(expert_next_states).to(self.device)
+        expert_obs, expert_actions, expert_next_obs, _expert_done = expert_batch
+        (replay_obs, replay_actions, replay_next_obs,
+         _replay_done, replay_rewards) = replay_batch
+
+        expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
+        expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
+        replay_actions = replay_actions.unsqueeze(1)
+
+        expert_states = ObservationSpace.obs_to_state(expert_obs)
+        expert_next_states = ObservationSpace.obs_to_state(expert_next_obs)
+        replay_states = ObservationSpace.obs_to_state(replay_obs)
+        replay_next_states = ObservationSpace.obs_to_state(replay_next_obs)
 
         # remove expert no-op actions
-        mask = expert_actions != -1
-        expert_states = expert_states[mask]
+        mask = (expert_actions != -1).squeeze()
         expert_actions = expert_actions[mask]
-        expert_next_states = expert_next_states[mask]
+        expert_states = [state_component[mask] for state_component in expert_states]
+        expert_next_states = [state_component[mask]
+                              for state_component in expert_next_states]
+
         masked_expert_batch_size = len(expert_actions)
         replay_batch_size = len(replay_actions)
 
-        all_states = th.cat([expert_states, expert_next_states,
-                            replay_states, replay_next_states], dim=0)
-        all_Qs = self.model.get_Q(all_states, grad=True)
-        expert_Qs, expert_Qs_next, replay_Qs, replay_Qs_next = th.split(
-            all_Qs, [masked_expert_batch_size, masked_expert_batch_size,
-                     replay_batch_size, replay_batch_size], dim=0)
+        batch_states = [th.cat(state_component, dim=0).to(self.device) for state_component
+                        in zip(expert_states, replay_states,
+                               expert_next_states, replay_next_states)]
+        batch_lengths = [masked_expert_batch_size, replay_batch_size,
+                         masked_expert_batch_size, replay_batch_size]
 
-        Q_expert_s_a = expert_Qs[th.arange(len(expert_actions)),
-                                 expert_actions].unsqueeze(1)
-        V_next_expert = self.model.get_V(expert_Qs_next)
-        V_replay = self.model.get_V(replay_Qs)
-        V_replay_next = self.model.get_V(replay_Qs_next)
+        batch_Qs = self.model.get_Q(batch_states)
+
+        Q_expert, Q_replay, _, _ = th.split(batch_Qs, batch_lengths, dim=0)
+        predicted_Q_expert = th.gather(Q_expert, 1, expert_actions.to(self.device))
+        predicted_Q_replay = th.gather(Q_replay, 1, replay_actions.to(self.device))
+
+        batch_Vs = self.model.get_V(batch_Qs)
+        _, V_replay, V_next_expert, V_next_replay = th.split(
+            batch_Vs, batch_lengths, dim=0)
 
         def distance_function(x):
             return x - 1/4 * x**2
 
-        objective = -(th.mean(distance_function(Q_expert_s_a -
-                                                self.run.discount_factor * V_next_expert)
+        objective = -(th.mean(distance_function(predicted_Q_expert -
+                                                self.discount_factor * V_next_expert)
                               ) -
-                      th.mean(V_replay - self.run.discount_factor * V_replay_next))
+                      th.mean(V_replay - self.discount_factor * V_next_replay))
+
+        # Add an additional term to the loss for the reward of the throw snoball actions
+        replay_rewards = replay_rewards.unsqueeze(1).float().to(self.device)
+        rewards_mask = replay_rewards != 0.
+        replay_rewards = replay_rewards[rewards_mask]
+        if replay_rewards.size()[0] > 0:
+            predicted_r = (predicted_Q_replay[rewards_mask]
+                           - self.discount_factor * V_next_replay[rewards_mask])
+            objective += F.mse_loss(predicted_r, replay_rewards)
 
         self.optimizer.zero_grad()
         objective.backward()

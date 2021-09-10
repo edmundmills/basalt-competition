@@ -2,7 +2,7 @@ from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import StepDataset, MultiFrameDataset
 from helpers.training_runs import TrainingRun
 from agents.bc import BCAgent
-from agents.soft_q import SqilAgent
+from agents.soft_q import SqilAgent, IQLearnAgent
 from agents.termination_critic import TerminationCritic
 from environment.start import start_env
 
@@ -87,11 +87,11 @@ def main():
                 break
 
     # Train Agent
-    run = TrainingRun(label='sqil',
+    run = TrainingRun(label='iqlearn',
                       training_steps=10000,
                       lr=1e-4,
-                      discount_factor=0.99)
-    bc_agent = SqilAgent(termination_critic=critic)
+                      checkpoint_freqency=1000)
+    agent = IQLearnAgent(termination_critic=critic)
     if args.debug_env:
         print('Starting Debug Env')
     env = start_env(debug_env=args.debug_env)
@@ -104,10 +104,10 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                bc_agent.train(env, run, profiler=prof)
+                agent.train(env, run, profiler=prof)
             print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
     else:
-        bc_agent.train(env, run)
+        agent.train(env, run)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
