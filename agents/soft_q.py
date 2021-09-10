@@ -21,13 +21,11 @@ class SoftQNetwork(Network):
         return self.forward(state)
 
     def get_V(self, Qs):
-        v = self.alpha * \
-            th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
+        v = self.alpha * th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
         return v
 
     def action_probabilities(self, Qs):
-        Vs = self.get_V(Qs).repeat(1, len(self.actions))
-        probabilities = F.softmax((Qs - Vs)/self.alpha, dim=1)
+        probabilities = F.softmax(Qs/self.alpha, dim=1)
         return probabilities
 
 
