@@ -112,7 +112,8 @@ def main():
 
     # Train Agent
     run = TrainingRun(config=config,
-                      checkpoint_freqency=1000)
+                      checkpoint_freqency=1000,
+                      wandb=args.wandb)
     agent = IQLearnAgent(termination_critic=critic,
                          alpha=config['alpha'],
                          discount_factor=config['discount_factor'])

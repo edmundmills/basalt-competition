@@ -10,8 +10,10 @@ class TrainingRun:
     def __init__(self,
                  config,
                  update_frequency=100,
-                 checkpoint_freqency=None):
+                 checkpoint_freqency=None,
+                 wandb=False):
         self.config = config
+        self.wandb = wandb
         self.environment = config['environment']
         self.algorithm = config['algorithm']
         self.name = f'{self.environment}_{self.algorithm}_{int(round(time.time()))}'
