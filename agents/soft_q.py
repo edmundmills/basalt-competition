@@ -211,14 +211,14 @@ class IQLearnAgent(SoftQAgent):
                               ) -
                       th.mean(V_replay - self.discount_factor * V_next_replay))
 
-        # Add an additional term to the loss for the reward of the throw snoball actions
-        replay_rewards = replay_rewards.unsqueeze(1).float().to(self.device)
-        rewards_mask = replay_rewards != 0.
-        replay_rewards = replay_rewards[rewards_mask]
-        if replay_rewards.size()[0] > 0:
-            predicted_r = (predicted_Q_replay[rewards_mask]
-                           - self.discount_factor * V_next_replay[rewards_mask])
-            objective += F.mse_loss(predicted_r, replay_rewards)
+        # # Add an additional term to the loss for the reward of the throw snoball actions
+        # replay_rewards = replay_rewards.unsqueeze(1).float().to(self.device)
+        # rewards_mask = replay_rewards != 0.
+        # replay_rewards = replay_rewards[rewards_mask]
+        # if replay_rewards.size()[0] > 0:
+        #     predicted_r = (predicted_Q_replay[rewards_mask]
+        #                    - self.discount_factor * V_next_replay[rewards_mask])
+        #     objective += F.mse_loss(predicted_r, replay_rewards)
 
         self.optimizer.zero_grad()
         objective.backward()
