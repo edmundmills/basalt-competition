@@ -9,6 +9,7 @@ from environment.start import start_env
 import torch as th
 import numpy as np
 
+import wandb
 from pathlib import Path
 import argparse
 import logging
@@ -50,7 +51,7 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    environment = 'MineRLBasaltBuildVillageHouse-v0'
+    environment = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
@@ -62,10 +63,29 @@ def main():
                            action='store_true', default=False)
     argparser.add_argument('--profile', dest='profile',
                            action='store_true', default=False)
+    argparser.add_argument('--wandb', dest='wandb',
+                           action='store_true', default=False)
     args = argparser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
+
+    config = dict(
+        learning_rate=1e-4,
+        training_steps=100,
+        batch_size=64,
+        alpha=1,
+        discount_factor=0.99,
+        environment=environment,
+        infra='colab',
+        algorithm='iqlearn'
+    )
+    if args.wandb:
+        wandb.init(
+            project="basalt",
+            notes="testing setup",
+            config=config,
+        )
 
     # Preprocess Data
     if args.preprocess:
@@ -74,9 +94,12 @@ def main():
     # Train termination critic
     critic = TerminationCritic()
     if args.train_critic:
-        run = TrainingRun(label='termination_critic',
-                          epochs=5,
-                          lr=1e-4)
+        critic_config = dict(algorithm='termination_critic',
+                             epochs=5,
+                             learning_rate=1e-4,
+                             batch_size=32,
+                             environment=environment)
+        run = TrainingRun(config=critic_config)
         dataset = StepDataset()
         critic.train(dataset, run)
     else:
@@ -88,25 +111,30 @@ def main():
                 break
 
     # Train Agent
-    run = TrainingRun(label='iqlearn',
-                      training_steps=10000,
-                      lr=1e-4,
+    run = TrainingRun(config=config,
                       checkpoint_freqency=1000)
-    agent = IQLearnAgent(termination_critic=critic)
+    agent = IQLearnAgent(termination_critic=critic,
+                         alpha=config['alpha'],
+                         discount_factor=config['discount_factor'])
     if args.debug_env:
         print('Starting Debug Env')
     env = start_env(debug_env=args.debug_env)
     if args.profile:
         print('Training with profiler')
         run.training_steps = 110
+        profile_dir = f'./logs/{run.name}'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-                     on_trace_ready=th.profiler.tensorboard_trace_handler(
-                         f'./logs/{run.name}'),
+                     on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
                 agent.train(env, run, profiler=prof)
             print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+            if args.wandb:
+                profile_art = wandb.Artifact("trace", type="profile")
+                profile_art.add_file(glob.glob(profile_dir + ".pt.trace.json"))
+                profile_art.save()
+
     else:
         agent.train(env, run)
 

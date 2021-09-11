@@ -54,16 +54,18 @@ class SoftQAgent:
         return action
 
     def train(self, env, run, profiler=None):
-        self.optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
+        self.optimizer = th.optim.Adam(self.model.parameters(),
+                                       lr=run.config['learning_rate'])
         self.run = run
-        replay_buffer = MixedReplayBuffer(capacity=1e6, batch_size=64,
+        replay_buffer = MixedReplayBuffer(capacity=1e6,
+                                          batch_size=run.config['batch_size'],
                                           expert_sample_fraction=0.5)
 
         obs = env.reset()
         current_trajectory = Trajectory()
         current_trajectory.obs.append(obs)
 
-        for step in range(self.run.training_steps):
+        for step in range(self.run.config['training_steps']):
             iter_count = step + 1
 
             current_obs = current_trajectory.current_obs()
@@ -102,7 +104,7 @@ class SoftQAgent:
             if profiler:
                 profiler.step()
             if (run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0
-                    and iter_count < run.training_steps):
+                    and iter_count < run.config['training_steps']):
                 th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 

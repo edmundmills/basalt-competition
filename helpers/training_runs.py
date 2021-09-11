@@ -8,17 +8,13 @@ import matplotlib.pyplot as plt
 
 class TrainingRun:
     def __init__(self,
-                 label,
-                 lr,
-                 epochs=None,
-                 training_steps=None,
+                 config,
                  update_frequency=100,
                  checkpoint_freqency=None):
-        self.environment = os.getenv('MINERL_ENVIRONMENT')
-        self.name = f'{self.environment}_{label}_{int(round(time.time()))}'
-        self.lr = lr
-        self.epochs = epochs
-        self.training_steps = training_steps
+        self.config = config
+        self.environment = config['environment']
+        self.algorithm = config['algorithm']
+        self.name = f'{self.environment}_{self.algorithm}_{int(round(time.time()))}'
         self.update_frequency = update_frequency
         self.checkpoint_freqency = checkpoint_freqency
         self.losses = []
@@ -58,10 +54,7 @@ class TrainingRun:
     def save_data(self):
         data = {'timestamps': self.timestamps,
                 'losses': self.losses,
-                'lr': self.lr,
-                'epochs': self.epochs,
-                'training_steps': self.training_steps,
-                }
+                'config': self.config}
         np.save(file=self.save_path / 'data.npy', arr=np.array(data))
         fig = plt.figure()
         plt.ylabel('Loss')
