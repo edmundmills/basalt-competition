@@ -51,7 +51,7 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    environment = 'MineRLBasaltFindCave-v0'
+    environment = 'MineRLBasaltBuildVillageHouse-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
@@ -72,13 +72,13 @@ def main():
 
     config = dict(
         learning_rate=1e-4,
-        training_steps=100,
+        training_steps=5000,
         batch_size=64,
         alpha=1,
         discount_factor=0.99,
         environment=environment,
         infra='colab',
-        algorithm='iqlearn'
+        algorithm='sqil'
     )
     if args.wandb:
         wandb.init(
@@ -114,9 +114,9 @@ def main():
     run = TrainingRun(config=config,
                       checkpoint_freqency=1000,
                       wandb=args.wandb)
-    agent = IQLearnAgent(termination_critic=critic,
-                         alpha=config['alpha'],
-                         discount_factor=config['discount_factor'])
+    agent = SqilAgent(termination_critic=critic,
+                      alpha=config['alpha'],
+                      discount_factor=config['discount_factor'])
     if args.debug_env:
         print('Starting Debug Env')
     env = start_env(debug_env=args.debug_env)
