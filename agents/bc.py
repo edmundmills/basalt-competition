@@ -35,12 +35,12 @@ class BCAgent:
         return action
 
     def train(self, dataset, run):
-        optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
-        dataloader = DataLoader(dataset, batch_size=32,
+        optimizer = th.optim.Adam(self.model.parameters(), lr=run.config['learning_rate'])
+        dataloader = DataLoader(dataset, batch_size=run.config['batch_size'],
                                 shuffle=True, num_workers=4)
         iter_count = 0
         iter_start_time = time.time()
-        for epoch in range(run.epochs):
+        for epoch in range(run.config['epochs']):
             for _, (dataset_obs, dataset_actions,
                     _next_obs, _done) in enumerate(dataloader):
                 loss = self.loss(dataset_obs, dataset_actions)

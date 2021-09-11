@@ -3,6 +3,7 @@ from agents.base_network import Network
 from helpers.trajectories import Trajectory
 from helpers.datasets import MixedReplayBuffer
 
+import wandb
 import torch as th
 from torch import nn
 import torch.nn.functional as F
@@ -54,16 +55,18 @@ class SoftQAgent:
         return action
 
     def train(self, env, run, profiler=None):
-        self.optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
+        self.optimizer = th.optim.Adam(self.model.parameters(),
+                                       lr=run.config['learning_rate'])
         self.run = run
-        replay_buffer = MixedReplayBuffer(capacity=1e6, batch_size=64,
+        replay_buffer = MixedReplayBuffer(capacity=1e6,
+                                          batch_size=run.config['batch_size'],
                                           expert_sample_fraction=0.5)
 
         obs = env.reset()
         current_trajectory = Trajectory()
         current_trajectory.obs.append(obs)
 
-        for step in range(self.run.training_steps):
+        for step in range(self.run.config['training_steps']):
             iter_count = step + 1
 
             current_obs = current_trajectory.current_obs()
@@ -74,6 +77,8 @@ class SoftQAgent:
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
+                    if run.wandb:
+                        wandb.log({'termination_reward': reward})
                 else:
                     reward = 0
             else:
@@ -89,6 +94,8 @@ class SoftQAgent:
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 loss = self.train_one_batch(replay_buffer.sample_expert(),
                                             replay_buffer.sample_replay())
+                if run.wandb:
+                    wandb.log({'loss': loss})
                 run.append_loss(loss.detach().item())
 
             run.print_update(iter_count)
@@ -102,7 +109,7 @@ class SoftQAgent:
             if profiler:
                 profiler.step()
             if (run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0
-                    and iter_count < run.training_steps):
+                    and iter_count < run.config['training_steps']):
                 th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 

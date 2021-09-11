@@ -95,13 +95,13 @@ class TerminationCritic():
         return reward
 
     def train(self, dataset, run):
-        optimizer = th.optim.Adam(self.model.parameters(), lr=run.lr)
+        optimizer = th.optim.Adam(self.model.parameters(), lr=run.config['learning_rate'])
         termination_dataset = TerminateEpisodeDataset(dataset)
-        dataloader = DataLoader(termination_dataset, batch_size=32,
+        dataloader = DataLoader(termination_dataset, batch_size=run.config['batch_size'],
                                 shuffle=True, num_workers=4)
 
         iter_count = 0
-        for epoch in range(run.epochs):
+        for epoch in range(run.config['epochs']):
             for _, (dataset_obs, dataset_actions,
                     _next_obs, _done) in enumerate(dataloader):
                 loss = self.loss(dataset_obs, dataset_actions)
