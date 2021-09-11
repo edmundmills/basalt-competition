@@ -69,7 +69,7 @@ class SoftQAgent:
             current_obs = current_trajectory.current_obs()
             current_state = ObservationSpace.obs_to_state(current_obs)
             action = self.get_action(current_state)
-            if action == 11:
+            if ActionSpace.threw_snowball(current_obs, action):
                 print(f'Threw Snowball at step {iter_count}')
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)

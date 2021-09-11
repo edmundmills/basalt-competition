@@ -50,8 +50,8 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    MINERL_ENVIRONMENT = 'MineRLBasaltFindCave-v0'
-    os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
+    environment = 'MineRLBasaltBuildVillageHouse-v0'
+    os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--preprocess-false', dest='preprocess',
@@ -81,7 +81,8 @@ def main():
         critic.train(dataset, run)
     else:
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-            if 'termination_critic' in saved_agent_path.name:
+            if ('termination_critic' in saved_agent_path.name
+                    and environment in saved_agent_path.name):
                 print(f'Loading {saved_agent_path.name} as termination critic')
                 critic.load_parameters(saved_agent_path)
                 break

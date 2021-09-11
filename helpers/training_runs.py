@@ -1,5 +1,6 @@
 from pathlib import Path
 import time
+import os
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +14,8 @@ class TrainingRun:
                  training_steps=None,
                  update_frequency=100,
                  checkpoint_freqency=None):
-        self.name = f'{label}_{int(round(time.time()))}'
+        self.environment = os.getenv('MINERL_ENVIRONMENT')
+        self.name = f'{self.environment}_{label}_{int(round(time.time()))}'
         self.lr = lr
         self.epochs = epochs
         self.training_steps = training_steps

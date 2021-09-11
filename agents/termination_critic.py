@@ -127,7 +127,10 @@ class TerminationCritic():
         actions = ActionSpace.dataset_action_batch_to_actions(termination_actions)
 
         use_actions = th.from_numpy(actions == 11).unsqueeze(1)
-        snowball_equipped = current_equipped == ActionSpace.one_hot_snowball()
+        batch_size = use_actions.size()[0]
+        snowball_tensor = ActionSpace.one_hot_snowball().repeat(batch_size, 1)
+        snowball_equipped = th.all(
+            th.eq(current_equipped, snowball_tensor), dim=1, keepdim=True)
         terminated = use_actions * snowball_equipped
 
         predict_terminate = self.model(current_pov.to(self.device),

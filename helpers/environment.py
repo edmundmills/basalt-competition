@@ -94,7 +94,7 @@ class ObservationSpace:
         first_item = list(inventory.values())[0]
         if isinstance(first_item, np.ndarray):
             inventory = {k: th.from_numpy(v).unsqueeze(0) for k, v in inventory.items()}
-        elif isinstance(first_item, np.int32):
+        elif isinstance(first_item, (int, np.int32)):
             inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
         inventory = [inventory[item_name].unsqueeze(1) / starting_count
