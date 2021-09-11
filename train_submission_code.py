@@ -122,17 +122,18 @@ def main():
     if args.profile:
         print('Training with profiler')
         run.training_steps = 110
-        profile_dir = f'./logs/{run.name}'
+        profile_dir = f'./logs/{run.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
                 agent.train(env, run, profiler=prof)
-            print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+            # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
-                profile_art.add_file(glob.glob(profile_dir + ".pt.trace.json"))
+                for profile_file_path in Path(profile_dir).iterdir():
+                    profile_art.add_file(profile_file_path)
                 profile_art.save()
 
     else:
