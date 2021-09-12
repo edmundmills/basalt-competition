@@ -1,5 +1,4 @@
 from helpers.environment import ObservationSpace, ActionSpace
-from helpers.datasets import StepDataset
 from agents.base_network import Network
 
 import os
@@ -9,10 +8,10 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 
-class TerminateEpisodeDataset(StepDataset):
+class TerminateEpisodeDataset(Dataset):
     def __init__(self, dataset):
         self.dataset = dataset
         self.sample_interval = 100
@@ -20,23 +19,22 @@ class TerminateEpisodeDataset(StepDataset):
 
     def _get_included_steps(self):
         included_steps = []
-        for idx, step_path in enumerate(self.dataset.step_paths):
-            trajectory_length = self.dataset.trajectory_length(step_path)
-            step_dict = self.dataset._load_step_dict(idx)
-            equipped_item = step_dict['obs']['equipped_items']['mainhand']['type']
-            action = step_dict['action']
-            if ((step_dict['step'] % self.sample_interval == 0
-                 and step_dict['step'] < trajectory_length - self.sample_interval)
-                    or (equipped_item == 'snowball' and action['use'] == 1)):
-                included_steps.append(idx)
+        for trajectory_idx, trajectory in enumerate(self.dataset.trajectories):
+            trajectory_length = len(trajectory)
+            for step_idx, (obs, action, _, _) in enumerate(trajectory):
+                equipped_item = obs['equipped_items']['mainhand']['type']
+                if (step_idx % self.sample_interval == 0
+                    and (step_idx < trajectory_length - self.sample_interval)
+                        or (equipped_item == 'snowball' and action['use'] == 1)):
+                    included_steps.append((trajectory_idx, step_idx))
         return included_steps
 
     def __len__(self):
         return len(self.included_steps)
 
     def __getitem__(self, idx):
-        step_idx = self.included_steps[idx]
-        return self.dataset[step_idx]
+        trajectory_idx, step_idx = self.included_steps[idx]
+        return self.dataset.trajectories[trajectory_idx][step_idx]
 
 
 class CriticNetwork(Network):

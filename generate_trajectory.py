@@ -8,11 +8,12 @@ import os
 
 
 if __name__ == "__main__":
-    MINERL_ENVIRONMENT = 'MineRLBasaltFindCave-v0'
+    MINERL_ENVIRONMENT = 'MineRLBasaltBuildVillageHouse-v0'
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
     env = start_env(debug_env=False)
     agent = SqilAgent()
-    saved_agent_path = Path('train') / 'sqil_1631125727.pth'
+    saved_agent_path = Path('train') / \
+        'MineRLBasaltBuildVillageHouse-v0_sqil_1631385597.pth'
     agent.load_parameters(saved_agent_path)
     generator = TrajectoryGenerator(env, agent)
     trajectory = generator.generate(max_episode_length=2000)

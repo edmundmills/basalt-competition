@@ -1,4 +1,7 @@
 from helpers.environment import ObservationSpace, MirrorAugmentation
+from helpers.trajectories import Trajectory
+
+import minerl
 
 from pathlib import Path
 import os
@@ -15,108 +18,49 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
 
 
-class StepDataset(Dataset):
+class TrajectoryStepDataset(Dataset):
     def __init__(self,
-                 data_root=os.getenv('MINERL_DATA_ROOT'),
-                 environments=[],
-                 transform=MirrorAugmentation()):
-        self.environments = environments if environments != [] else [
-            os.getenv('MINERL_ENVIRONMENT')]
-        self.data_root = Path(data_root)
+                 transform=None,
+                 multiframe=False):
+        self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
+        self.environment = os.getenv('MINERL_ENVIRONMENT')
+        self.multiframe = multiframe
+        self.environment_path = self.data_root / self.environment
         self.transform = transform
-        step_paths = []
-        trajectory_paths = []
-        trajectory_lengths = []
-        for environment_name in self.environments:
-            environment_path = self.data_root / environment_name
-            s_paths, t_paths, t_lengths = self._get_step_data(environment_path)
-            step_paths.extend(s_paths)
-            trajectory_paths.extend(t_paths)
-            trajectory_lengths.extend(t_lengths)
-        self.step_paths = step_paths
-        self.trajectory_paths = trajectory_paths
-        self.trajectory_lengths = trajectory_lengths
+        self.trajectories, self.step_lookup = self._load_data()
 
-    def _get_step_data(self, environment_path):
-        step_paths = []
-        trajectory_lengths = []
-        trajectory_paths = list(environment_path.iterdir())
-        for trajectory_path in trajectory_paths:
-            steps_dir_path = trajectory_path / 'steps'
-            if not steps_dir_path.is_dir():
+    def _load_data(self):
+        data = minerl.data.make(self.environment)
+        trajectories = []
+        step_lookup = []
+        trajectory_paths = self.environment_path.iterdir()
+        # trajectory_paths = [self.environment_path /
+        #                     'v3_few_grapefruit_medusa-4_8382-15666']
+        for trajectory_idx, trajectory_path in enumerate(trajectory_paths):
+            if not trajectory_path.is_dir():
                 continue
-            trajectory_step_paths = [Path(step_path.path)
-                                     for step_path in os.scandir(str(steps_dir_path))]
-            step_paths.extend(trajectory_step_paths)
-            trajectory_length = len(trajectory_step_paths)
-            trajectory_lengths.append(trajectory_length)
-        return step_paths, list(trajectory_paths), trajectory_lengths
 
-    def trajectory_length(self, step_path):
-        trajectory_path = step_path.parent.parent
-        trajectory_index = self.trajectory_paths.index(trajectory_path)
-        length = self.trajectory_lengths[trajectory_index]
-        return length
+            trajectory = Trajectory(path=trajectory_path)
+            for step_idx, (obs, action, _, _, done) \
+                    in enumerate(data.load_data(str(trajectory_path))):
+                trajectory.obs.append(obs)
+                trajectory.actions.append(action)
+                trajectory.done = done
+                step_lookup.append((trajectory_idx, step_idx))
+            print(f'Loaded data from {trajectory_path.name}')
+            trajectories.append(trajectory)
+        return trajectories, step_lookup
 
     def __len__(self):
-        return len(self.step_paths)
+        return len(self.step_lookup)
 
     def __getitem__(self, idx):
-        if th.is_tensor(idx):
-            idx = idx.tolist()
-        if idx + 1 > len(self):
-            raise IndexError('list index out of range')
-        step_dict = self._load_step_dict(idx)
-        if step_dict['done']:
-            next_obs = step_dict['obs']
-        else:
-            next_step_dict = self._load_step_dict(idx + 1)
-            next_obs = next_step_dict['obs']
-        sample = (step_dict['obs'], step_dict['action'], next_obs, step_dict['done'])
+        trajectory_idx, step_idx = self.step_lookup[idx]
+        sample = self.trajectories[trajectory_idx].get_item(
+            step_idx, multiframe=self.multiframe)
         if self.transform:
             sample = self.transform(sample)
         return sample
-
-    def _load_step_dict(self, idx):
-        step_path = self.step_paths[idx]
-        step_dict = np.load(step_path, allow_pickle=True).item()
-        return step_dict
-
-
-class MultiFrameDataset(StepDataset):
-    def __init__(self,
-                 data_root=os.getenv('MINERL_DATA_ROOT'),
-                 environments=[],
-                 transform=MirrorAugmentation()):
-        super().__init__(data_root, environments, transform)
-        self.number_of_frames = ObservationSpace.number_of_frames
-
-    def __getitem__(self, idx):
-        if th.is_tensor(idx):
-            idx = idx.tolist()
-        if idx + 1 > len(self):
-            raise IndexError('list index out of range')
-        step_dict = self._load_step_dict(idx)
-        step_dict['obs']['frame_sequence'] = self._frame_sequence(step_dict['step'], idx)
-        if step_dict['done']:
-            next_obs = step_dict['obs']
-        else:
-            next_step_dict = self._load_step_dict(idx + 1)
-            next_step_dict['obs']['frame_sequence'] = self._frame_sequence(
-                next_step_dict['step'], idx + 1)
-            next_obs = next_step_dict['obs']
-        sample = (step_dict['obs'], step_dict['action'], next_obs, step_dict['done'])
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
-
-    def _frame_sequence(self, step_number, idx_in_dataset):
-        initial_step_idx = idx_in_dataset - step_number
-        frame_indices = [max(initial_step_idx, idx_in_dataset - 1 - frame_number)
-                         for frame_number in reversed(range(self.number_of_frames - 1))]
-        frame_sequence = np.array([self._load_step_dict(frame_idx)['obs']['pov']
-                                   for frame_idx in frame_indices])
-        return frame_sequence
 
 
 class ReplayBuffer:
@@ -147,6 +91,7 @@ class MixedReplayBuffer(ReplayBuffer):
     '''
 
     def __init__(self,
+                 expert_dataset,
                  capacity=1e6,
                  batch_size=64,
                  expert_sample_fraction=0.5):
@@ -155,7 +100,7 @@ class MixedReplayBuffer(ReplayBuffer):
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
         super().__init__(capacity)
-        self.expert_dataset = MultiFrameDataset()
+        self.expert_dataset = expert_dataset
         self.expert_dataloader = self._initialize_dataloader()
 
     def _initialize_dataloader(self):

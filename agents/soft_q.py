@@ -54,11 +54,12 @@ class SoftQAgent:
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
-    def train(self, env, run, profiler=None):
+    def train(self, env, run, expert_dataset, profiler=None):
         self.optimizer = th.optim.Adam(self.model.parameters(),
                                        lr=run.config['learning_rate'])
         self.run = run
-        replay_buffer = MixedReplayBuffer(capacity=1e6,
+        replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
+                                          capacity=1e6,
                                           batch_size=run.config['batch_size'],
                                           expert_sample_fraction=0.5)
 
@@ -91,7 +92,6 @@ class SoftQAgent:
             current_trajectory.done = done
             next_obs = current_trajectory.current_obs()
             replay_buffer.push(current_obs, action, next_obs, done, reward)
-
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 loss = self.train_one_batch(replay_buffer.sample_expert(),
                                             replay_buffer.sample_replay())
@@ -116,6 +116,7 @@ class SoftQAgent:
 
         print('Training complete')
         th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
+        print('Model Saved')
         self.optimizer = None
         self.run = None
 

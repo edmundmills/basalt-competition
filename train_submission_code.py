@@ -1,5 +1,5 @@
 from helpers.data import pre_process_expert_trajectories
-from helpers.datasets import StepDataset, MultiFrameDataset
+from helpers.datasets import TrajectoryStepDataset
 from helpers.training_runs import TrainingRun
 from agents.bc import BCAgent
 from agents.soft_q import SqilAgent, IQLearnAgent
@@ -57,8 +57,6 @@ def main():
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--preprocess-false', dest='preprocess',
-                           action='store_false', default=True)
     argparser.add_argument('--train-critic-false', dest='train_critic',
                            action='store_false', default=True)
     argparser.add_argument('--debug-env', dest='debug_env',
@@ -76,29 +74,22 @@ def main():
 
     config = dict(
         learning_rate=1e-4,
-        training_steps=5000,
+        training_steps=500,
         batch_size=64,
         alpha=1,
         discount_factor=0.99,
         environment=environment,
         infra='colab',
-        algorithm='sqil'
+        algorithm='iqlearn'
     )
     if args.wandb:
         wandb.init(
             project="basalt",
-            notes="testing setup",
+            notes="load data into RAM",
             config=config,
         )
 
-    # Preprocess Data
-    if args.preprocess:
-        pre_process_expert_trajectories()
-
-    # Start Virual Display
-    if args.virtual_display:
-        display = Display(visible=0, size=(400, 300))
-        display.start()
+    expert_dataset = TrajectoryStepDataset(multiframe=True)
 
     # Train termination critic
     critic = TerminationCritic()
@@ -109,8 +100,9 @@ def main():
                              batch_size=32,
                              environment=environment)
         run = TrainingRun(config=critic_config)
-        dataset = StepDataset()
-        critic.train(dataset, run)
+        expert_dataset.multiframe = False
+        critic.train(expert_dataset, run)
+        expert_dataset.multiframe = True
     else:
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
             if ('termination_critic' in saved_agent_path.name
@@ -119,13 +111,18 @@ def main():
                 critic.load_parameters(saved_agent_path)
                 break
 
+    # Start Virual Display
+    if args.virtual_display:
+        display = Display(visible=0, size=(400, 300))
+        display.start()
+
     # Train Agent
     run = TrainingRun(config=config,
                       checkpoint_freqency=1000,
                       wandb=args.wandb)
-    agent = SqilAgent(termination_critic=critic,
-                      alpha=config['alpha'],
-                      discount_factor=config['discount_factor'])
+    agent = IQLearnAgent(termination_critic=critic,
+                         alpha=config['alpha'],
+                         discount_factor=config['discount_factor'])
     if args.debug_env:
         print('Starting Debug Env')
     env = start_env(debug_env=args.debug_env)
@@ -138,7 +135,7 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                agent.train(env, run, profiler=prof)
+                agent.train(env, run, expert_dataset, profiler=prof)
             # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
@@ -147,10 +144,12 @@ def main():
                 profile_art.save()
 
     else:
-        agent.train(env, run)
+        agent.train(env, run, expert_dataset)
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
+    if args.virtual_display:
+        display.stop()
 
 
 if __name__ == "__main__":
