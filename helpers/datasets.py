@@ -21,7 +21,9 @@ from torch.utils.data.dataloader import default_collate
 class TrajectoryStepDataset(Dataset):
     def __init__(self,
                  transform=None,
-                 multiframe=False):
+                 multiframe=False,
+                 debug_dataset=False):
+        self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
         self.multiframe = multiframe
@@ -33,10 +35,10 @@ class TrajectoryStepDataset(Dataset):
         data = minerl.data.make(self.environment)
         trajectories = []
         step_lookup = []
+
         trajectory_paths = self.environment_path.iterdir()
-        # trajectory_paths = [self.environment_path /
-        #                     'v3_few_grapefruit_medusa-4_8382-15666']
-        for trajectory_idx, trajectory_path in enumerate(trajectory_paths):
+        trajectory_idx = 0
+        for trajectory_path in trajectory_paths:
             if not trajectory_path.is_dir():
                 continue
 
@@ -49,6 +51,9 @@ class TrajectoryStepDataset(Dataset):
                 step_lookup.append((trajectory_idx, step_idx))
             print(f'Loaded data from {trajectory_path.name}')
             trajectories.append(trajectory)
+            trajectory_idx += 1
+            if self.debug_dataset and trajectory_idx > 2:
+                break
         return trajectories, step_lookup
 
     def __len__(self):
