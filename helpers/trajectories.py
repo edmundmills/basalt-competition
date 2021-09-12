@@ -15,7 +15,8 @@ from matplotlib.widgets import Slider
 
 
 class Trajectory:
-    def __init__(self):
+    def __init__(self, path=None):
+        self.path = path
         self.obs = []
         self.actions = []
         self.done = False
@@ -35,6 +36,13 @@ class Trajectory:
         else:
             next_obs = self.obs[idx + 1]
         return(self.obs[idx], self.actions[idx], next_obs, done)
+
+    def get_item(self, idx, multiframe=False):
+        obs, action, next_obs, done = self[idx]
+        if multiframe:
+            obs['frame_sequence'] = self.additional_frames(idx)
+            next_obs['frame_sequence'] = self.additional_frames(idx + 1)
+        return obs, action, next_obs, done
 
     def current_obs(self):
         current_idx = len(self) - 1

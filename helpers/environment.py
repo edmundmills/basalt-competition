@@ -67,8 +67,10 @@ class ObservationSpace:
 
     def obs_to_pov(obs, device=th.device('cpu')):
         obs = obs['pov']
-        if isinstance(obs, np.ndarray) and len(obs.shape) == 3:
-            obs = th.from_numpy(obs.copy()).unsqueeze(0)
+        if isinstance(obs, np.ndarray):
+            obs = th.from_numpy(obs.copy())
+        if len(obs.size()) == 3:
+            obs = obs.unsqueeze(0)
         obs = obs.to(device, dtype=th.float32)
         return obs.permute(0, 3, 1, 2) / 255.0
 
