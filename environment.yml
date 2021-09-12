@@ -2,6 +2,7 @@ name: minerl
 channels:
   - conda-forge
   - defaults
+  - pytorch
 dependencies:
   - python=3.7
   - pip
@@ -13,3 +14,9 @@ dependencies:
     - coloredlogs
     - matplotlib
     - pyro4
+    - wandb
+    - pytorch
+    - argparse
+    - numpy
+    - gym
+    - torchvision
