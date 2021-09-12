@@ -9,6 +9,8 @@ from environment.start import start_env
 import torch as th
 import numpy as np
 
+
+from pyvirtualdisplay import Display
 import wandb
 from pathlib import Path
 import argparse
@@ -65,6 +67,8 @@ def main():
                            action='store_true', default=False)
     argparser.add_argument('--wandb', dest='wandb',
                            action='store_true', default=False)
+    argparser.add_argument('--virtual-display', dest='virtual_display',
+                           action='store_true', default=False)
     args = argparser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -90,6 +94,11 @@ def main():
     # Preprocess Data
     if args.preprocess:
         pre_process_expert_trajectories()
+
+    # Start Virual Display
+    if args.virtual_display:
+        display = Display(visible=0, size=(400, 300))
+        display.start()
 
     # Train termination critic
     critic = TerminationCritic()
