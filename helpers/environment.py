@@ -65,31 +65,34 @@ class ObservationSpace:
         environment = os.getenv('MINERL_ENVIRONMENT')
         return ObservationSpace.environment_items[environment]
 
-    def obs_to_pov(obs):
+    def obs_to_pov(obs, device=th.device('cpu')):
         obs = obs['pov']
         if isinstance(obs, np.ndarray) and len(obs.shape) == 3:
             obs = th.from_numpy(obs.copy()).unsqueeze(0)
-        return obs.permute(0, 3, 1, 2).float() / 255.0
+        obs = obs.to(device, dtype=th.float32)
+        return obs.permute(0, 3, 1, 2) / 255.0
 
-    def obs_to_frame_sequence(obs):
+    def obs_to_frame_sequence(obs, device=th.device('cpu')):
         frame_sequence = obs['frame_sequence']
+        frame_sequence = frame_sequence.to(device, dtype=th.float32)
         if len(frame_sequence.size()) == 4:
             frame_sequence = frame_sequence.unsqueeze(0)
-        return frame_sequence.permute(0, 1, 4, 2, 3).float() / 255.0
+        return frame_sequence.permute(0, 1, 4, 2, 3) / 255.0
 
-    def obs_to_equipped_item(obs):
+    def obs_to_equipped_item(obs, device=th.device('cpu')):
         equipped_item = obs['equipped_items']['mainhand']['type']
         if isinstance(equipped_item, str):
             equipped_item = [equipped_item]
         items = ObservationSpace.items()
-        equipped = th.zeros((len(equipped_item), len(items))).long()
+        equipped = th.zeros((len(equipped_item), len(items)), device=device).long()
+        # room for optimization:
         for idx, item in enumerate(equipped_item):
             if item not in items:
                 continue
             equipped[idx, items.index(item)] = 1
         return equipped
 
-    def obs_to_inventory(obs):
+    def obs_to_inventory(obs, device=th.device('cpu')):
         inventory = obs['inventory']
         first_item = list(inventory.values())[0]
         if isinstance(first_item, np.ndarray):
@@ -97,17 +100,17 @@ class ObservationSpace:
         elif isinstance(first_item, (int, np.int32)):
             inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
-        inventory = [inventory[item_name].unsqueeze(1) / starting_count
+        inventory = [inventory[item_name].to(device).unsqueeze(1) / starting_count
                      for item_name, starting_count
                      in iter(ObservationSpace.starting_inventory().items())]
         inventory = th.cat(inventory, dim=1)
         return inventory
 
-    def obs_to_state(obs):
-        return (ObservationSpace.obs_to_pov(obs),
-                ObservationSpace.obs_to_inventory(obs),
-                ObservationSpace.obs_to_equipped_item(obs),
-                ObservationSpace.obs_to_frame_sequence(obs))
+    def obs_to_state(obs, device=th.device('cpu')):
+        return (ObservationSpace.obs_to_pov(obs, device=device),
+                ObservationSpace.obs_to_inventory(obs, device=device),
+                ObservationSpace.obs_to_equipped_item(obs, device=device),
+                ObservationSpace.obs_to_frame_sequence(obs, device=device))
 
 
 class ActionSpace:

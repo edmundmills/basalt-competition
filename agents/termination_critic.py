@@ -18,10 +18,30 @@ class TerminateEpisodeDataset(StepDataset):
         self.sample_interval = 100
         self.included_steps = self._get_included_steps()
 
+    def _get_step_data(self, environment_path):
+        step_paths = []
+        trajectory_lengths = []
+        trajectory_paths = environment_path.iterdir()
+        for trajectory_path in trajectory_paths:
+            steps_dir_path = trajectory_path / 'steps'
+            if not steps_dir_path.is_dir():
+                continue
+            trajectory_step_paths = list(os.scandir(str(steps_dir_path)))
+            step_paths.extend(trajectory_step_paths)
+            trajectory_length = len(trajectory_step_paths)
+            trajectory_lengths.append(trajectory_length)
+        return step_paths, trajectory_paths, trajectory_lengths
+
+    def _trajectory_length(self, step_path):
+        trajectory_path = step_path.parent.parent
+        trajectory_index = self.trajectory_paths.index(trajectory_path)
+        length = self.trajectory_lengths[trajectory_index]
+        return length
+
     def _get_included_steps(self):
         included_steps = []
         for idx, step_path in enumerate(self.dataset.step_paths):
-            trajectory_length = self.dataset.trajectory_length(step_path)
+            trajectory_length = self.dataset._trajectory_length(step_path)
             step_dict = self.dataset._load_step_dict(idx)
             equipped_item = step_dict['obs']['equipped_items']['mainhand']['type']
             action = step_dict['action']
