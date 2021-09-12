@@ -25,21 +25,38 @@ class StepDataset(Dataset):
         self.data_root = Path(data_root)
         self.transform = transform
         step_paths = []
+        trajectory_paths = []
+        trajectory_lengths = []
         for environment_name in self.environments:
             environment_path = self.data_root / environment_name
-            step_paths.extend(self._get_step_data(environment_path))
+            s_paths, t_paths, t_lengths = self._get_step_data(environment_path)
+            step_paths.extend(s_paths)
+            trajectory_paths.extend(t_paths)
+            trajectory_lengths.extend(t_lengths)
         self.step_paths = step_paths
+        self.trajectory_paths = trajectory_paths
+        self.trajectory_lengths = trajectory_lengths
 
     def _get_step_data(self, environment_path):
         step_paths = []
-        trajectory_paths = environment_path.iterdir()
+        trajectory_lengths = []
+        trajectory_paths = list(environment_path.iterdir())
         for trajectory_path in trajectory_paths:
             steps_dir_path = trajectory_path / 'steps'
             if not steps_dir_path.is_dir():
                 continue
-            trajectory_step_paths = list(os.scandir(str(steps_dir_path)))
+            trajectory_step_paths = [Path(step_path.path)
+                                     for step_path in os.scandir(str(steps_dir_path))]
             step_paths.extend(trajectory_step_paths)
-        return step_paths
+            trajectory_length = len(trajectory_step_paths)
+            trajectory_lengths.append(trajectory_length)
+        return step_paths, list(trajectory_paths), trajectory_lengths
+
+    def trajectory_length(self, step_path):
+        trajectory_path = step_path.parent.parent
+        trajectory_index = self.trajectory_paths.index(trajectory_path)
+        length = self.trajectory_lengths[trajectory_index]
+        return length
 
     def __len__(self):
         return len(self.step_paths)
