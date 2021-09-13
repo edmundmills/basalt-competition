@@ -10,6 +10,8 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+# Currently non-functional
+
 
 class BCAgent:
     def __init__(self):
@@ -22,8 +24,8 @@ class BCAgent:
             th.load(model_file_path, map_location=self.device), strict=False)
 
     def get_action(self, trajectory):
-        (current_pov, current_inventory,
-         current_equipped, frame_sequence) = trajectory.current_state()
+        (current_pov, current_inventory, current_equipped,
+            frame_sequence) = ObservationSpace.obs_to_state(trajectory.current_obs())
         with th.no_grad():
             probabilities = self.model(current_pov.to(self.device),
                                        current_inventory.to(self.device),

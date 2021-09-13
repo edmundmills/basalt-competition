@@ -74,22 +74,23 @@ def main():
 
     config = dict(
         learning_rate=1e-4,
-        training_steps=500,
+        training_steps=20000,
         batch_size=64,
         alpha=1,
         discount_factor=0.99,
+        observation_frames=1,
         environment=environment,
         infra='colab',
-        algorithm='iqlearn'
+        algorithm='sqil'
     )
     if args.wandb:
         wandb.init(
             project="basalt",
-            notes="load data into RAM",
+            notes="testing longer run",
             config=config,
         )
 
-    expert_dataset = TrajectoryStepDataset(multiframe=True)
+    expert_dataset = TrajectoryStepDataset(debug_dataset=args.debug_env)
 
     # Train termination critic
     critic = TerminationCritic()
@@ -100,9 +101,7 @@ def main():
                              batch_size=32,
                              environment=environment)
         run = TrainingRun(config=critic_config)
-        expert_dataset.multiframe = False
         critic.train(expert_dataset, run)
-        expert_dataset.multiframe = True
     else:
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
             if ('termination_critic' in saved_agent_path.name
@@ -120,9 +119,11 @@ def main():
     run = TrainingRun(config=config,
                       checkpoint_freqency=1000,
                       wandb=args.wandb)
-    agent = IQLearnAgent(termination_critic=critic,
-                         alpha=config['alpha'],
-                         discount_factor=config['discount_factor'])
+    agent = SqilAgent(termination_critic=critic,
+                      alpha=config['alpha'],
+                      discount_factor=config['discount_factor'],
+                      n_observation_frames=config['n_observation_frames'])
+    expert_dataset.n_observation_frames = config['n_observation_frames']
     if args.debug_env:
         print('Starting Debug Env')
     env = start_env(debug_env=args.debug_env)

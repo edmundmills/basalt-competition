@@ -7,17 +7,17 @@ from torch import nn
 
 
 class Network(nn.Module):
-    def __init__(self):
+    def __init__(self, observation_frames=1):
         super().__init__()
+        self.n_observation_frames = n_observation_frames
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.inventory_dim = len(ObservationSpace.items())
         self.equip_dim = len(ObservationSpace.items())
         self.output_dim = len(self.actions)
-        self.number_of_frames = ObservationSpace.number_of_frames
         self.cnn = mobilenet_v3_large(pretrained=True, progress=True).features
         self.visual_feature_dim = self._visual_features_dim()
-        self.linear_input_dim = sum([self.visual_feature_dim * self.number_of_frames,
+        self.linear_input_dim = sum([self.visual_feature_dim * self.n_observation_frames,
                                      self.inventory_dim,
                                      self.equip_dim])
 
@@ -31,13 +31,18 @@ class Network(nn.Module):
         )
 
     def forward(self, state):
-        current_pov, current_inventory, current_equipped, frame_sequence = state
+        if len(state) == 4:
+            current_pov, current_inventory, current_equipped, frame_sequence = state
+        else:
+            current_pov, current_inventory, current_equipped = state
         batch_size = current_pov.size()[0]
-        frame_sequence = frame_sequence.reshape((-1, *self.frame_shape))
-        past_visual_features = self.cnn(frame_sequence).reshape(batch_size, -1)
         current_visual_features = self.cnn(current_pov).reshape(batch_size, -1)
         x = th.cat((current_visual_features, current_inventory,
-                    current_equipped, past_visual_features), dim=1)
+                    current_equipped), dim=1)
+        if self.n_observation_frames > 1:
+            frame_sequence = frame_sequence.reshape((-1, *self.frame_shape))
+            past_visual_features = self.cnn(frame_sequence).reshape(batch_size, -1)
+            x = th.cat(x, past_visual_features, dim=1)
         return self.linear(x)
 
     def _visual_features_shape(self):

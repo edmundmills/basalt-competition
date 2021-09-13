@@ -55,8 +55,6 @@ class ObservationSpace:
 
     frame_shape = (3, 64, 64)
 
-    number_of_frames = 4
-
     def items():
         environment = os.getenv('MINERL_ENVIRONMENT')
         return list(ObservationSpace.environment_items[environment].keys())
@@ -75,7 +73,11 @@ class ObservationSpace:
         return obs.permute(0, 3, 1, 2) / 255.0
 
     def obs_to_frame_sequence(obs, device=th.device('cpu')):
+        if 'frame_sequence' not in obs.keys():
+            return None
         frame_sequence = obs['frame_sequence']
+        if frame_sequence is None or frame_sequence.data[0] is None:
+            return None
         frame_sequence = frame_sequence.to(device, dtype=th.float32)
         if len(frame_sequence.size()) == 4:
             frame_sequence = frame_sequence.unsqueeze(0)
@@ -109,10 +111,13 @@ class ObservationSpace:
         return inventory
 
     def obs_to_state(obs, device=th.device('cpu')):
-        return (ObservationSpace.obs_to_pov(obs, device=device),
-                ObservationSpace.obs_to_inventory(obs, device=device),
-                ObservationSpace.obs_to_equipped_item(obs, device=device),
-                ObservationSpace.obs_to_frame_sequence(obs, device=device))
+        state = (ObservationSpace.obs_to_pov(obs, device=device),
+                 ObservationSpace.obs_to_inventory(obs, device=device),
+                 ObservationSpace.obs_to_equipped_item(obs, device=device))
+        frame_sequence = ObservationSpace.obs_to_frame_sequence(obs, device=device)
+        if frame_sequence:
+            state = (*state, frame_sequence)
+        return state
 
 
 class ActionSpace:
