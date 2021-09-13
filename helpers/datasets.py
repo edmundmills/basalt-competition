@@ -27,7 +27,6 @@ class TrajectoryStepDataset(Dataset):
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
-        self.multiframe = multiframe
         self.environment_path = self.data_root / self.environment
         self.transform = transform
         self.trajectories, self.step_lookup = self._load_data()
@@ -53,7 +52,7 @@ class TrajectoryStepDataset(Dataset):
             print(f'Loaded data from {trajectory_path.name}')
             trajectories.append(trajectory)
             trajectory_idx += 1
-            if self.debug_dataset and trajectory_idx > 2:
+            if self.debug_dataset and trajectory_idx >= 2:
                 break
         return trajectories, step_lookup
 
@@ -63,7 +62,7 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, multiframe=self.multiframe)
+            step_idx, n_observation_frames=self.n_observation_frames)
         if self.transform:
             sample = self.transform(sample)
         return sample
@@ -72,7 +71,7 @@ class TrajectoryStepDataset(Dataset):
 class ReplayBuffer:
     def __init__(self, n_observation_frames=1, reward=True):
         self.n_observation_frames = n_observation_frames
-        self.trajectories = [Trajectory()]
+        self.trajectories = []
         self.step_lookup = []
         self.reward = reward
 
@@ -80,7 +79,7 @@ class ReplayBuffer:
         return len(self.step_lookup)
 
     def __getitem__(self, idx):
-        trajectory_idx, step_idx = step_lookup[idx]
+        trajectory_idx, step_idx = self.step_lookup[idx]
         return self.trajectories[trajectory_idx].get_item(
             step_idx, n_observation_frames=self.n_observation_frames, reward=self.reward)
 
@@ -89,14 +88,16 @@ class ReplayBuffer:
 
     def increment_step(self):
         self.step_lookup.append(
-            (len(self.trajectories), len(self.current_trajectory().actions)))
+            (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
 
     def add_trajectory(self):
         self.trajectories.append(Trajectory())
 
     def sample(self, batch_size):
-        replay_batch_size = min(batch_size, len(self.buffer))
-        replay_batch = random.sample(self, replay_batch_size)
+        print(self.step_lookup)
+        replay_batch_size = min(batch_size, len(self.step_lookup))
+        sample_indices = random.sample(range(len(self.step_lookup)), replay_batch_size)
+        replay_batch = [self[idx] for idx in sample_indices]
         return default_collate(replay_batch)
 
 

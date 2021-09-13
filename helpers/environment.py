@@ -115,7 +115,7 @@ class ObservationSpace:
                  ObservationSpace.obs_to_inventory(obs, device=device),
                  ObservationSpace.obs_to_equipped_item(obs, device=device))
         frame_sequence = ObservationSpace.obs_to_frame_sequence(obs, device=device)
-        if frame_sequence:
+        if frame_sequence is not None:
             state = (*state, frame_sequence)
         return state
 

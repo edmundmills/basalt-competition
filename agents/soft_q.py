@@ -37,10 +37,10 @@ class SoftQAgent:
         self.alpha = alpha
         self.discount_factor = discount_factor
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.model = SoftQNetwork(alpha=self.alpha,
-                                  observation_frames=n_observation_frames).to(self.device)
+        self.model = SoftQNetwork(
+            alpha=self.alpha, n_observation_frames=n_observation_frames).to(self.device)
         self.termination_critic = termination_critic
-        self.observation_frames = n_observation_frames
+        self.n_observation_frames = n_observation_frames
 
     def load_parameters(self, model_file_path):
         self.model.load_state_dict(

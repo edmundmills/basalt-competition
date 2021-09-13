@@ -7,7 +7,7 @@ from torch import nn
 
 
 class Network(nn.Module):
-    def __init__(self, observation_frames=1):
+    def __init__(self, n_observation_frames=1):
         super().__init__()
         self.n_observation_frames = n_observation_frames
         self.actions = ActionSpace.actions()
@@ -42,7 +42,7 @@ class Network(nn.Module):
         if self.n_observation_frames > 1:
             frame_sequence = frame_sequence.reshape((-1, *self.frame_shape))
             past_visual_features = self.cnn(frame_sequence).reshape(batch_size, -1)
-            x = th.cat(x, past_visual_features, dim=1)
+            x = th.cat((x, past_visual_features), dim=1)
         return self.linear(x)
 
     def _visual_features_shape(self):

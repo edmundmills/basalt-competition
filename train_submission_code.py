@@ -78,7 +78,7 @@ def main():
         batch_size=64,
         alpha=1,
         discount_factor=0.99,
-        observation_frames=1,
+        n_observation_frames=1,
         environment=environment,
         infra='colab',
         algorithm='sqil'
