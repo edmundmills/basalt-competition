@@ -19,8 +19,8 @@ class Trajectory:
         self.path = path
         self.obs = []
         self.actions = []
+        self.rewards = []
         self.done = False
-        self.number_of_frames = ObservationSpace.number_of_frames
         self.additional_data = OrderedDict()
 
     def __len__(self):
@@ -37,31 +37,41 @@ class Trajectory:
             next_obs = self.obs[idx + 1]
         return(self.obs[idx], self.actions[idx], next_obs, done)
 
-    def get_item(self, idx, multiframe=False):
+    def append_obs(self, obs):
+        obs['pov'] = np.ascontiguousarray(obs['pov'])
+        self.obs.append(obs)
+
+    def get_item(self, idx, n_observation_frames=1, reward=False):
         obs, action, next_obs, done = self[idx]
-        if multiframe:
-            obs['frame_sequence'] = self.additional_frames(idx)
-            next_obs['frame_sequence'] = self.additional_frames(idx + 1)
+        if n_observation_frames > 1:
+            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames)
+            next_obs['frame_sequence'] = self.additional_frames(idx + 1,
+                                                                n_observation_frames)
+        if reward:
+            return obs, action, next_obs, done, self.rewards[idx]
         return obs, action, next_obs, done
 
-    def current_obs(self):
+    def current_obs(self, n_observation_frames=1):
         current_idx = len(self) - 1
         obs = self.obs[current_idx]
-        obs['frame_sequence'] = self.additional_frames(current_idx)
+        if n_observation_frames > 1:
+            obs['frame_sequence'] = self.additional_frames(current_idx,
+                                                           n_observation_frames)
         return obs
 
-    def current_state(self):
-        current_idx = len(self) - 1
-        return self.get_state(current_idx)
-
-    def get_state(self, idx):
+    def get_obs(self, idx, n_observation_frames=1):
         obs = self.obs[idx]
-        obs['frame_sequence'] = self.additional_frames(idx)
-        return ObservationSpace.obs_to_state(obs)
+        if n_observation_frames > 1:
+            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames)
+        return obs
 
-    def additional_frames(self, step):
+    def additional_frames(self, step, n_observation_frames):
+        if n_observation_frames <= 1:
+            return None
+
         frame_indices = [max(0, step - 1 - frame_number)
-                         for frame_number in reversed(range(self.number_of_frames - 1))]
+                         for frame_number
+                         in reversed(range(n_observation_frames - 1))]
         frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'].copy())
                            for frame_idx in frame_indices], dim=0)
         return frames
@@ -102,8 +112,11 @@ class TrajectoryGenerator:
         obs = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
-            trajectory.obs.append(obs)
-            action = self.agent.get_action(trajectory.current_state())
+            trajectory.append_obs(obs)
+            state = ObservationSpace.obs_to_state(
+                trajectory.current_obs(
+                    n_observation_frames=self.agent.n_observation_frames))
+            action = self.agent.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done

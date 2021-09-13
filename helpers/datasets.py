@@ -21,12 +21,12 @@ from torch.utils.data.dataloader import default_collate
 class TrajectoryStepDataset(Dataset):
     def __init__(self,
                  transform=None,
-                 multiframe=False,
+                 n_observation_frames=1,
                  debug_dataset=False):
+        self.n_observation_frames = n_observation_frames
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
-        self.multiframe = multiframe
         self.environment_path = self.data_root / self.environment
         self.transform = transform
         self.trajectories, self.step_lookup = self._load_data()
@@ -52,7 +52,7 @@ class TrajectoryStepDataset(Dataset):
             print(f'Loaded data from {trajectory_path.name}')
             trajectories.append(trajectory)
             trajectory_idx += 1
-            if self.debug_dataset and trajectory_idx > 2:
+            if self.debug_dataset and trajectory_idx >= 2:
                 break
         return trajectories, step_lookup
 
@@ -62,30 +62,41 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, multiframe=self.multiframe)
+            step_idx, n_observation_frames=self.n_observation_frames)
         if self.transform:
             sample = self.transform(sample)
         return sample
 
 
 class ReplayBuffer:
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.buffer = deque([], maxlen=int(capacity))
+    def __init__(self, n_observation_frames=1, reward=True):
+        self.n_observation_frames = n_observation_frames
+        self.trajectories = [Trajectory()]
+        self.step_lookup = []
+        self.reward = reward
 
     def __len__(self):
-        return len(self.buffer)
+        return len(self.step_lookup)
 
     def __getitem__(self, idx):
-        return self.buffer[idx]
+        trajectory_idx, step_idx = self.step_lookup[idx]
+        return self.trajectories[trajectory_idx].get_item(
+            step_idx, n_observation_frames=self.n_observation_frames, reward=self.reward)
 
-    def push(self, obs, action, next_obs, done, reward):
-        self.buffer.append((copy.deepcopy(obs), action.copy(),
-                            copy.deepcopy(next_obs), done, reward))
+    def current_trajectory(self):
+        return self.trajectories[-1]
+
+    def new_trajectory(self):
+        self.trajectories.append(Trajectory())
+
+    def increment_step(self):
+        self.step_lookup.append(
+            (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
 
     def sample(self, batch_size):
-        replay_batch_size = min(batch_size, len(self.buffer))
-        replay_batch = random.sample(self.buffer, replay_batch_size)
+        replay_batch_size = min(batch_size, len(self.step_lookup))
+        sample_indices = random.sample(range(len(self.step_lookup)), replay_batch_size)
+        replay_batch = [self[idx] for idx in sample_indices]
         return default_collate(replay_batch)
 
 
@@ -97,14 +108,14 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def __init__(self,
                  expert_dataset,
-                 capacity=1e6,
                  batch_size=64,
-                 expert_sample_fraction=0.5):
+                 expert_sample_fraction=0.5,
+                 n_observation_frames=1):
         self.batch_size = batch_size
         self.expert_sample_fraction = expert_sample_fraction
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
-        super().__init__(capacity)
+        super().__init__(n_observation_frames=n_observation_frames)
         self.expert_dataset = expert_dataset
         self.expert_dataloader = self._initialize_dataloader()
 

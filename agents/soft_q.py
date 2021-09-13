@@ -14,8 +14,8 @@ import os
 
 
 class SoftQNetwork(Network):
-    def __init__(self, alpha):
-        super().__init__()
+    def __init__(self, alpha, n_observation_frames):
+        super().__init__(n_observation_frames)
         self.alpha = alpha
 
     def get_Q(self, state):
@@ -31,13 +31,16 @@ class SoftQNetwork(Network):
 
 
 class SoftQAgent:
-    def __init__(self, alpha=1, termination_critic=None, discount_factor=0.99):
+    def __init__(self, alpha=1, termination_critic=None,
+                 discount_factor=0.99, n_observation_frames=1):
         self.actions = ActionSpace.actions()
         self.alpha = alpha
         self.discount_factor = discount_factor
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.model = SoftQNetwork(alpha=self.alpha).to(self.device)
+        self.model = SoftQNetwork(
+            alpha=self.alpha, n_observation_frames=n_observation_frames).to(self.device)
         self.termination_critic = termination_critic
+        self.n_observation_frames = n_observation_frames
 
     def load_parameters(self, model_file_path):
         self.model.load_state_dict(
@@ -59,19 +62,19 @@ class SoftQAgent:
                                        lr=run.config['learning_rate'])
         self.run = run
         replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
-                                          capacity=1e6,
                                           batch_size=run.config['batch_size'],
-                                          expert_sample_fraction=0.5)
+                                          expert_sample_fraction=0.5,
+                                          n_observation_frames=self.n_observation_frames)
 
         # th.autograd.set_detect_anomaly(True)
         obs = env.reset()
-        current_trajectory = Trajectory()
-        current_trajectory.obs.append(obs)
+        replay_buffer.current_trajectory().append_obs(obs)
 
         for step in range(self.run.config['training_steps']):
             iter_count = step + 1
 
-            current_obs = current_trajectory.current_obs()
+            current_obs = replay_buffer.current_trajectory().current_obs(
+                n_observation_frames=self.n_observation_frames)
             current_state = ObservationSpace.obs_to_state(current_obs, device=self.device)
             action = self.get_action(current_state)
             if ActionSpace.threw_snowball(current_obs, action):
@@ -86,12 +89,12 @@ class SoftQAgent:
             else:
                 reward = 0
 
-            current_trajectory.actions.append(action)
+            replay_buffer.current_trajectory().actions.append(action)
+            replay_buffer.current_trajectory().rewards.append(reward)
             obs, _, done, _ = env.step(action)
-            current_trajectory.obs.append(obs)
-            current_trajectory.done = done
-            next_obs = current_trajectory.current_obs()
-            replay_buffer.push(current_obs, action, next_obs, done, reward)
+            replay_buffer.current_trajectory().append_obs(obs)
+            replay_buffer.current_trajectory().done = done
+            replay_buffer.increment_step()
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 loss = self.train_one_batch(replay_buffer.sample_expert(),
                                             replay_buffer.sample_replay())
@@ -103,9 +106,9 @@ class SoftQAgent:
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
+                replay_buffer.new_trajectory()
                 obs = env.reset()
-                currnet_trajectory = Trajectory()
-                current_trajectory.obs.append(obs)
+                replay_buffer.current_trajectory().append_obs(obs)
 
             if profiler:
                 profiler.step()

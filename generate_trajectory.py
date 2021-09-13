@@ -12,12 +12,16 @@ if __name__ == "__main__":
     os.environ['MINERL_ENVIRONMENT'] = MINERL_ENVIRONMENT
     env = start_env(debug_env=False)
     agent = SqilAgent()
-    saved_agent_path = Path('train') / \
-        'MineRLBasaltBuildVillageHouse-v0_sqil_1631385597.pth'
-    agent.load_parameters(saved_agent_path)
+    # saved_agent_path = Path('train') / \
+    #     'MineRLBasaltBuildVillageHouse-v0_sqil_1631549741.pth'
+    for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+        if ('sqil' in saved_agent_path.name
+                and environment in saved_agent_path.name):
+            print(f'Loading {saved_agent_path.name} as agent')
+            agent.load_parameters(saved_agent_path)
+            break
     generator = TrajectoryGenerator(env, agent)
     trajectory = generator.generate(max_episode_length=2000)
-    trajectory.view()
-    save_path = Path('data') / 'eval' / 'run_001'
-    del trajectory
     env.close()
+    trajectory.view()
+    # save_path = Path('data') / 'eval' / 'run_001'

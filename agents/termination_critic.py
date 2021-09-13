@@ -65,8 +65,9 @@ class TerminationCritic():
         termination_ratings = []
         termination_rewards = []
         for step in range(len(trajectory)):
-            state = trajectory.get_state(step)
-            current_pov, current_inventory, current_equipped, frame_sequence = state
+            obs = trajectory.get_obs(step, n_observation_frames=1)
+            (current_pov, current_inventory,
+                current_equipped) = ObservationSpace.obs_to_state(obs, device=self.device)
             with th.no_grad():
                 rating = self.model.forward(current_pov, current_inventory,
                                             current_equipped)
@@ -81,10 +82,12 @@ class TerminationCritic():
 
     def termination_reward(self, state):
         state = [state_component.to(self.device) for state_component in state]
-        current_pov, current_inventory, current_equipped, frame_sequence = state
-        frames = frame_sequence.squeeze(dim=0).chunk(
-            ObservationSpace.number_of_frames - 1, dim=0)
-        frames = (*frames, current_pov)
+        if len(state) == 4:
+            current_pov, current_inventory, current_equipped, frame_sequence = state
+            frames = (*th.unbind(frame_sequence, dim=1), current_pov)
+        else:
+            current_pov, current_inventory, current_equipped = state
+            frames = [current_pov]
         with th.no_grad():
             ratings = [self.model(frame, current_inventory, current_equipped).item()
                        for frame in frames]
@@ -111,6 +114,7 @@ class TerminationCritic():
                 iter_count += 1
                 run.append_loss(loss.detach().cpu())
                 run.print_update(iter_count)
+            print(f'Epoch #{epoch + 1} completed')
 
         print('Training complete')
         th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
