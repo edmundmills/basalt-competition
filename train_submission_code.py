@@ -129,7 +129,7 @@ def main():
     env = start_env(debug_env=args.debug_env)
     if args.profile:
         print('Training with profiler')
-        run.training_steps = 110
+        config['training_steps'] = 110
         profile_dir = f'./logs/{run.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),

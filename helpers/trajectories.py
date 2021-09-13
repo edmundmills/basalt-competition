@@ -66,15 +66,15 @@ class Trajectory:
         return obs
 
     def additional_frames(self, step, n_observation_frames):
-        if n_observation_frames > 1:
-            frame_indices = [max(0, step - 1 - frame_number)
-                             for frame_number
-                             in reversed(range(n_observation_frames - 1))]
-            frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'].copy())
-                               for frame_idx in frame_indices], dim=0)
-            return frames
-        else:
+        if n_observation_frames <= 1:
             return None
+
+        frame_indices = [max(0, step - 1 - frame_number)
+                         for frame_number
+                         in reversed(range(n_observation_frames - 1))]
+        frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'].copy())
+                           for frame_idx in frame_indices], dim=0)
+        return frames
 
     def load(self, path):
         self.obs = np.load(Path(path) / 'obs.npy', allow_pickle=True)
