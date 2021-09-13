@@ -71,7 +71,7 @@ class TrajectoryStepDataset(Dataset):
 class ReplayBuffer:
     def __init__(self, n_observation_frames=1, reward=True):
         self.n_observation_frames = n_observation_frames
-        self.trajectories = []
+        self.trajectories = [Trajectory()]
         self.step_lookup = []
         self.reward = reward
 
@@ -86,15 +86,14 @@ class ReplayBuffer:
     def current_trajectory(self):
         return self.trajectories[-1]
 
+    def new_trajectory(self):
+        self.trajectories.append(Trajectory())
+
     def increment_step(self):
         self.step_lookup.append(
             (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
 
-    def add_trajectory(self):
-        self.trajectories.append(Trajectory())
-
     def sample(self, batch_size):
-        print(self.step_lookup)
         replay_batch_size = min(batch_size, len(self.step_lookup))
         sample_indices = random.sample(range(len(self.step_lookup)), replay_batch_size)
         replay_batch = [self[idx] for idx in sample_indices]

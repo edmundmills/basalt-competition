@@ -68,14 +68,12 @@ class SoftQAgent:
 
         # th.autograd.set_detect_anomaly(True)
         obs = env.reset()
-        current_trajectory = Trajectory()
-        replay_buffer.trajectories.append(current_trajectory)
-        current_trajectory.obs.append(obs)
+        replay_buffer.current_trajectory().append_obs(obs)
 
         for step in range(self.run.config['training_steps']):
             iter_count = step + 1
 
-            current_obs = current_trajectory.current_obs(
+            current_obs = replay_buffer.current_trajectory().current_obs(
                 n_observation_frames=self.n_observation_frames)
             current_state = ObservationSpace.obs_to_state(current_obs, device=self.device)
             action = self.get_action(current_state)
@@ -91,11 +89,11 @@ class SoftQAgent:
             else:
                 reward = 0
 
-            current_trajectory.actions.append(action)
-            current_trajectory.rewards.append(reward)
+            replay_buffer.current_trajectory().actions.append(action)
+            replay_buffer.current_trajectory().rewards.append(reward)
             obs, _, done, _ = env.step(action)
-            current_trajectory.obs.append(obs)
-            current_trajectory.done = done
+            replay_buffer.current_trajectory().append_obs(obs)
+            replay_buffer.current_trajectory().done = done
             replay_buffer.increment_step()
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 loss = self.train_one_batch(replay_buffer.sample_expert(),
@@ -108,10 +106,9 @@ class SoftQAgent:
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
+                replay_buffer.new_trajectory()
                 obs = env.reset()
-                currnet_trajectory = Trajectory()
-                replay_buffer.trajectories.append(current_trajectory)
-                current_trajectory.obs.append(obs)
+                replay_buffer.current_trajectory().append_obs(obs)
 
             if profiler:
                 profiler.step()

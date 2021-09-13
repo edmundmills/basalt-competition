@@ -14,7 +14,7 @@ class DebugEnv:
                "equipped_items": {"mainhand": {'type': 'snowball'}}}
         _reward = None
         _info = None
-        done = False
+        done = np.random.choice([True, False], p=[.05, .95])
         return obs, _reward, done, _info
 
     def reset(self):

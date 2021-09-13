@@ -37,6 +37,10 @@ class Trajectory:
             next_obs = self.obs[idx + 1]
         return(self.obs[idx], self.actions[idx], next_obs, done)
 
+    def append_obs(self, obs):
+        obs['pov'] = np.ascontiguousarray(obs['pov'])
+        self.obs.append(obs)
+
     def get_item(self, idx, n_observation_frames=1, reward=False):
         obs, action, next_obs, done = self[idx]
         if n_observation_frames > 1:
