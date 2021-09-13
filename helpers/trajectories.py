@@ -112,8 +112,11 @@ class TrajectoryGenerator:
         obs = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
-            trajectory.obs.append(obs)
-            action = self.agent.get_action(trajectory.current_state())
+            trajectory.append_obs(obs)
+            state = ObservationSpace.obs_to_state(
+                trajectory.current_obs(
+                    n_observation_frames=self.agent.n_observation_frames))
+            action = self.agent.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
