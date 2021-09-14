@@ -98,9 +98,9 @@ class IntrinsicCuriosityAgent:
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
-    def random_action(self, obs, surpress_termination=True):
+    def random_action(self, obs, surpress_snowball=True):
         action = np.random.choice(self.actions)
-        if surpress_termination:
+        if surpress_snowball:
             while ActionSpace.threw_snowball(obs, action):
                 action = np.random.choice(self.actions)
         return action
@@ -108,10 +108,10 @@ class IntrinsicCuriosityAgent:
     def train(self, env, run, profiler=None):
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
                                                  lr=run.config['curiosity_lr'])
-        self.actor_optimizer = th.optim.Adam(self.actor.parameters(),
-                                             lr=run.config['policy_lr'])
-        self.critic_optimizer = th.optim.Adam(self.critic.parameters(),
-                                              lr=run.config['q_lr'])
+        self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
+                                              lr=run.config['policy_lr'])
+        self.q_optimizer = th.optim.Adam(self.critic.parameters(),
+                                         lr=run.config['q_lr'])
         self.run = run
         replay_buffer = ReplayBuffer(reward=True,
                                      n_observation_frames=self.n_observation_frames)
@@ -140,6 +140,9 @@ class IntrinsicCuriosityAgent:
                 reward = 0
             else:
                 reward = self.curiosity_module.reward(current_state, next_state)
+            if run.wandb:
+                wandb.log({'reward': reward})
+
             replay_buffer.current_trajectory().rewards.append(reward)
 
             replay_buffer.increment_step()
@@ -147,12 +150,13 @@ class IntrinsicCuriosityAgent:
 
             batch_size = run.config['batch_size']
             if len(replay_buffer) >= batch_size:
-                loss = self.train_one_batch(replay_buffer.sample(batch_size=batch_size))
+                q_loss, policy_loss, curiosity_loss, average_Q = self.train_one_batch(
+                    replay_buffer.sample(batch_size=batch_size))
                 if run.wandb:
-                    wandb.log({'loss': loss})
-                run.append_loss(loss.detach().item())
-
-            run.print_update(iter_count)
+                    wandb.log({'policy_loss': policy_loss,
+                               'q_loss': q_loss,
+                               'curiosity_loss': curiosity_loss,
+                               'average_Q': average_Q})
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
@@ -169,40 +173,44 @@ class IntrinsicCuriosityAgent:
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
-        self.optimizer = None
+        self.curiosity_optimizer = None
+        self.policy_optimizer = None
+        self.q_optimizer = None
         self.run = None
 
     def train_one_batch(self, batch):
         state, actions, next_state, done, reward = batch
         states = ObservationSpace.obs_to_state(expert_obs)
         next_states = ObservationSpace.obs_to_state(expert_next_obs)
-        batch_states = [th.cat(state_component, dim=0).to(self.device) for state_component
-                        in zip(states, next_states)]
+        all_states = [th.cat(state_component, dim=0).to(self.device) for state_component
+                      in zip(states, next_states)]
         actions = actions.unsqueeze(1).to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
-        states, next_states = th.chunk(batch_states, 2, dim=0)
-        one_hot_actions = F.one_hot(actions, len(self.actions))
+        states, next_states = th.chunk(all_states, 2, dim=0)
 
         # update critic
-
-        critic_loss =
-        self.critic_optimizer.zero_grad(set_to_none=True)
-        critic_loss.backward()
-        self.critic_optimizer.step()
+        all_Qs = self.critic.get_Q(all_states)
+        Qs, next_Qs = th.chunk(all_Qs, 2, dim=0)
+        target_Qs = rewards + self.discount_factor * next_Qs
+        q_loss = F.mse_loss(Qs, target_Qs)
+        self.q_optimizer.zero_grad(set_to_none=True)
+        q_loss.backward()
+        self.q_optimizer.step()
 
         # update actor
+        entropies = self.actor.entropies(Qs)
+        policy_loss = -th.mean((Qs - self.alpha * entropies))
+        self.policy_optimizer.zero_grad(set_to_none=True)
+        policy_loss.backward()
+        self.policy_optimizer.step()
 
-        actor_loss =
-        self.actor_optimizer.zero_grad(set_to_none=True)
-        actor_loss.backward()
-        self.actor_optimizer.step()
-
-        # update curiosity
+        # update curiosity module
         predicted_actions = self.curiosity_module.predict_action(states, next_states)
         action_loss = F.cross_entropy(predicted_actions, actions)
 
-        batch_features = self.curiosity_module.get_features(batch_states)
-        current_features, next_features = th.chunk(batch_features, 2, dim=0)
+        all_features = self.curiosity_module.get_features(all_states)
+        current_features, next_features = th.chunk(all_features, 2, dim=0)
+        one_hot_actions = F.one_hot(actions, len(self.actions))
         predicted_features = self.curiosity_module.predicted_next_features(
             current_features, one_hot_actions)
         feature_loss = F.mse_loss(predicted_features, next_features)
@@ -211,3 +219,6 @@ class IntrinsicCuriosityAgent:
         self.curiosity_optimizer.zero_grad(set_to_none=True)
         curiosity_loss.backward()
         self.curiosity_optimizer.step()
+
+        return q_loss.detach(), policy_loss.detach(), \
+            curiosity_loss.detach(), all_qs.detach().mean().item()
