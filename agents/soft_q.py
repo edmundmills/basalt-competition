@@ -217,9 +217,10 @@ class IQLearnAgent(SoftQAgent):
             return x - 1/4 * x**2
 
         objective = -(th.mean(distance_function(predicted_Q_expert -
-                                                self.discount_factor * V_next_expert)
-                              ) -
-                      th.mean(V_replay - self.discount_factor * V_next_replay))
+                                                self.discount_factor * V_next_expert)) -
+                      th.mean(th.cat((V_replay, V_expert), dim=0) -
+                              self.discount_factor * th.cat((V_next_replay,
+                                                             V_next_expert), dim=0)))
 
         # # Add an additional term to the loss for the reward of the throw snoball actions
         # replay_rewards = replay_rewards.unsqueeze(1).float().to(self.device)
