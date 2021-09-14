@@ -75,7 +75,7 @@ class SoftQAgent:
 
             current_obs = replay_buffer.current_trajectory().current_obs(
                 n_observation_frames=self.n_observation_frames)
-            current_state = ObservationSpace.obs_to_state(current_obs, device=self.device)
+            current_state = ObservationSpace.obs_to_state(current_obs)
             action = self.get_action(current_state)
             if ActionSpace.threw_snowball(current_obs, action):
                 print(f'Threw Snowball at step {iter_count}')
@@ -118,8 +118,6 @@ class SoftQAgent:
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
-        th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
-        print('Model Saved')
         self.optimizer = None
         self.run = None
 
@@ -131,34 +129,34 @@ class SqilAgent(SoftQAgent):
          _replay_done, replay_rewards) = replay_batch
 
         expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
-        expert_actions = th.from_numpy(expert_actions).to(self.device).unsqueeze(1)
-        replay_actions = replay_actions.to(self.device).unsqueeze(1)
+        expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
+        replay_actions = replay_actions.unsqueeze(1)
 
-        expert_states = ObservationSpace.obs_to_state(expert_obs, device=self.device)
-        expert_next_states = ObservationSpace.obs_to_state(
-            expert_next_obs, device=self.device)
-        replay_states = ObservationSpace.obs_to_state(replay_obs, device=self.device)
-        replay_next_states = ObservationSpace.obs_to_state(
-            replay_next_obs, device=self.device)
-
-        # remove expert no-op actions
         mask = (expert_actions != -1).squeeze()
         expert_actions = expert_actions[mask]
+
+        expert_batch_size = expert_actions.size()[0]
+        replay_batch_size = replay_actions.size()[0]
+
+        batch_actions = th.cat([expert_actions,
+                                replay_actions], dim=0).to(self.device)
+
+        expert_states = ObservationSpace.obs_to_state(expert_obs)
+        expert_next_states = ObservationSpace.obs_to_state(expert_next_obs)
+        replay_states = ObservationSpace.obs_to_state(replay_obs)
+        replay_next_states = ObservationSpace.obs_to_state(replay_next_obs)
         expert_states = [state_component[mask] for state_component in expert_states]
         expert_next_states = [state_component[mask]
                               for state_component in expert_next_states]
 
-        masked_expert_batch_size = expert_actions.size()[0]
-        expert_rewards = th.ones(masked_expert_batch_size, 1, device=self.device)
-        replay_rewards = replay_rewards.float().to(self.device).unsqueeze(1)
-
-        batch_rewards = th.cat([expert_rewards,
-                                replay_rewards], dim=0)
-        batch_actions = th.cat([expert_actions,
-                                replay_actions], dim=0)
-        batch_states = [th.cat(state_component, dim=0) for state_component
+        batch_states = [th.cat(state_component, dim=0).to(self.device) for state_component
                         in zip(expert_states, replay_states,
                                expert_next_states, replay_next_states)]
+
+        expert_rewards = th.ones(expert_batch_size, 1)
+        replay_rewards = replay_rewards.float().unsqueeze(1)
+        batch_rewards = th.cat([expert_rewards,
+                                replay_rewards], dim=0).to(self.device)
 
         batch_Qs = self.model.get_Q(batch_states)
         current_Qs, next_Qs = th.chunk(batch_Qs, 2, dim=0)
@@ -182,39 +180,37 @@ class IQLearnAgent(SoftQAgent):
          _replay_done, replay_rewards) = replay_batch
 
         expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
-        expert_actions = th.from_numpy(expert_actions).to(self.device).unsqueeze(1)
-        replay_actions = replay_actions.to(self.device).unsqueeze(1)
+        expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
+        replay_actions = replay_actions.unsqueeze(1)
 
-        expert_states = ObservationSpace.obs_to_state(expert_obs, device=self.device)
-        expert_next_states = ObservationSpace.obs_to_state(
-            expert_next_obs, device=self.device)
-        replay_states = ObservationSpace.obs_to_state(replay_obs, device=self.device)
-        replay_next_states = ObservationSpace.obs_to_state(
-            replay_next_obs, device=self.device)
-
-        # remove expert no-op actions
         mask = (expert_actions != -1).squeeze()
-        expert_actions = expert_actions[mask]
+        expert_actions = expert_actions[mask].to(self.device)
+
+        expert_batch_size = expert_actions.size()[0]
+        replay_batch_size = replay_actions.size()[0]
+
+        expert_states = ObservationSpace.obs_to_state(expert_obs)
+        expert_next_states = ObservationSpace.obs_to_state(expert_next_obs)
+        replay_states = ObservationSpace.obs_to_state(replay_obs)
+        replay_next_states = ObservationSpace.obs_to_state(replay_next_obs)
         expert_states = [state_component[mask] for state_component in expert_states]
         expert_next_states = [state_component[mask]
                               for state_component in expert_next_states]
 
-        masked_expert_batch_size = len(expert_actions)
-        replay_batch_size = len(replay_actions)
-
-        batch_states = [th.cat(state_component, dim=0) for state_component
+        batch_states = [th.cat(state_component, dim=0).to(self.device) for state_component
                         in zip(expert_states, replay_states,
                                expert_next_states, replay_next_states)]
-        batch_lengths = [masked_expert_batch_size, replay_batch_size,
-                         masked_expert_batch_size, replay_batch_size]
+
+        batch_lengths = [expert_batch_size, replay_batch_size,
+                         expert_batch_size, replay_batch_size]
 
         batch_Qs = self.model.get_Q(batch_states)
 
-        Q_expert, Q_replay, _, _ = th.split(batch_Qs, batch_lengths, dim=0)
+        Q_expert, _, _, _ = th.split(batch_Qs, batch_lengths, dim=0)
         predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
 
         batch_Vs = self.model.get_V(batch_Qs)
-        _, V_replay, V_next_expert, V_next_replay = th.split(
+        V_expert, V_replay, V_next_expert, V_next_replay = th.split(
             batch_Vs, batch_lengths, dim=0)
 
         def distance_function(x):
@@ -235,7 +231,7 @@ class IQLearnAgent(SoftQAgent):
         #                    - self.discount_factor * V_next_replay[rewards_mask])
         #     objective += F.mse_loss(predicted_r, replay_rewards)
 
-        self.optimizer.zero_grad()
+        self.optimizer.zero_grad(set_to_none=True)
         objective.backward()
         self.optimizer.step()
         return objective.detach()

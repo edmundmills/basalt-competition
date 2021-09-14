@@ -63,32 +63,30 @@ class ObservationSpace:
         environment = os.getenv('MINERL_ENVIRONMENT')
         return ObservationSpace.environment_items[environment]
 
-    def obs_to_pov(obs, device=th.device('cpu')):
+    def obs_to_pov(obs):
         obs = obs['pov']
         if isinstance(obs, np.ndarray):
             obs = th.from_numpy(obs.copy())
         if len(obs.size()) == 3:
             obs = obs.unsqueeze(0)
-        obs = obs.to(device, dtype=th.float32)
         return obs.permute(0, 3, 1, 2) / 255.0
 
-    def obs_to_frame_sequence(obs, device=th.device('cpu')):
+    def obs_to_frame_sequence(obs):
         if 'frame_sequence' not in obs.keys():
             return None
         frame_sequence = obs['frame_sequence']
         if frame_sequence is None or frame_sequence.data[0] is None:
             return None
-        frame_sequence = frame_sequence.to(device, dtype=th.float32)
-        if len(frame_sequence.size()) == 4:
+        if len(frame_sequence.size()) == 3:
             frame_sequence = frame_sequence.unsqueeze(0)
-        return frame_sequence.permute(0, 1, 4, 2, 3) / 255.0
+        return frame_sequence.permute(0, 3, 1, 2) / 255.0
 
-    def obs_to_equipped_item(obs, device=th.device('cpu')):
+    def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
         if isinstance(equipped_item, str):
             equipped_item = [equipped_item]
         items = ObservationSpace.items()
-        equipped = th.zeros((len(equipped_item), len(items)), device=device).long()
+        equipped = th.zeros((len(equipped_item), len(items))).long()
         # room for optimization:
         for idx, item in enumerate(equipped_item):
             if item not in items:
@@ -96,7 +94,7 @@ class ObservationSpace:
             equipped[idx, items.index(item)] = 1
         return equipped
 
-    def obs_to_inventory(obs, device=th.device('cpu')):
+    def obs_to_inventory(obs):
         inventory = obs['inventory']
         first_item = list(inventory.values())[0]
         if isinstance(first_item, np.ndarray):
@@ -104,19 +102,20 @@ class ObservationSpace:
         elif isinstance(first_item, (int, np.int32)):
             inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
-        inventory = [inventory[item_name].to(device).unsqueeze(1) / starting_count
+        inventory = [inventory[item_name].unsqueeze(1) / starting_count
                      for item_name, starting_count
                      in iter(ObservationSpace.starting_inventory().items())]
         inventory = th.cat(inventory, dim=1)
         return inventory
 
-    def obs_to_state(obs, device=th.device('cpu')):
-        state = (ObservationSpace.obs_to_pov(obs, device=device),
-                 ObservationSpace.obs_to_inventory(obs, device=device),
-                 ObservationSpace.obs_to_equipped_item(obs, device=device))
-        frame_sequence = ObservationSpace.obs_to_frame_sequence(obs, device=device)
+    def obs_to_state(obs):
+        items = th.cat((ObservationSpace.obs_to_inventory(obs),
+                        ObservationSpace.obs_to_equipped_item(obs)), dim=1)
+        pov = ObservationSpace.obs_to_pov(obs)
+        frame_sequence = ObservationSpace.obs_to_frame_sequence(obs)
         if frame_sequence is not None:
-            state = (*state, frame_sequence)
+            pov = th.cat((pov, frame_sequence), dim=1)
+        state = (pov, items)
         return state
 
 
@@ -218,23 +217,24 @@ class ActionSpace:
         return actions
 
 
-class MirrorAugmentation():
+class MirrorAugment():
     def __init__(self):
         return
 
     def __call__(self, sample):
         if np.random.choice([True, False]):
             return sample
-        obs, action, next_obs, done = sample
+        if len(sample) == 5:
+            obs, action, next_obs, done, reward = sample
+        else:
+            obs, action, next_obs, done = sample
         action = self.mirror_action(action)
         obs['pov'] = np.ascontiguousarray(np.flip(obs['pov'], axis=1))
         next_obs['pov'] = np.ascontiguousarray(np.flip(obs['pov'], axis=1))
-        if 'frame_sequence' in list(obs.keys()):
-            obs['frame_sequence'] = np.ascontiguousarray(
-                np.flip(obs['frame_sequence'], axis=2))
-            next_obs['frame_sequence'] = np.ascontiguousarray(
-                np.flip(next_obs['frame_sequence'], axis=2))
-        sample = obs, action, next_obs, done
+        if len(sample) == 5:
+            sample = obs, action, next_obs, done, reward
+        else:
+            sample = obs, action, next_obs, done = sample
         return sample
 
     def mirror_action(self, action):

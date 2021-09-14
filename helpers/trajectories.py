@@ -72,8 +72,8 @@ class Trajectory:
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number
                          in reversed(range(n_observation_frames - 1))]
-        frames = th.stack([th.from_numpy(self.obs[frame_idx]['pov'].copy())
-                           for frame_idx in frame_indices], dim=0)
+        frames = th.cat([th.from_numpy(self.obs[frame_idx]['pov'].copy())
+                         for frame_idx in frame_indices], dim=2)
         return frames
 
     def load(self, path):
