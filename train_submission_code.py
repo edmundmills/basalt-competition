@@ -53,7 +53,7 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    environment = 'MineRLBasaltBuildVillageHouse-v0'
+    environment = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
@@ -74,19 +74,24 @@ def main():
 
     config = dict(
         learning_rate=1e-4,
-        training_steps=20000,
+        training_steps=1000,
         batch_size=64,
         alpha=1,
         discount_factor=0.99,
         n_observation_frames=1,
         environment=environment,
         infra='colab',
-        algorithm='sqil'
+        algorithm='sqil',
     )
+    run = TrainingRun(config=config,
+                      checkpoint_freqency=1000,
+                      wandb=args.wandb)
+    config['model_name'] = run.name
+
     if args.wandb:
         wandb.init(
-            project="basalt",
-            notes="testing longer run",
+            project="optimize training",
+            notes="increase number of frames, batch_size",
             config=config,
         )
 
@@ -100,8 +105,8 @@ def main():
                              learning_rate=1e-4,
                              batch_size=32,
                              environment=environment)
-        run = TrainingRun(config=critic_config)
-        critic.train(expert_dataset, run)
+        critic_run = TrainingRun(config=critic_config)
+        critic.train(expert_dataset, critic_run)
     else:
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
             if ('termination_critic' in saved_agent_path.name
@@ -116,9 +121,6 @@ def main():
         display.start()
 
     # Train Agent
-    run = TrainingRun(config=config,
-                      checkpoint_freqency=1000,
-                      wandb=args.wandb)
     agent = SqilAgent(termination_critic=critic,
                       alpha=config['alpha'],
                       discount_factor=config['discount_factor'],
@@ -126,10 +128,12 @@ def main():
     expert_dataset.n_observation_frames = config['n_observation_frames']
     if args.debug_env:
         print('Starting Debug Env')
+    else:
+        print(f'Starting Env: {environment}')
     env = start_env(debug_env=args.debug_env)
     if args.profile:
         print('Training with profiler')
-        config['training_steps'] = 110
+        config['training_steps'] = 510
         profile_dir = f'./logs/{run.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
@@ -146,6 +150,13 @@ def main():
 
     else:
         agent.train(env, run, expert_dataset)
+    model_save_path = os.path.join('train', f'{run.name}.pth')
+    if not args.debug_env:
+        agent.save(model_save_path)
+        if args.wandb:
+            model_art = wandb.Artifact("agent", type="model")
+            model_art.add_file(model_save_path)
+            model_art.save()
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)

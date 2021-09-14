@@ -1,4 +1,4 @@
-from helpers.environment import ObservationSpace, MirrorAugmentation
+from helpers.environment import ObservationSpace, MirrorAugment
 from helpers.trajectories import Trajectory
 
 import minerl
@@ -20,7 +20,7 @@ from torch.utils.data.dataloader import default_collate
 
 class TrajectoryStepDataset(Dataset):
     def __init__(self,
-                 transform=None,
+                 transform=MirrorAugment(),
                  n_observation_frames=1,
                  debug_dataset=False):
         self.n_observation_frames = n_observation_frames
@@ -74,14 +74,18 @@ class ReplayBuffer:
         self.trajectories = [Trajectory()]
         self.step_lookup = []
         self.reward = reward
+        self.transform = MirrorAugment()
 
     def __len__(self):
         return len(self.step_lookup)
 
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
-        return self.trajectories[trajectory_idx].get_item(
+        sample = self.trajectories[trajectory_idx].get_item(
             step_idx, n_observation_frames=self.n_observation_frames, reward=self.reward)
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
 
     def current_trajectory(self):
         return self.trajectories[-1]

@@ -12,14 +12,24 @@ class Network(nn.Module):
         self.n_observation_frames = n_observation_frames
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
-        self.inventory_dim = len(ObservationSpace.items())
-        self.equip_dim = len(ObservationSpace.items())
+        self.item_dim = 2 * len(ObservationSpace.items())
         self.output_dim = len(self.actions)
-        self.cnn = mobilenet_v3_large(pretrained=True, progress=True).features
+        mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
+        if self.n_observation_frames == 1:
+            self.cnn = mobilenet_features
+        else:
+            self.cnn = nn.Sequential(
+                nn.Sequential(
+                    nn.Conv2d(3*self.n_observation_frames, 16, kernel_size=(3, 3),
+                              stride=(2, 2), padding=(1, 1), bias=False),
+                    nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
+                                   affine=True, track_running_stats=True),
+                    nn.Hardswish()),
+                *mobilenet_features[1:]
+            )
         self.visual_feature_dim = self._visual_features_dim()
-        self.linear_input_dim = sum([self.visual_feature_dim * self.n_observation_frames,
-                                     self.inventory_dim,
-                                     self.equip_dim])
+        self.linear_input_dim = sum([self.visual_feature_dim,
+                                     self.item_dim])
 
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
@@ -31,23 +41,15 @@ class Network(nn.Module):
         )
 
     def forward(self, state):
-        if len(state) == 4:
-            current_pov, current_inventory, current_equipped, frame_sequence = state
-        else:
-            current_pov, current_inventory, current_equipped = state
-        batch_size = current_pov.size()[0]
-        current_visual_features = self.cnn(current_pov).reshape(batch_size, -1)
-        x = th.cat((current_visual_features, current_inventory,
-                    current_equipped), dim=1)
-        if self.n_observation_frames > 1:
-            frame_sequence = frame_sequence.reshape((-1, *self.frame_shape))
-            past_visual_features = self.cnn(frame_sequence).reshape(batch_size, -1)
-            x = th.cat((x, past_visual_features), dim=1)
+        pov, items = state
+        batch_size = pov.size()[0]
+        visual_features = self.cnn(pov).reshape(batch_size, -1)
+        x = th.cat((visual_features, items), dim=1)
         return self.linear(x)
 
     def _visual_features_shape(self):
         with th.no_grad():
-            dummy_input = th.zeros(1, *self.frame_shape)
+            dummy_input = th.zeros((1, 3*self.n_observation_frames, 64, 64))
             output = self.cnn(dummy_input)
         return output.size()
 

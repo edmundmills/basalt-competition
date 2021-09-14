@@ -41,8 +41,7 @@ class CriticNetwork(Network):
     def __init__(self):
         super().__init__()
         self.linear_input_dim = sum([self.visual_feature_dim,
-                                     self.inventory_dim,
-                                     self.equip_dim])
+                                     self.item_dim])
         self.linear = nn.Sequential(
             nn.Flatten(),
             nn.Linear(self.linear_input_dim, 1024),
@@ -50,9 +49,10 @@ class CriticNetwork(Network):
             nn.Linear(1024, 1)
         )
 
-    def forward(self, current_pov, current_inventory, current_equipped):
-        current_visual_features = self.cnn(current_pov).flatten(start_dim=1)
-        x = th.cat((current_visual_features, current_inventory, current_equipped), dim=1)
+    def forward(self, state):
+        pov, items = state
+        current_visual_features = self.cnn(pov).flatten(start_dim=1)
+        x = th.cat((current_visual_features, items), dim=1)
         return th.sigmoid(self.linear(x))
 
 
@@ -66,11 +66,10 @@ class TerminationCritic():
         termination_rewards = []
         for step in range(len(trajectory)):
             obs = trajectory.get_obs(step, n_observation_frames=1)
-            (current_pov, current_inventory,
-                current_equipped) = ObservationSpace.obs_to_state(obs, device=self.device)
+            state = ObservationSpace.obs_to_state(obs)
+            state = [state_component.to(self.device) for state_component in state]
             with th.no_grad():
-                rating = self.model.forward(current_pov, current_inventory,
-                                            current_equipped)
+                rating = self.model.forward(state)
                 print(rating.item())
             termination_ratings.append(rating.item())
             reward = self.termination_reward(state)
@@ -81,15 +80,10 @@ class TerminationCritic():
         return termination_ratings
 
     def termination_reward(self, state):
-        state = [state_component.to(self.device) for state_component in state]
-        if len(state) == 4:
-            current_pov, current_inventory, current_equipped, frame_sequence = state
-            frames = (*th.unbind(frame_sequence, dim=1), current_pov)
-        else:
-            current_pov, current_inventory, current_equipped = state
-            frames = [current_pov]
+        pov, items = [state_component.to(self.device) for state_component in state]
+        frames = th.split(pov, 3, dim=1)
         with th.no_grad():
-            ratings = [self.model(frame, current_inventory, current_equipped).item()
+            ratings = [self.model((frame, items)).item()
                        for frame in frames]
         average_rating = sum(ratings) / len(ratings)
         reward = min((average_rating * 20000) - 1, 2.0)
@@ -123,21 +117,18 @@ class TerminationCritic():
         del dataloader
 
     def loss(self, termination_obs, termination_actions):
-        current_pov = ObservationSpace.obs_to_pov(termination_obs)
-        current_inventory = ObservationSpace.obs_to_inventory(termination_obs)
-        current_equipped = ObservationSpace.obs_to_equipped_item(termination_obs)
+        pov, items = ObservationSpace.obs_to_state(termination_obs)
         actions = ActionSpace.dataset_action_batch_to_actions(termination_actions)
 
         use_actions = th.from_numpy(actions == 11).unsqueeze(1)
         batch_size = use_actions.size()[0]
         snowball_tensor = ActionSpace.one_hot_snowball().repeat(batch_size, 1)
         snowball_equipped = th.all(
-            th.eq(current_equipped, snowball_tensor), dim=1, keepdim=True)
+            th.eq(th.chunk(items, 2, dim=1)[1], snowball_tensor), dim=1, keepdim=True)
         terminated = use_actions * snowball_equipped
 
-        predict_terminate = self.model(current_pov.to(self.device),
-                                       current_inventory.to(self.device),
-                                       current_equipped.to(self.device))
+        predict_terminate = self.model((pov.to(self.device),
+                                       items.to(self.device)))
 
         loss = F.binary_cross_entropy(predict_terminate,
                                       terminated.float().to(self.device))
