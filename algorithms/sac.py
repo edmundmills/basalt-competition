@@ -31,6 +31,8 @@ class SAC:
                                      alpha=self.alpha).to(self.device)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=self.n_observation_frames).to(self.device)
+        self._q_loss = SACQLoss(self.online_q, run)
+        self._policy_loss = SACPolicyLoss(self.actor, self.target_q, run)
 
     def train(self, env, run, profiler=None):
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -115,45 +117,19 @@ class SAC:
         actions = actions.to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
 
-        # update critic
-        all_Qs = self.critic.get_Q(all_states)
-        Qs, next_Qs = th.chunk(all_Qs, 2, dim=0)
-        next_Vs = self.critic.get_V(next_Qs)
-        # use Qs only for taken actions
-        Q_s_a = th.gather(Qs, dim=1, index=actions.unsqueeze(1))
-        target_Qs = rewards + self.discount_factor * next_Vs
-        q_loss = F.mse_loss(Q_s_a, target_Qs)
-
-        # update actor
-        entropies = self.actor.entropies(Qs)
-        entropy_s_a = th.gather(entropies, dim=1, index=actions.unsqueeze(1))
-        policy_loss = -th.mean(Q_s_a - self.alpha * entropy_s_a)
-
-        # update curiosity module
-        # loss for predicted action
-        states, next_states = zip(*[th.chunk(state_component, 2, dim=0)
-                                    for state_component in all_states])
-        predicted_actions = self.curiosity_module.predict_action(states, next_states)
-        action_loss = F.cross_entropy(predicted_actions, actions)
-
-        # loss for predicted features
-        current_features = self.curiosity_module.get_features(states)
-        next_features = self.curiosity_module.get_features(next_states, single_frame=True)
-        predicted_features = self.curiosity_module.predict_next_features(
-            current_features, actions)
-        feature_loss = F.mse_loss(predicted_features, next_features)
-
-        curiosity_loss = action_loss + feature_loss
-
-        total_loss = policy_loss + q_loss + curiosity_loss
-
-        self.policy_optimizer.zero_grad(set_to_none=True)
+        q_loss = self._q_loss(all_states, actions)
         self.q_optimizer.zero_grad(set_to_none=True)
-        self.curiosity_optimizer.zero_grad(set_to_none=True)
-        total_loss.backward()
-        self.policy_optimizer.step()
-        self.curiosity_optimizer.step()
+        q_loss.backward()
         self.q_optimizer.step()
 
-        return q_loss.detach(), policy_loss.detach(), \
-            curiosity_loss.detach(), all_Qs.detach().mean().item()
+        policy_loss = self._policy_loss(states)
+        self.policy_optimizer.zero_grad(set_to_none=True)
+        policy_loss.backward()
+        self.policy_optimizer.step()
+
+        curiosity_loss = self.curiosity_module.loss(states, actions, next_states, done)
+        self.curiosity_optimizer.zero_grad(set_to_none=True)
+        curiosity_loss.backward()
+        self.curiosity_optimizer.step()
+
+        return q_loss.detach(), policy_loss.detach(), curiosity_loss.detach()
