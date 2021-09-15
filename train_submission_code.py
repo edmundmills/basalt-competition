@@ -1,10 +1,9 @@
-from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import TrajectoryStepDataset
 from helpers.training_runs import TrainingRun
-from networks.bc import BCAgent
 from networks.soft_q import SqilAgent, IQLearnAgent
 from networks.termination_critic import TerminationCritic
 from environment.start import start_env
+from algorithms.online_imitation import OnlineImitation
 
 import torch as th
 import numpy as np
@@ -57,6 +56,8 @@ def main():
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
+    argparser.add_argument('--termination-critic', dest='termination_critic',
+                           action='store_true', default=False)
     argparser.add_argument('--train-critic-false', dest='train_critic',
                            action='store_false', default=True)
     argparser.add_argument('--debug-env', dest='debug_env',
@@ -73,15 +74,15 @@ def main():
     logging.getLogger().setLevel(logging.INFO)
 
     config = dict(
-        learning_rate=1e-4,
+        learning_rate=3e-5,
         training_steps=1000,
         batch_size=64,
-        alpha=1,
+        alpha=.01,
         discount_factor=0.99,
-        n_observation_frames=1,
+        n_observation_frames=3,
         environment=environment,
         infra='colab',
-        algorithm='sqil',
+        loss_function='iqlearn',
     )
     run = TrainingRun(config=config,
                       checkpoint_freqency=1000,
@@ -95,25 +96,32 @@ def main():
             config=config,
         )
 
-    expert_dataset = TrajectoryStepDataset(debug_dataset=args.debug_env)
+    expert_dataset = TrajectoryStepDataset(
+        debug_dataset=args.debug_env, n_observation_frames=config['n_observation_frames'])
 
     # Train termination critic
-    critic = TerminationCritic()
-    if args.train_critic:
-        critic_config = dict(algorithm='termination_critic',
-                             epochs=5,
-                             learning_rate=1e-4,
-                             batch_size=32,
-                             environment=environment)
-        critic_run = TrainingRun(config=critic_config)
-        critic.train(expert_dataset, critic_run)
+    if args.termination_critic:
+        critic = TerminationCritic()
+        if args.train_critic:
+            critic_config = dict(algorithm='termination_critic',
+                                 epochs=5,
+                                 learning_rate=1e-4,
+                                 batch_size=32,
+                                 environment=environment)
+            critic_run = TrainingRun(config=critic_config)
+
+            expert_dataset.n_observation_frames = 1
+            critic.train(expert_dataset, critic_run)
+            expert_dataset.n_observation_frames = config['n_observation_frames']
+        else:
+            for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+                if ('termination_critic' in saved_agent_path.name
+                        and environment in saved_agent_path.name):
+                    print(f'Loading {saved_agent_path.name} as termination critic')
+                    critic.load_parameters(saved_agent_path)
+                    break
     else:
-        for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-            if ('termination_critic' in saved_agent_path.name
-                    and environment in saved_agent_path.name):
-                print(f'Loading {saved_agent_path.name} as termination critic')
-                critic.load_parameters(saved_agent_path)
-                break
+        critic = None
 
     # Start Virual Display
     if args.virtual_display:
@@ -121,11 +129,10 @@ def main():
         display.start()
 
     # Train Agent
-    agent = SqilAgent(termination_critic=critic,
-                      alpha=config['alpha'],
-                      discount_factor=config['discount_factor'],
-                      n_observation_frames=config['n_observation_frames'])
-    expert_dataset.n_observation_frames = config['n_observation_frames']
+    training_algorithm = OnlineImitation(loss_function=config['loss_function'],
+                                         termination_critic=critic)
+    model = SoftQNetwork(alpha=config['alpha'],
+                         n_observation_frames=config['n_observation_frames'])
     if args.debug_env:
         print('Starting Debug Env')
     else:
@@ -140,7 +147,7 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                agent.train(env, run, expert_dataset, profiler=prof)
+                training_algorithm(model, env, expert_dataset, run, profiler=prof)
             # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
@@ -149,9 +156,9 @@ def main():
                 profile_art.save()
 
     else:
-        agent.train(env, run, expert_dataset)
-    model_save_path = os.path.join('train', f'{run.name}.pth')
+        training_algorithm(model, env, expert_dataset, run)
     if not args.debug_env:
+        model_save_path = os.path.join('train', f'{run.name}.pth')
         agent.save(model_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
@@ -162,6 +169,7 @@ def main():
     # aicrowd_helper.register_progress(1)
     if args.virtual_display:
         display.stop()
+    env.close()
 
 
 if __name__ == "__main__":

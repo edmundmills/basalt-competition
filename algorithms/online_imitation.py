@@ -12,13 +12,13 @@ import wandb
 import os
 
 
-class OnlineQ:
+class OnlineImitation:
     def __init__(self, loss_function, termination_critic=None):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.termination_critic = termination_critic
         self.loss_function = loss_function
 
-    def train(self, model, env, run, expert_dataset, profiler=None):
+    def __call__(self, model, env, expert_dataset, run, profiler=None):
         if loss_function == 'sqil':
             self.loss_function = Sqil(model, run)
         elif loss_function == 'iqlearn':
