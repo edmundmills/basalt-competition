@@ -1,6 +1,7 @@
 from agents.soft_q import SoftQNetwork
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from helpers.datasets import ReplayBuffer
 
 import numpy as np
 import torch as th
@@ -13,24 +14,26 @@ import wandb
 class CuriosityModule(nn.Module):
     def __init__(self, n_observation_frames=1, eta=1):
         super().__init__()
+        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.eta = eta
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.n_observation_frames = n_observation_frames
         mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
-        self.multi_frame_inuput = nn.Sequential(
-            nn.Conv2d(3*self.n_observation_frames, 16, kernel_size=(3, 3),
-                      stride=(2, 2), padding=(1, 1), bias=False),
-            nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
-                           affine=True, track_running_stats=True),
-            nn.Hardswish()),
-        self.single_frame_input = nn.Sequential(mobilenet_features[0])
-        self.cnn = nn.Sequential(*mobilenet_features[1:])
-
+        self.multi_frame_features = nn.Sequential(
+            nn.Sequential(nn.Conv2d(3*self.n_observation_frames, 16, kernel_size=(3, 3),
+                                    stride=(2, 2), padding=(1, 1), bias=False),
+                          nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
+                                         affine=True, track_running_stats=True),
+                          nn.Hardswish()),
+            *nn.Sequential(*mobilenet_features[1:])
+        )
+        self.single_frame_features = mobilenet_v3_large(
+            pretrained=True, progress=True).features
         self.current_feature_dim = self._visual_features_dim(self.n_observation_frames)
         self.next_feature_dim = self._visual_features_dim(1)
         self.action_predictor = nn.Sequential(
-            nn.Linear(sum(self.current_feature_dim, self.next_feature_dim), 256),
+            nn.Linear(self.current_feature_dim + self.next_feature_dim, 256),
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
@@ -48,14 +51,13 @@ class CuriosityModule(nn.Module):
         with th.no_grad():
             dummy_input = th.zeros((1, 3*frames, 64, 64))
             if frames == 1:
-                dummy_input = self.single_frame_input(dummy_input)
+                dummy_features = self.single_frame_features(dummy_input)
             else:
-                dummy_input = self.multi_frame_inuput(dummy_input)
-            output = self.cnn(dummy_input)
-        return output.size()
+                dummy_features = self.multi_frame_features(dummy_input)
+        return dummy_features.size()
 
-    def _visual_features_dim(self):
-        return np.prod(list(self._visual_features_shape()))
+    def _visual_features_dim(self, *args):
+        return np.prod(list(self._visual_features_shape(*args)))
 
     def predict_action(self, state, next_state):
         features = self.get_features(state)
@@ -74,9 +76,9 @@ class CuriosityModule(nn.Module):
         pov, _items = state
         if single_frame or self.n_observation_frames == 1:
             pov = pov[:, :3, :, :]
-            features = self.features(self.single_frame_input(pov))
+            features = self.single_frame_features(pov)
         else:
-            features = self.features(self.multi_frame_inuput(pov))
+            features = self.multi_frame_features(pov)
         features = features.flatten(start_dim=1)
         return features
 
@@ -84,10 +86,14 @@ class CuriosityModule(nn.Module):
         if done:
             return -1
         with th.no_grad():
+            state = [state_component.to(self.device) for state_component in state]
+            next_state = [state_component.to(self.device)
+                          for state_component in next_state]
+            action = th.tensor([action], device=self.device, dtype=th.int64).reshape(-1)
             current_features = self.get_features(state)
             next_features = self.get_features(next_state, single_frame=True)
             predicted_next_features = self.predict_next_features(current_features, action)
-            reward = self.eta * F.mse_loss(next_features, predicted_next_features)
+            reward = self.eta * F.mse_loss(next_features, predicted_next_features).item()
         return reward
 
 
@@ -95,13 +101,16 @@ class IntrinsicCuriosityAgent:
     def __init__(self,
                  n_observation_frames=1,
                  discount_factor=0.99,
-                 termination_critic=None):
+                 termination_critic=None,
+                 alpha=1):
+        self.alpha = alpha
         self.n_observation_frames = n_observation_frames
+        self.actions = ActionSpace.actions()
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.actor = SoftQNetwork(n_observation_frames=n_observation_frames,
-                                  alpha=1).to(self.device)
+                                  alpha=alpha).to(self.device)
         self.critic = SoftQNetwork(n_observation_frames=n_observation_frames,
-                                   alpha=1).to(self.device)
+                                   alpha=alpha).to(self.device)
         self.discount_factor = discount_factor
         self.curiosity_module = CuriosityModule(
             n_observation_frames=n_observation_frames).to(self.device)
@@ -139,7 +148,7 @@ class IntrinsicCuriosityAgent:
 
         for step in range(self.run.config['training_steps']):
             iter_count = step + 1
-            if iter_count <= self.run.config['start_steps']:
+            if iter_count <= self.run.config['starting_steps']:
                 action = self.random_action(
                     replay_buffer.current_trajectory().current_obs())
             else:
@@ -152,10 +161,11 @@ class IntrinsicCuriosityAgent:
             replay_buffer.current_trajectory().done = done
 
             next_state = replay_buffer.current_state()
-            if step < self.run.config['start_steps']:
+            if step < self.run.config['starting_steps']:
                 reward = 0
             else:
-                reward = self.curiosity_module.reward(current_state, next_state)
+                reward = self.curiosity_module.reward(
+                    current_state, action, next_state, done)
             if run.wandb:
                 wandb.log({'reward': reward})
 
@@ -195,51 +205,53 @@ class IntrinsicCuriosityAgent:
         self.run = None
 
     def train_one_batch(self, batch):
-        obs, actions, next_obs, done, reward = batch
+        obs, actions, next_obs, done, rewards = batch
         states = ObservationSpace.obs_to_state(obs)
         next_states = ObservationSpace.obs_to_state(next_obs)
         all_states = [th.cat(state_component, dim=0).to(self.device) for state_component
                       in zip(states, next_states)]
-        actions = actions.unsqueeze(1).to(self.device)
+        actions = actions.to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
 
         # update critic
         all_Qs = self.critic.get_Q(all_states)
         Qs, next_Qs = th.chunk(all_Qs, 2, dim=0)
-        next_Vs = self.critic.get_Vs(next_Qs)
+        next_Vs = self.critic.get_V(next_Qs)
         # use Qs only for taken actions
-        Q_s_a = th.gather(Qs, dim=1, index=actions)
+        Q_s_a = th.gather(Qs, dim=1, index=actions.unsqueeze(1))
         target_Qs = rewards + self.discount_factor * next_Vs
         q_loss = F.mse_loss(Q_s_a, target_Qs)
-        self.q_optimizer.zero_grad(set_to_none=True)
-        q_loss.backward()
-        self.q_optimizer.step()
 
         # update actor
         entropies = self.actor.entropies(Qs)
-        entropy_s_a = th.gather(entropies, dim=1, index=actions)
+        entropy_s_a = th.gather(entropies, dim=1, index=actions.unsqueeze(1))
         policy_loss = -th.mean(Q_s_a - self.alpha * entropy_s_a)
-        self.policy_optimizer.zero_grad(set_to_none=True)
-        policy_loss.backward()
-        self.policy_optimizer.step()
 
         # update curiosity module
         # loss for predicted action
-        states, next_states = th.chunk(all_states, 2, dim=0)
+        states, next_states = zip(*[th.chunk(state_component, 2, dim=0)
+                                    for state_component in all_states])
         predicted_actions = self.curiosity_module.predict_action(states, next_states)
         action_loss = F.cross_entropy(predicted_actions, actions)
 
         # loss for predicted features
         current_features = self.curiosity_module.get_features(states)
         next_features = self.curiosity_module.get_features(next_states, single_frame=True)
-        predicted_features = self.curiosity_module.predicted_next_features(
+        predicted_features = self.curiosity_module.predict_next_features(
             current_features, actions)
         feature_loss = F.mse_loss(predicted_features, next_features)
 
         curiosity_loss = action_loss + feature_loss
+
+        total_loss = policy_loss + q_loss + curiosity_loss
+
+        self.policy_optimizer.zero_grad(set_to_none=True)
+        self.q_optimizer.zero_grad(set_to_none=True)
         self.curiosity_optimizer.zero_grad(set_to_none=True)
-        curiosity_loss.backward()
+        total_loss.backward()
+        self.policy_optimizer.step()
         self.curiosity_optimizer.step()
+        self.q_optimizer.step()
 
         return q_loss.detach(), policy_loss.detach(), \
-            curiosity_loss.detach(), all_qs.detach().mean().item()
+            curiosity_loss.detach(), all_Qs.detach().mean().item()

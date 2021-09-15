@@ -42,11 +42,11 @@ def main():
         q_lr=1e-4,
         curiosity_lr=1e-4,
         starting_steps=100,
-        training_steps=1000,
+        training_steps=2500,
         batch_size=64,
         alpha=1,
         discount_factor=0.99,
-        n_observation_frames=1,
+        n_observation_frames=3,
         environment=environment,
         infra='colab',
         algorithm='curiosity',
@@ -59,7 +59,7 @@ def main():
     # Start WandB
     if args.wandb:
         wandb.init(
-            project="optimize training",
+            project="curiosity",
             notes="increase number of frames, batch_size",
             config=config,
         )
@@ -70,8 +70,7 @@ def main():
         display.start()
 
     # Train Agent
-    agent = IntrinsicCuriosityAgent(termination_critic=critic,
-                                    alpha=config['alpha'],
+    agent = IntrinsicCuriosityAgent(alpha=config['alpha'],
                                     discount_factor=config['discount_factor'],
                                     n_observation_frames=config['n_observation_frames'])
     if args.debug_env:

@@ -60,7 +60,7 @@ class Trajectory:
         return obs
 
     def current_state(self, **kwargs):
-        return ObservationSpace.obs_to_sate(self.current_obs(**kwargs))
+        return ObservationSpace.obs_to_state(self.current_obs(**kwargs))
 
     def get_obs(self, idx, n_observation_frames=1):
         obs = self.obs[idx]
