@@ -1,5 +1,5 @@
 from helpers.training_runs import TrainingRun
-from agents.intrinsic_curiosity import IntrinsicCuriosityAgent
+from networks.intrinsic_curiosity import IntrinsicCuriosityAgent
 from environment.start import start_env
 
 import torch as th

@@ -1,9 +1,9 @@
 from helpers.data import pre_process_expert_trajectories
 from helpers.datasets import TrajectoryStepDataset
 from helpers.training_runs import TrainingRun
-from agents.bc import BCAgent
-from agents.soft_q import SqilAgent, IQLearnAgent
-from agents.termination_critic import TerminationCritic
+from networks.bc import BCAgent
+from networks.soft_q import SqilAgent, IQLearnAgent
+from networks.termination_critic import TerminationCritic
 from environment.start import start_env
 
 import torch as th

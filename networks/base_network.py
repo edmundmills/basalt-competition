@@ -55,3 +55,10 @@ class Network(nn.Module):
 
     def _visual_features_dim(self):
         return np.prod(list(self._visual_features_shape()))
+
+    def load_parameters(self, model_file_path):
+        self.load_state_dict(
+            th.load(model_file_path, map_location=self.device), strict=False)
+
+    def save(self, path):
+        th.save(self.state_dict(), path)

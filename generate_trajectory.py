@@ -1,5 +1,5 @@
-from agents.bc import BCAgent
-from agents.soft_q import SqilAgent, IQLearnAgent, SoftQAgent
+from networks.bc import BCAgent
+from networks.soft_q import SqilAgent, IQLearnAgent, SoftQAgent
 from helpers.trajectories import Trajectory, TrajectoryGenerator
 from environment.start import start_env
 
