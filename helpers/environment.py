@@ -156,7 +156,7 @@ class ActionSpace:
         else:
             _pov, items = obs_or_state
             _inventory, equipped_item = th.chunk(items, 2, dim=1)
-            if equipped_item == ActionSpace.one_hot_snowball():
+            if th.all(th.eq(equipped_item, ActionSpace.one_hot_snowball())):
                 equipped_item = 'snowball'
         return action == 11 and equipped_item == 'snowball'
 

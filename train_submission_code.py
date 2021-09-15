@@ -52,7 +52,7 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    environment = 'MineRLBasaltFindCave-v0'
+    environment = 'MineRLBasaltBuildVillageHouse-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
@@ -75,7 +75,7 @@ def main():
 
     config = dict(
         learning_rate=3e-5,
-        training_steps=1000,
+        training_steps=10000,
         batch_size=64,
         alpha=.01,
         discount_factor=0.99,
@@ -91,8 +91,8 @@ def main():
 
     if args.wandb:
         wandb.init(
-            project="optimize training",
-            notes="increase number of frames, batch_size",
+            project="iqlearn stabilization",
+            notes="lower lr and alpha",
             config=config,
         )
 
