@@ -1,7 +1,7 @@
 from helpers.datasets import TrajectoryStepDataset
 from helpers.training_runs import TrainingRun
-from networks.soft_q import SqilAgent, IQLearnAgent
 from networks.termination_critic import TerminationCritic
+from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from algorithms.online_imitation import OnlineImitation
 
@@ -81,7 +81,7 @@ def main():
         discount_factor=0.99,
         n_observation_frames=3,
         environment=environment,
-        infra='colab',
+        algorithm='online_imitation',
         loss_function='iqlearn',
     )
     run = TrainingRun(config=config,
@@ -129,7 +129,7 @@ def main():
         display.start()
 
     # Train Agent
-    training_algorithm = OnlineImitation(loss_function=config['loss_function'],
+    training_algorithm = OnlineImitation(loss_function_name=config['loss_function'],
                                          termination_critic=critic)
     model = SoftQNetwork(alpha=config['alpha'],
                          n_observation_frames=config['n_observation_frames'])

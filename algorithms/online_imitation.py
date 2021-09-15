@@ -13,15 +13,15 @@ import os
 
 
 class OnlineImitation:
-    def __init__(self, loss_function, termination_critic=None):
+    def __init__(self, loss_function_name, termination_critic=None):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.termination_critic = termination_critic
-        self.loss_function = loss_function
+        self.loss_function_name = loss_function_name
 
     def __call__(self, model, env, expert_dataset, run, profiler=None):
-        if loss_function == 'sqil':
+        if self.loss_function_name == 'sqil':
             self.loss_function = Sqil(model, run)
-        elif loss_function == 'iqlearn':
+        elif self.loss_function_name == 'iqlearn':
             self.loss_function = IQLearn(model, run)
 
         optimizer = th.optim.Adam(model.parameters(),
@@ -60,9 +60,9 @@ class OnlineImitation:
                 loss = self.loss_function(replay_buffer.sample_expert(),
                                           replay_buffer.sample_replay())
 
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
                 if run.wandb:
                     wandb.log({'loss': loss.detach()})
