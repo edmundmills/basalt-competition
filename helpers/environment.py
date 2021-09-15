@@ -150,8 +150,14 @@ class ActionSpace:
         snowball_number = ObservationSpace.items().index('snowball')
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
 
-    def threw_snowball(obs, action):
-        equipped_item = obs['equipped_items']['mainhand']['type']
+    def threw_snowball(obs_or_state, action):
+        if isinstance(obs_or_state, dict):
+            equipped_item = obs_or_state['equipped_items']['mainhand']['type']
+        else:
+            _pov, items = obs_or_state
+            _inventory, equipped_item = th.chunk(items, 2, dim=1)
+            if equipped_item == ActionSpace.one_hot_snowball():
+                equipped_item = 'snowball'
         return action == 11 and equipped_item == 'snowball'
 
     def threw_snowball_list(obs, actions):

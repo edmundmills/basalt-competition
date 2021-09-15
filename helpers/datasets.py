@@ -90,6 +90,10 @@ class ReplayBuffer:
     def current_trajectory(self):
         return self.trajectories[-1]
 
+    def current_state(self):
+        return self.current_trajectory().current_state(
+            n_observation_frames=self.n_observation_frames)
+
     def new_trajectory(self):
         self.trajectories.append(Trajectory())
 
