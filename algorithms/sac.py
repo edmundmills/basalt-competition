@@ -14,17 +14,23 @@ import wandb
 
 class SAC:
     def __init__(self,
-                 reward_function=None,
+                 actor=None,
                  run):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.actor = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                  alpha=run.config['alpha']).to(self.device)
-        self.target_q = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                     alpha=run.config['alpha']).to(self.device)
-        self.online_q = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                     alpha=run.config['alpha']).to(self.device)
+        if actor is not None:
+            self.actor = actor.to(self.device)
+        else:
+            self.actor = SoftQNetwork(
+                n_observation_frames=run.config['n_observation_frames'],
+                alpha=run.config['alpha']).to(self.device)
+        self.target_q = SoftQNetwork(
+            n_observation_frames=run.config['n_observation_frames'],
+            alpha=run.config['alpha']).to(self.device)
+        self.online_q = SoftQNetwork(
+            n_observation_frames=run.config['n_observation_frames'],
+            alpha=run.config['alpha']).to(self.device)
         self.curiosity_module = CuriosityModule(
-            n_observation_frames=self.n_observation_frames).to(self.device)
+            n_observation_frames=run.config['n_observation_frames']).to(self.device)
         self._q_loss = SACQLoss(self.online_q, run)
         self._policy_loss = SACPolicyLoss(self.actor, self.target_q, run)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
