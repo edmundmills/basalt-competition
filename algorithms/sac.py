@@ -1,8 +1,8 @@
 from networks.soft_q import SoftQNetwork
+from algorithms.loss_functions.sac import SACQLoss, SACPolicyLoss
 from networks.instrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
-from torchvision.models.mobilenetv3 import mobilenet_v3_large
-from helpers.datasets import ReplayBuffer
+from helpers.datasets import ReplayBuffer, MixedReplayBuffer
 
 import numpy as np
 import torch as th
@@ -11,41 +11,34 @@ import torch.nn.functional as F
 
 import wandb
 
-# not yet working
-
 
 class SAC:
     def __init__(self,
                  reward_function=None,
                  run):
-        self.alpha = run.config['alpha']
-        self.n_observation_frames = run.config['n_observation_frames']
-        self.discount_factor = run.config['discount_factor']
-        self.actions = ActionSpace.actions()
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.actor = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                  alpha=self.alpha).to(self.device)
+                                  alpha=run.config['alpha']).to(self.device)
         self.target_q = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                     alpha=self.alpha).to(self.device)
+                                     alpha=run.config['alpha']).to(self.device)
         self.online_q = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                     alpha=self.alpha).to(self.device)
+                                     alpha=run.config['alpha']).to(self.device)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=self.n_observation_frames).to(self.device)
         self._q_loss = SACQLoss(self.online_q, run)
         self._policy_loss = SACPolicyLoss(self.actor, self.target_q, run)
-
-    def train(self, env, run, profiler=None):
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
                                                  lr=run.config['curiosity_lr'])
         self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
                                               lr=run.config['policy_lr'])
-        self.q_optimizer = th.optim.Adam(self.critic.parameters(),
+        self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
                                          lr=run.config['q_lr'])
         self.run = run
-        replay_buffer = ReplayBuffer(reward=True,
-                                     n_observation_frames=self.n_observation_frames)
 
-        # th.autograd.set_detect_anomaly(True)
+    def __call__(self, env, profiler=None):
+        replay_buffer = ReplayBuffer(
+            reward=True, n_observation_frames=self.run.config['n_observation_frames'])
+
         obs = env.reset()
         replay_buffer.current_trajectory().append_obs(obs)
         current_state = replay_buffer.current_state()
@@ -53,10 +46,9 @@ class SAC:
         for step in range(self.run.config['training_steps']):
             iter_count = step + 1
             if iter_count <= self.run.config['starting_steps']:
-                action = self.random_action(
-                    replay_buffer.current_trajectory().current_obs())
+                action = self.actor.random_action(current_state)
             else:
-                action = self.get_action(current_state)
+                action = self.actor.get_action(current_state)
 
             replay_buffer.current_trajectory().actions.append(action)
             obs, _, done, _ = env.step(action)
@@ -64,7 +56,10 @@ class SAC:
             replay_buffer.current_trajectory().append_obs(obs)
             replay_buffer.current_trajectory().done = done
 
+            # add things to the replay buffer individually,
+            # so we can use this, which is needed to calculate the reward
             next_state = replay_buffer.current_state()
+
             if step < self.run.config['starting_steps']:
                 reward = 0
             else:
@@ -80,7 +75,7 @@ class SAC:
 
             batch_size = run.config['batch_size']
             if len(replay_buffer) >= batch_size:
-                q_loss, policy_loss, curiosity_loss, average_Q = self.train_one_batch(
+                q_loss, policy_loss, curiosity_loss = self.train_one_batch(
                     replay_buffer.sample(batch_size=batch_size))
                 if run.wandb:
                     wandb.log({'policy_loss': policy_loss,
@@ -97,16 +92,12 @@ class SAC:
 
             if profiler:
                 profiler.step()
-            if (run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0
-                    and iter_count < run.config['training_steps']):
-                th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
+            if run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0 \
+                    and iter_count < run.config['training_steps']:
+                self.save(os.path.join('train', f'{run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
-        self.curiosity_optimizer = None
-        self.policy_optimizer = None
-        self.q_optimizer = None
-        self.run = None
 
     def train_one_batch(self, batch):
         obs, actions, next_obs, done, rewards = batch
@@ -133,3 +124,8 @@ class SAC:
         self.curiosity_optimizer.step()
 
         return q_loss.detach(), policy_loss.detach(), curiosity_loss.detach()
+
+    def save(self, save_path):
+        Path(save_path).mkdir(exist_ok=True)
+        self.actor.save(os.path.join(save_path, 'actor.pth'))
+        self.target_q.save(os.path.join(save_path, 'critc.pth'))
