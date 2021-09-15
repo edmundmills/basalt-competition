@@ -1,5 +1,5 @@
 from helpers.trajectories import Trajectory
-from agents.termination_critic import TerminationCritic
+from networks.termination_critic import TerminationCritic
 from pathlib import Path
 import os
 

@@ -14,7 +14,8 @@ class Network(nn.Module):
         self.frame_shape = ObservationSpace.frame_shape
         self.item_dim = 2 * len(ObservationSpace.items())
         self.output_dim = len(self.actions)
-        mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
+        mobilenet_features = mobilenet_v3_large(
+            pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
             self.cnn = mobilenet_features
         else:
@@ -39,6 +40,8 @@ class Network(nn.Module):
             nn.Dropout(p=0.5),
             nn.Linear(1024, self.output_dim)
         )
+        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.to(self.device)
 
     def forward(self, state):
         pov, items = state
@@ -55,3 +58,10 @@ class Network(nn.Module):
 
     def _visual_features_dim(self):
         return np.prod(list(self._visual_features_shape()))
+
+    def load_parameters(self, model_file_path):
+        self.load_state_dict(
+            th.load(model_file_path, map_location=self.device), strict=False)
+
+    def save(self, path):
+        th.save(self.state_dict(), path)
