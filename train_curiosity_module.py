@@ -41,7 +41,7 @@ def main():
         q_lr=3e-4,
         policy_lr=3e-5,
         curiosity_lr=1e-4,
-        starting_steps=500,
+        starting_steps=300,
         training_steps=5000,
         batch_size=256,
         tau=.05,

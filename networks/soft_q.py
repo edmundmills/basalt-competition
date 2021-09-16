@@ -21,8 +21,8 @@ class SoftQNetwork(Network):
     def get_Q(self, state):
         return self.forward(state)
 
-    def get_Q_s_a(self, state, action):
-        Qs = self.get_Q(state)
+    def get_Q_s_a(self, states, actions):
+        Qs = self.get_Q(states)
         Q_s_a = th.gather(Qs, dim=1, index=actions.unsqueeze(1))
         return Q_s_a
 
@@ -34,8 +34,7 @@ class SoftQNetwork(Network):
         probabilities = F.softmax(Qs/self.alpha, dim=1)
         return probabilities
 
-    def entropies(self, states):
-        Qs = self.get_Q(states)
+    def entropy(self, Qs):
         entropies = F.log_softmax(Qs/self.alpha, dim=1).sum(dim=1, keepdim=True)
         return entropies
 
@@ -65,12 +64,10 @@ class TwinnedSoftQNetwork(nn.Module):
     def get_Q(self, state):
         return self._q_network_1.get_Q(state), self._q_network_2.get_Q(state)
 
-    def get_Q_s_a(self, state, action):
-        Q1s = self._q_network_1.get_Q(state)
-        Q2s = self._q_network_2.get_Q(state)
-        Q1_s_a = th.gather(Q1s, dim=1, index=actions.unsqueeze(1))
-        Q2_s_a = th.gather(Q2s, dim=1, index=actions.unsqueeze(1))
+    def get_Q_s_a(self, states, actions):
+        Q1_s_a = self._q_network_1.get_Q_s_a(states, actions)
+        Q2_s_a = self._q_network_2.get_Q_s_a(states, actions)
         return Q1_s_a, Q2_s_a
 
     def get_V(self, Qs):
-        return self._q_network_1.get_V(self, Qs)
+        return self._q_network_1.get_V(Qs)

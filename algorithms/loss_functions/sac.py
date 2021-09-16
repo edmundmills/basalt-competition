@@ -28,10 +28,12 @@ class SACPolicyLoss:
         self.discount_factor = run.config['discount_factor']
 
     def __call__(self, states, _actions, _next_states, _done, _rewards):
+        actor_Qs = self.policy.get_Q(states)
+        entropies = self.policy.entropy(actor_Qs)
+
         Q1s, Q2s = self.online_q.get_Q(states)
         Qs = th.min(Q1s, Q2s)
         # this is elementwise multiplication to get expectation of Q for following policy
-        expected_Q_policy = Qs * self.policies.action_probabilities(states)
-        entropies = self.policy.entropy(states)
+        expected_Q_policy = Qs * self.policy.action_probabilities(actor_Qs)
         loss = -th.mean(expected_Q_policy - self.policy.alpha * entropies)
         return loss, Qs.detach().mean().item()
