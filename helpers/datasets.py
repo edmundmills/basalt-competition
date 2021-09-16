@@ -13,6 +13,7 @@ import torch as th
 import math
 import random
 import numpy as np
+from PIL import Image
 
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
@@ -114,6 +115,42 @@ class ReplayBuffer:
         replay_batch = [self[idx] for idx in sample_indices]
         return default_collate(replay_batch)
 
+    def save_gifs(self, path):
+        path = Path(path)
+        path.mkdir(exist_ok=True)
+        self._transform = self.transform
+        self._n_observation_frames = self.n_observation_frames
+        self.transform = None
+        self.n_observation_frames = 1
+        gif_count = 10
+        gif_steps = 100
+        frame_skip = 1
+        frames = int(round(gif_steps / (frame_skip + 1)))
+        step_rate = 20  # steps / second
+        frame_rate = step_rate / (frame_skip + 1)
+        duration = frames / frame_rate
+        total_steps = len(self)
+        start_indices = np.array([int(round((gif_number + 1) * total_steps / gif_count))
+                                  - gif_steps
+                                  for gif_number in range(gif_count)])
+        start_indices = start_indices.clip(0, total_steps - gif_steps - 1)
+        start_indices = [int(start_idx) for start_idx in start_indices]
+        print('Gif start indices: ', start_indices)
+        image_paths = []
+        for start_idx in start_indices:
+            step_indices = [start_idx + frame * (frame_skip + 1)
+                            for frame in range(frames)]
+            images = [Image.fromarray(self[step_idx][0]['pov'].astype(np.uint8))
+                      for step_idx in step_indices]
+            image_path = path / f'steps_{start_idx}-{start_idx + gif_steps}.gif'
+            images[0].save(image_path,
+                           save_all=True, append_images=images[1:],
+                           optimize=False, duration=duration, loop=0)
+            image_paths.append(image_path)
+        self.transform = self._transform
+        self.n_observation_frames = self._n_observation_frames
+        return image_paths
+
 
 class MixedReplayBuffer(ReplayBuffer):
     '''
@@ -142,7 +179,7 @@ class MixedReplayBuffer(ReplayBuffer):
                                drop_last=True))
 
     def sample_replay(self):
-        return self.sample(self.replay_batch_size)
+        return super().sample(self.replay_batch_size)
 
     def sample_expert(self):
         try:

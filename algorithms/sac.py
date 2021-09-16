@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 import wandb
 import os
+from pathlib import Path
 
 
 class SoftActorCritic:
@@ -161,6 +162,7 @@ class SoftActorCritic:
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
+        return self.actor, self.replay_buffer
 
     def train_one_batch(self, batch, do_sac_updates=True):
         # load batch onto gpu

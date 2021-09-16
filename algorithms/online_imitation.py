@@ -84,3 +84,4 @@ class OnlineImitation:
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
+        return model, replay_buffer

@@ -30,9 +30,7 @@ class TrainingRun:
 
     def print_update(self):
         iter_count = len(self.timestamps)
-        if iter_count == 1:
-            print('Training Starting')
-        elif (iter_count % self.update_frequency) == 0:
+        if (iter_count % self.update_frequency) == 0 and len(self.timestamps) > 2:
             print(f'Iteration {iter_count} {self.iteration_rate():.2f} it/s')
 
     def iteration_rate(self):

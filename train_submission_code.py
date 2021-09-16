@@ -68,6 +68,8 @@ def main():
                            action='store_true', default=False)
     argparser.add_argument('--virtual-display', dest='virtual_display',
                            action='store_true', default=False)
+    argparser.add_argument('--save-gifs', dest='gifs',
+                           action='store_true', default=False)
     args = argparser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -75,9 +77,9 @@ def main():
 
     config = dict(
         learning_rate=3e-5,
-        training_steps=10000,
+        training_steps=2000,
         batch_size=64,
-        alpha=.01,
+        alpha=1e-4,
         discount_factor=0.99,
         n_observation_frames=3,
         environment=environment,
@@ -141,7 +143,7 @@ def main():
     env = start_env(debug_env=args.debug_env)
 
     if not args.profile:
-        training_algorithm(model, env, expert_dataset, run)
+        model, replay_buffer = training_algorithm(model, env, expert_dataset, run)
     else:
         print('Training with profiler')
         config['training_steps'] = 510
@@ -151,7 +153,8 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                training_algorithm(model, env, expert_dataset, run, profiler=prof)
+                model, replay_buffer = training_algorithm(
+                    model, env, expert_dataset, run, profiler=prof)
             # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
@@ -161,11 +164,20 @@ def main():
 
     if not args.debug_env:
         model_save_path = os.path.join('train', f'{run.name}.pth')
-        agent.save(model_save_path)
+        model.save(model_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
             model_art.add_file(model_save_path)
             model_art.save()
+
+    if args.gifs:
+        print('Saving demo gifs')
+        image_paths = replay_buffer.save_gifs(f'training_runs/{run.name}')
+        if args.wandb:
+            gif_art = wandb.Artifact("demos", type="gif")
+            for image_path in image_paths:
+                gif_art.add_file(image_path)
+            gif_art.save()
 
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
