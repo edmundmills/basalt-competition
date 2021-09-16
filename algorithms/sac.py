@@ -121,7 +121,8 @@ class SoftActorCritic:
                                    'q_loss': q_loss,
                                    'curiosity_loss': curiosity_loss,
                                    'average_target_Qs': average_target_Qs,
-                                   'average_online_Qs': average_online_Qs})
+                                   'average_online_Qs': average_online_Qs,
+                                   'average_its_per_s': self.run.iteration_rate()})
 
             if doing_sac_updates and step % self.target_update_interval:
                 self._soft_update_target()
@@ -133,8 +134,12 @@ class SoftActorCritic:
                 self.replay_buffer.current_trajectory().append_obs(obs)
                 current_state = self.replay_buffer.current_state()
 
+            self.run.step()
+            self.run.print_update()
+
             if profiler:
                 profiler.step()
+
             if self.run.checkpoint_freqency \
                     and iter_count % self.run.checkpoint_freqency == 0 \
                     and iter_count < run.config['training_steps']:

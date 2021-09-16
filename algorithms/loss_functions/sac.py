@@ -32,7 +32,6 @@ class SACPolicyLoss:
         Qs = th.min(Q1s, Q2s)
         # this is elementwise multiplication to get expectation of Q for following policy
         expected_Q_policy = Qs * self.policies.action_probabilities(states)
-        entropies = self.policy.entropies(Qs)
-        entropy_s_a = th.gather(entropies, dim=1, index=actions.unsqueeze(1))
-        loss = -th.mean(expected_Q_policy - self.policy.alpha * entropy_s_a)
+        entropies = self.policy.entropy(states)
+        loss = -th.mean(expected_Q_policy - self.policy.alpha * entropies)
         return loss, Qs.detach().mean().item()

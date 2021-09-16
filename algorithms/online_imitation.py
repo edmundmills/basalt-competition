@@ -66,9 +66,9 @@ class OnlineImitation:
 
                 if run.wandb:
                     wandb.log({'loss': loss.detach()})
-                run.append_loss(loss.detach().item())
+                run.step()
 
-            run.print_update(iter_count)
+            run.print_update()
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
