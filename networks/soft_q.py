@@ -54,8 +54,9 @@ class SoftQNetwork(Network):
         return action
 
 
-class TwinnedSoftQNetwork(nn.module):
+class TwinnedSoftQNetwork(nn.Module):
     def __init__(self, alpha, **kwargs):
+        super().__init__()
         self.alpha = alpha
         self._q_network_1 = SoftQNetwork(alpha, **kwargs)
         self._q_network_2 = SoftQNetwork(alpha, **kwargs)

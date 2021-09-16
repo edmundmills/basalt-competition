@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class SACQLoss:
-    def __init__(self, online_q1, target_q2, run):
+    def __init__(self, online_q, target_q, run):
         self.online_q = online_q
         self.target_q = target_q
         self.discount_factor = run.config['discount_factor']

@@ -1,6 +1,6 @@
 from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
 from algorithms.loss_functions.sac import SACQLoss, SACPolicyLoss
-from networks.instrinsic_curiosity import CuriosityModule
+from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
 from helpers.gpu import states_to_device, disable_gradients
@@ -14,9 +14,9 @@ import wandb
 
 
 class SoftActorCritic:
-    def __init__(self,
+    def __init__(self, run,
                  actor=None,
-                 run):
+                 expert_dataset=None):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.run = run
         self.starting_steps = run.config['starting_steps']
@@ -25,6 +25,17 @@ class SoftActorCritic:
         self.tau = run.config['tau']
         self.target_update_interval = 1
         self.updates_per_step = 1
+
+        # Set up replay buffer
+        if expert_dataset is None:
+            self.replay_buffer = ReplayBuffer(
+                reward=True, n_observation_frames=self.run.config['n_observation_frames'])
+        else:
+            self.replay_buffer = MixedReplayBuffer(
+                expert_dataset=expert_dataset,
+                batch_size=run.config['batch_size'],
+                expert_sample_fraction=0.5,
+                n_observation_frames=self.run.config['n_observation_frames'])
 
         # Set up networks - actor
         if actor is not None:
@@ -41,15 +52,15 @@ class SoftActorCritic:
         self.target_q = TwinnedSoftQNetwork(
             n_observation_frames=run.config['n_observation_frames'],
             alpha=run.config['alpha']).to(self.device)
-        self._target_q.load_state_dict(self._online_q.state_dict())
+        self.target_q.load_state_dict(self.online_q.state_dict())
         disable_gradients(self.target_q)
 
         self.curiosity_module = CuriosityModule(
             n_observation_frames=run.config['n_observation_frames']).to(self.device)
 
         # Loss functions
-        self._q_loss = SACQLoss(self.online_q, run)
-        self._policy_loss = SACPolicyLoss(self.actor, self.target_q, run)
+        self._q_loss = SACQLoss(self.online_q, self.target_q, run)
+        self._policy_loss = SACPolicyLoss(self.actor, self.online_q, run)
 
         # Optimizers
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -64,12 +75,9 @@ class SoftActorCritic:
             target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
 
     def __call__(self, env, profiler=None):
-        replay_buffer = ReplayBuffer(
-            reward=True, n_observation_frames=self.run.config['n_observation_frames'])
-
         obs = env.reset()
-        replay_buffer.current_trajectory().append_obs(obs)
-        current_state = replay_buffer.current_state()
+        self.replay_buffer.current_trajectory().append_obs(obs)
+        current_state = self.replay_buffer.current_state()
 
         for step in range(self.run.config['training_steps']):
             iter_count = step + 1
@@ -78,27 +86,27 @@ class SoftActorCritic:
             else:
                 action = self.actor.get_action(current_state)
 
-            replay_buffer.current_trajectory().actions.append(action)
+            self.replay_buffer.current_trajectory().actions.append(action)
             obs, _, done, _ = env.step(action)
 
-            replay_buffer.current_trajectory().append_obs(obs)
-            replay_buffer.current_trajectory().done = done
+            self.replay_buffer.current_trajectory().append_obs(obs)
+            self.replay_buffer.current_trajectory().done = done
 
             # add elements of the transition tuple to the replay buffer individually
             # so we can use replay buffers current state to calculate the reward
-            next_state = replay_buffer.current_state()
+            next_state = self.replay_buffer.current_state()
 
             if step < self.batch_size * 2:
                 reward = 0
             else:
                 reward = self.curiosity_module.reward(current_state, action,
                                                       next_state, done)
-            if run.wandb:
+            if self.run.wandb:
                 wandb.log({'reward': reward})
 
-            replay_buffer.current_trajectory().rewards.append(reward)
+            self.replay_buffer.current_trajectory().rewards.append(reward)
 
-            replay_buffer.increment_step()
+            self.replay_buffer.increment_step()
             current_state = next_state
 
             doing_sac_updates = step >= self.starting_steps
@@ -106,9 +114,9 @@ class SoftActorCritic:
                 for i in range(self.updates_per_step):
                     q_loss, policy_loss, curiosity_loss, average_target_Qs, \
                         average_online_Qs = self.train_one_batch(
-                            replay_buffer.sample(batch_size=self.batch_size),
+                            self.replay_buffer.sample(batch_size=self.batch_size),
                             do_sac_updates=doing_sac_updates)
-                    if run.wandb:
+                    if self.run.wandb:
                         wandb.log({'policy_loss': policy_loss,
                                    'q_loss': q_loss,
                                    'curiosity_loss': curiosity_loss,
@@ -120,16 +128,17 @@ class SoftActorCritic:
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
-                replay_buffer.new_trajectory()
+                self.replay_buffer.new_trajectory()
                 obs = env.reset()
-                replay_buffer.current_trajectory().append_obs(obs)
-                current_state = replay_buffer.current_state()
+                self.replay_buffer.current_trajectory().append_obs(obs)
+                current_state = self.replay_buffer.current_state()
 
             if profiler:
                 profiler.step()
-            if run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0 \
+            if self.run.checkpoint_freqency \
+                    and iter_count % self.run.checkpoint_freqency == 0 \
                     and iter_count < run.config['training_steps']:
-                self.save(os.path.join('train', f'{run.name}.pth'))
+                self.save(os.path.join('train', f'{self.run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')

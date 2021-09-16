@@ -97,17 +97,16 @@ class CuriosityModule(nn.Module):
             reward = self.eta * F.mse_loss(next_features, predicted_next_features).item()
         return reward
 
-    def loss(state, action, next_state, _done, _reward):
+    def loss(self, states, actions, next_states, _done, _rewards):
         # loss for predicted action
-        states, next_states = states_to_device((state, next_state), self.device)
-        predicted_actions = self.curiosity_module.predict_action(states, next_states)
+        states, next_states = states_to_device((states, next_states), self.device)
+        predicted_actions = self.predict_action(states, next_states)
         action_loss = F.cross_entropy(predicted_actions, actions)
 
         # loss for predicted features
-        current_features = self.curiosity_module.get_features(states)
-        next_features = self.curiosity_module.get_features(next_states, single_frame=True)
-        predicted_features = self.curiosity_module.predict_next_features(
-            current_features, actions)
+        current_features = self.get_features(states)
+        next_features = self.get_features(next_states, single_frame=True)
+        predicted_features = self.predict_next_features(current_features, actions)
         feature_loss = F.mse_loss(predicted_features, next_features)
 
         loss = action_loss + feature_loss
