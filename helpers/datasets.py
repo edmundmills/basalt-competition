@@ -153,3 +153,6 @@ class MixedReplayBuffer(ReplayBuffer):
             (expert_obs, expert_actions, expert_next_obs,
                 expert_done) = next(self.expert_dataloader)
         return expert_obs, expert_actions, expert_next_obs, expert_done
+
+    def sample(self):
+        return self.sample_expert(), self.sample_replay()

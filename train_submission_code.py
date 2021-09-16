@@ -133,12 +133,16 @@ def main():
                                          termination_critic=critic)
     model = SoftQNetwork(alpha=config['alpha'],
                          n_observation_frames=config['n_observation_frames'])
+
     if args.debug_env:
         print('Starting Debug Env')
     else:
         print(f'Starting Env: {environment}')
     env = start_env(debug_env=args.debug_env)
-    if args.profile:
+
+    if not args.profile:
+        training_algorithm(model, env, expert_dataset, run)
+    else:
         print('Training with profiler')
         config['training_steps'] = 510
         profile_dir = f'./logs/{run.name}/'
@@ -155,8 +159,6 @@ def main():
                     profile_art.add_file(profile_file_path)
                 profile_art.save()
 
-    else:
-        training_algorithm(model, env, expert_dataset, run)
     if not args.debug_env:
         model_save_path = os.path.join('train', f'{run.name}.pth')
         agent.save(model_save_path)

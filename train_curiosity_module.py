@@ -1,5 +1,5 @@
 from helpers.training_runs import TrainingRun
-from networks.intrinsic_curiosity import IntrinsicCuriosityAgent
+from algorithms.sac import SoftActorCritic
 from environment.start import start_env
 
 import torch as th
@@ -38,14 +38,15 @@ def main():
     logging.getLogger().setLevel(logging.INFO)
 
     config = dict(
-        policy_lr=1e-4,
-        q_lr=1e-4,
+        q_lr=3e-4,
+        policy_lr=3e-5,
         curiosity_lr=1e-4,
-        starting_steps=100,
-        training_steps=2500,
-        batch_size=64,
-        alpha=1,
-        discount_factor=0.99,
+        starting_steps=500,
+        training_steps=5000,
+        batch_size=256,
+        tau=.05,
+        alpha=.01,
+        discount_factor=.99,
         n_observation_frames=3,
         environment=environment,
         infra='colab',
@@ -70,15 +71,17 @@ def main():
         display.start()
 
     # Train Agent
-    agent = IntrinsicCuriosityAgent(alpha=config['alpha'],
-                                    discount_factor=config['discount_factor'],
-                                    n_observation_frames=config['n_observation_frames'])
+    training_algorithm = SoftActorCritic(run)
+
     if args.debug_env:
         print('Starting Debug Env')
     else:
         print(f'Starting Env: {environment}')
     env = start_env(debug_env=args.debug_env)
-    if args.profile:
+
+    if not args.profile:
+        training_algorithm(env)
+    else:
         print('Training with profiler')
         config['training_steps'] = 510
         profile_dir = f'./logs/{run.name}/'
@@ -87,7 +90,7 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                agent.train(env, run, profiler=prof)
+                training_algorithm(env, profiler=prof)
             # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
@@ -95,11 +98,9 @@ def main():
                     profile_art.add_file(profile_file_path)
                 profile_art.save()
 
-    else:
-        agent.train(env, run)
     model_save_path = os.path.join('train', f'{run.name}.pth')
     if not args.debug_env:
-        agent.save(model_save_path)
+        training_algorithm.save(model_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
             model_art.add_file(model_save_path)
@@ -109,6 +110,8 @@ def main():
     # aicrowd_helper.register_progress(1)
     if args.virtual_display:
         display.stop()
+
+    env.close()
 
 
 if __name__ == "__main__":

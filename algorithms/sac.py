@@ -1,8 +1,9 @@
-from networks.soft_q import SoftQNetwork
-from networks.instrinsic_curiosity import CuriosityModule
+from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
+from algorithms.loss_functions.sac import SACQLoss, SACPolicyLoss
+from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
-from torchvision.models.mobilenetv3 import mobilenet_v3_large
-from helpers.datasets import ReplayBuffer
+from helpers.datasets import ReplayBuffer, MixedReplayBuffer
+from helpers.gpu import states_to_device, disable_gradients
 
 import numpy as np
 import torch as th
@@ -11,149 +12,196 @@ import torch.nn.functional as F
 
 import wandb
 
-# not yet working
 
-
-class SAC:
-    def __init__(self,
-                 reward_function=None,
-                 run):
-        self.alpha = run.config['alpha']
-        self.n_observation_frames = run.config['n_observation_frames']
-        self.discount_factor = run.config['discount_factor']
-        self.actions = ActionSpace.actions()
+class SoftActorCritic:
+    def __init__(self, run,
+                 actor=None,
+                 expert_dataset=None):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.actor = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                  alpha=self.alpha).to(self.device)
-        self.target_q = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                     alpha=self.alpha).to(self.device)
-        self.online_q = SoftQNetwork(n_observation_frames=self.n_observation_frames,
-                                     alpha=self.alpha).to(self.device)
-        self.curiosity_module = CuriosityModule(
-            n_observation_frames=self.n_observation_frames).to(self.device)
+        self.run = run
+        self.starting_steps = run.config['starting_steps']
+        self.batch_size = run.config['batch_size']
+        assert(self.starting_steps > self.batch_size)
+        self.tau = run.config['tau']
+        self.target_update_interval = 1
+        self.updates_per_step = 1
 
-    def train(self, env, run, profiler=None):
+        # Set up replay buffer
+        if expert_dataset is None:
+            self.replay_buffer = ReplayBuffer(
+                reward=True, n_observation_frames=self.run.config['n_observation_frames'])
+        else:
+            self.replay_buffer = MixedReplayBuffer(
+                expert_dataset=expert_dataset,
+                batch_size=run.config['batch_size'],
+                expert_sample_fraction=0.5,
+                n_observation_frames=self.run.config['n_observation_frames'])
+
+        # Set up networks - actor
+        if actor is not None:
+            self.actor = actor.to(self.device)
+        else:
+            self.actor = SoftQNetwork(
+                n_observation_frames=run.config['n_observation_frames'],
+                alpha=run.config['alpha']).to(self.device)
+
+        # Set up networks - critic
+        self.online_q = TwinnedSoftQNetwork(
+            n_observation_frames=run.config['n_observation_frames'],
+            alpha=run.config['alpha']).to(self.device)
+        self.target_q = TwinnedSoftQNetwork(
+            n_observation_frames=run.config['n_observation_frames'],
+            alpha=run.config['alpha']).to(self.device)
+        self.target_q.load_state_dict(self.online_q.state_dict())
+        disable_gradients(self.target_q)
+
+        self.curiosity_module = CuriosityModule(
+            n_observation_frames=run.config['n_observation_frames']).to(self.device)
+
+        # Loss functions
+        self._q_loss = SACQLoss(self.online_q, self.target_q, run)
+        self._policy_loss = SACPolicyLoss(self.actor, self.online_q, run)
+
+        # Optimizers
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
                                                  lr=run.config['curiosity_lr'])
         self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
                                               lr=run.config['policy_lr'])
-        self.q_optimizer = th.optim.Adam(self.critic.parameters(),
+        self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
                                          lr=run.config['q_lr'])
-        self.run = run
-        replay_buffer = ReplayBuffer(reward=True,
-                                     n_observation_frames=self.n_observation_frames)
 
-        # th.autograd.set_detect_anomaly(True)
+    def _soft_update_target(self):
+        for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
+            target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
+
+    def __call__(self, env, profiler=None):
         obs = env.reset()
-        replay_buffer.current_trajectory().append_obs(obs)
-        current_state = replay_buffer.current_state()
+        self.replay_buffer.current_trajectory().append_obs(obs)
+        current_state = self.replay_buffer.current_state()
 
         for step in range(self.run.config['training_steps']):
             iter_count = step + 1
             if iter_count <= self.run.config['starting_steps']:
-                action = self.random_action(
-                    replay_buffer.current_trajectory().current_obs())
+                action = self.actor.random_action(current_state)
             else:
-                action = self.get_action(current_state)
+                action = self.actor.get_action(current_state)
 
-            replay_buffer.current_trajectory().actions.append(action)
+            self.replay_buffer.current_trajectory().actions.append(action)
             obs, _, done, _ = env.step(action)
 
-            replay_buffer.current_trajectory().append_obs(obs)
-            replay_buffer.current_trajectory().done = done
+            self.replay_buffer.current_trajectory().append_obs(obs)
+            self.replay_buffer.current_trajectory().done = done
 
-            next_state = replay_buffer.current_state()
-            if step < self.run.config['starting_steps']:
-                reward = 0
+            # add elements of the transition tuple to the replay buffer individually
+            # so we can use replay buffers current state to calculate the reward
+            next_state = self.replay_buffer.current_state()
+
+            if step <= self.batch_size:
+                reward = 1
             else:
-                reward = self.curiosity_module.reward(
-                    current_state, action, next_state, done)
-            if run.wandb:
-                wandb.log({'reward': reward})
+                reward = self.curiosity_module.reward(current_state, action,
+                                                      next_state, done)
 
-            replay_buffer.current_trajectory().rewards.append(reward)
+            self.replay_buffer.current_trajectory().rewards.append(reward)
 
-            replay_buffer.increment_step()
+            self.replay_buffer.increment_step()
             current_state = next_state
 
-            batch_size = run.config['batch_size']
-            if len(replay_buffer) >= batch_size:
-                q_loss, policy_loss, curiosity_loss, average_Q = self.train_one_batch(
-                    replay_buffer.sample(batch_size=batch_size))
-                if run.wandb:
-                    wandb.log({'policy_loss': policy_loss,
-                               'q_loss': q_loss,
-                               'curiosity_loss': curiosity_loss,
-                               'average_Q': average_Q})
+            doing_sac_updates = (step >= self.starting_steps)
+            if step > self.batch_size:
+                q_losses = []
+                policy_losses = []
+                curiosity_losses = []
+                average_target_Qs = []
+                average_online_Qs = []
+                for i in range(self.updates_per_step):
+                    q_loss, policy_loss, curiosity_loss, average_target_Q, \
+                        average_online_Q = self.train_one_batch(
+                            self.replay_buffer.sample(batch_size=self.batch_size),
+                            do_sac_updates=doing_sac_updates)
+                    q_losses.append(q_loss)
+                    policy_losses.append(policy_loss)
+                    curiosity_losses.append(curiosity_loss)
+                    average_target_Qs.append(average_target_Q)
+                    average_online_Qs.append(average_online_Q)
+                if self.run.wandb:
+                    wandb.log(
+                        {'reward': reward,
+                         'policy_loss': sum(policy_losses) / self.updates_per_step,
+                         'q_loss': sum(q_losses) / self.updates_per_step,
+                         'curiosity_loss': (sum(curiosity_losses)
+                                            / self.updates_per_step),
+                         'average_target_Qs': (sum(average_target_Qs)
+                                               / self.updates_per_step),
+                         'average_online_Qs': (sum(average_online_Qs)
+                                               / self.updates_per_step),
+                         'average_its_per_s': self.run.iteration_rate()})
+
+            if doing_sac_updates and step % self.target_update_interval:
+                self._soft_update_target()
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
-                replay_buffer.new_trajectory()
+                self.replay_buffer.new_trajectory()
                 obs = env.reset()
-                replay_buffer.current_trajectory().append_obs(obs)
-                current_state = replay_buffer.current_state()
+                self.replay_buffer.current_trajectory().append_obs(obs)
+                current_state = self.replay_buffer.current_state()
+
+            self.run.step()
+            self.run.print_update()
 
             if profiler:
                 profiler.step()
-            if (run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0
-                    and iter_count < run.config['training_steps']):
-                th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
+
+            if self.run.checkpoint_freqency \
+                    and iter_count % self.run.checkpoint_freqency == 0 \
+                    and iter_count < self.run.config['training_steps']:
+                self.save(os.path.join('train', f'{self.run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
-        self.curiosity_optimizer = None
-        self.policy_optimizer = None
-        self.q_optimizer = None
-        self.run = None
 
-    def train_one_batch(self, batch):
-        obs, actions, next_obs, done, rewards = batch
+    def train_one_batch(self, batch, do_sac_updates=True):
+        # load batch onto gpu
+        obs, actions, next_obs, _done, rewards = batch
         states = ObservationSpace.obs_to_state(obs)
         next_states = ObservationSpace.obs_to_state(next_obs)
-        all_states = [th.cat(state_component, dim=0).to(self.device) for state_component
-                      in zip(states, next_states)]
+        states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
-        rewards = rewards.float().unsqueeze(1).to(self.device)
+        if do_sac_updates:
+            rewards = rewards.float().unsqueeze(1).to(self.device)
+        batch = states, actions, next_states, _done, rewards
 
-        # update critic
-        all_Qs = self.critic.get_Q(all_states)
-        Qs, next_Qs = th.chunk(all_Qs, 2, dim=0)
-        next_Vs = self.critic.get_V(next_Qs)
-        # use Qs only for taken actions
-        Q_s_a = th.gather(Qs, dim=1, index=actions.unsqueeze(1))
-        target_Qs = rewards + self.discount_factor * next_Vs
-        q_loss = F.mse_loss(Q_s_a, target_Qs)
+        if do_sac_updates:
+            # update q
+            q_loss, average_target_Q = self._q_loss(*batch)
+            self.q_optimizer.zero_grad(set_to_none=True)
+            q_loss.backward()
+            self.q_optimizer.step()
+            q_loss = q_loss.detach()
 
-        # update actor
-        entropies = self.actor.entropies(Qs)
-        entropy_s_a = th.gather(entropies, dim=1, index=actions.unsqueeze(1))
-        policy_loss = -th.mean(Q_s_a - self.alpha * entropy_s_a)
+            # update policy
+            policy_loss, average_online_Q = self._policy_loss(*batch)
+            self.policy_optimizer.zero_grad(set_to_none=True)
+            policy_loss.backward()
+            self.policy_optimizer.step()
+            policy_loss = policy_loss.detach()
+        else:
+            q_loss = 0
+            policy_loss = 0
+            average_target_Q = 0
+            average_online_Q = 0
 
-        # update curiosity module
-        # loss for predicted action
-        states, next_states = zip(*[th.chunk(state_component, 2, dim=0)
-                                    for state_component in all_states])
-        predicted_actions = self.curiosity_module.predict_action(states, next_states)
-        action_loss = F.cross_entropy(predicted_actions, actions)
-
-        # loss for predicted features
-        current_features = self.curiosity_module.get_features(states)
-        next_features = self.curiosity_module.get_features(next_states, single_frame=True)
-        predicted_features = self.curiosity_module.predict_next_features(
-            current_features, actions)
-        feature_loss = F.mse_loss(predicted_features, next_features)
-
-        curiosity_loss = action_loss + feature_loss
-
-        total_loss = policy_loss + q_loss + curiosity_loss
-
-        self.policy_optimizer.zero_grad(set_to_none=True)
-        self.q_optimizer.zero_grad(set_to_none=True)
+        # update curiosity
+        curiosity_loss = self.curiosity_module.loss(*batch)
         self.curiosity_optimizer.zero_grad(set_to_none=True)
-        total_loss.backward()
-        self.policy_optimizer.step()
+        curiosity_loss.backward()
         self.curiosity_optimizer.step()
-        self.q_optimizer.step()
+        curiosity_loss = curiosity_loss.detach()
 
-        return q_loss.detach(), policy_loss.detach(), \
-            curiosity_loss.detach(), all_Qs.detach().mean().item()
+        return q_loss, policy_loss, curiosity_loss, average_target_Q, average_online_Q
+
+    def save(self, save_path):
+        Path(save_path).mkdir(exist_ok=True)
+        self.actor.save(os.path.join(save_path, 'actor.pth'))
+        self.target_q.save(os.path.join(save_path, 'critc.pth'))
