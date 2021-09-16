@@ -10,7 +10,6 @@ else
 fi
 
 
-
 EXTRAOUTPUT=" > /dev/null 2>&1 "
 if [[ " $@ " =~ " --verbose " ]]; then
    EXTRAOUTPUT=""

@@ -30,15 +30,22 @@ fi
 
 ARGS="${@}"
 
+# Source secrets
+if [ -e secrets.sh ]
+then
+    source utility/secrets.sh
+fi
+
+
 # Expected Env variables : in environ.sh
 if [[ " $@ " =~ " --nvidia " ]]; then
     nvidia-docker run \
     --net=host \
-    --user 0 \
     -e WANDB_API_KEY=${WANDB_API_KEY} \
     -v /scr-ssd/divgarg/datasets/minerl:/home/aicrowd/data \
     -v $(pwd)/performance:/home/aicrowd/performance \
-    -v $(pwd)/.gradle:/home/aicrowd/.gradle \    -it ${IMAGE_NAME}:${IMAGE_TAG} \
+    -v $(pwd)/.gradle:/home/aicrowd/.gradle \
+    -it ${IMAGE_NAME}:${IMAGE_TAG} \
     /bin/bash -c "echo \"Staring docker training...\"; xvfb-run -a ./utility/train_locally.sh ${ARGS}"
 else
     echo "To run your submission with nvidia drivers locally, use \"--nvidia\" with this script"
