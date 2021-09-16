@@ -26,6 +26,7 @@ class SoftActorCritic:
         self.tau = run.config['tau']
         self.target_update_interval = 1
         self.updates_per_step = 1
+        self.curiosity_updates_per_step = 3
 
         # Set up replay buffer
         if expert_dataset is None:
@@ -109,13 +110,15 @@ class SoftActorCritic:
             current_state = next_state
 
             doing_sac_updates = (step >= self.starting_steps)
+            updates_per_step = self.curiosity_updates_per_step \
+                if step < self.starting_steps else self.updates_per_step
             if step > self.batch_size:
                 q_losses = []
                 policy_losses = []
                 curiosity_losses = []
                 average_target_Qs = []
                 average_online_Qs = []
-                for i in range(self.updates_per_step):
+                for i in range(updates_per_step):
                     q_loss, policy_loss, curiosity_loss, average_target_Q, \
                         average_online_Q = self.train_one_batch(
                             self.replay_buffer.sample(batch_size=self.batch_size),
@@ -128,14 +131,11 @@ class SoftActorCritic:
                 if self.run.wandb:
                     wandb.log(
                         {'reward': reward,
-                         'policy_loss': sum(policy_losses) / self.updates_per_step,
-                         'q_loss': sum(q_losses) / self.updates_per_step,
-                         'curiosity_loss': (sum(curiosity_losses)
-                                            / self.updates_per_step),
-                         'average_target_Qs': (sum(average_target_Qs)
-                                               / self.updates_per_step),
-                         'average_online_Qs': (sum(average_online_Qs)
-                                               / self.updates_per_step),
+                         'policy_loss': sum(policy_losses) / updates_per_step,
+                         'q_loss': sum(q_losses) / updates_per_step,
+                         'curiosity_loss': sum(curiosity_losses) / updates_per_step,
+                         'average_target_Qs': sum(average_target_Qs) / updates_per_step,
+                         'average_online_Qs': sum(average_online_Qs) / updates_per_step,
                          'average_its_per_s': self.run.iteration_rate()})
 
             if doing_sac_updates and step % self.target_update_interval:

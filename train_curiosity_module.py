@@ -39,12 +39,12 @@ def main():
 
     config = dict(
         q_lr=3e-4,
-        policy_lr=3e-5,
-        curiosity_lr=1e-4,
-        starting_steps=500,
-        training_steps=5000,
+        policy_lr=1e-4,
+        curiosity_lr=1e-3,
+        starting_steps=1000,
+        training_steps=10000,
         batch_size=256,
-        tau=.05,
+        tau=.1,
         alpha=.01,
         discount_factor=.99,
         n_observation_frames=3,
