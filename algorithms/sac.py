@@ -96,8 +96,8 @@ class SoftActorCritic:
             # so we can use replay buffers current state to calculate the reward
             next_state = self.replay_buffer.current_state()
 
-            if step < self.batch_size * 1.5:
-                reward = .5
+            if step <= self.batch_size:
+                reward = 1
             else:
                 reward = self.curiosity_module.reward(current_state, action,
                                                       next_state, done)
@@ -107,7 +107,7 @@ class SoftActorCritic:
             self.replay_buffer.increment_step()
             current_state = next_state
 
-            doing_sac_updates = step >= self.starting_steps
+            doing_sac_updates = (step >= self.starting_steps)
             if step > self.batch_size:
                 q_losses = []
                 policy_losses = []
@@ -119,20 +119,23 @@ class SoftActorCritic:
                         average_online_Q = self.train_one_batch(
                             self.replay_buffer.sample(batch_size=self.batch_size),
                             do_sac_updates=doing_sac_updates)
-                    if self.run.wandb:
-                        q_losses = q_losses.append(q_loss)
-                        policy_losses = policy_losses.append(policy_loss)
-                        curiosity_losses = curiosity_losses.append(curiosity_loss)
-                        average_target_Qs = average_target_Qs.append(average_target_Q)
-                        average_online_Q = average_online_Qs.append(average_online_Q)
+                    q_losses.append(q_loss)
+                    policy_losses.append(policy_loss)
+                    curiosity_losses.append(curiosity_loss)
+                    average_target_Qs.append(average_target_Q)
+                    average_online_Qs.append(average_online_Q)
                 if self.run.wandb:
-                    wandb.log({'reward': reward,
-                               'policy_loss': mean(policy_losses),
-                               'q_loss': mean(q_losses),
-                               'curiosity_loss': mean(curiosity_losses),
-                               'average_target_Qs': mean(average_target_Qs),
-                               'average_online_Qs': mean(average_online_Qs),
-                               'average_its_per_s': self.run.iteration_rate()})
+                    wandb.log(
+                        {'reward': reward,
+                         'policy_loss': sum(policy_losses) / self.updates_per_step,
+                         'q_loss': sum(q_losses) / self.updates_per_step,
+                         'curiosity_loss': (sum(curiosity_losses)
+                                            / self.updates_per_step),
+                         'average_target_Qs': (sum(average_target_Qs)
+                                               / self.updates_per_step),
+                         'average_online_Qs': (sum(average_online_Qs)
+                                               / self.updates_per_step),
+                         'average_its_per_s': self.run.iteration_rate()})
 
             if doing_sac_updates and step % self.target_update_interval:
                 self._soft_update_target()
@@ -152,7 +155,7 @@ class SoftActorCritic:
 
             if self.run.checkpoint_freqency \
                     and iter_count % self.run.checkpoint_freqency == 0 \
-                    and iter_count < run.config['training_steps']:
+                    and iter_count < self.run.config['training_steps']:
                 self.save(os.path.join('train', f'{self.run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 
@@ -171,14 +174,14 @@ class SoftActorCritic:
 
         if do_sac_updates:
             # update q
-            q_loss, average_target_Qs = self._q_loss(*batch)
+            q_loss, average_target_Q = self._q_loss(*batch)
             self.q_optimizer.zero_grad(set_to_none=True)
             q_loss.backward()
             self.q_optimizer.step()
             q_loss = q_loss.detach()
 
             # update policy
-            policy_loss, average_online_Qs = self._policy_loss(*batch)
+            policy_loss, average_online_Q = self._policy_loss(*batch)
             self.policy_optimizer.zero_grad(set_to_none=True)
             policy_loss.backward()
             self.policy_optimizer.step()

@@ -42,7 +42,7 @@ def main():
         policy_lr=3e-5,
         curiosity_lr=1e-4,
         starting_steps=500,
-        training_steps=1000,
+        training_steps=5000,
         batch_size=256,
         tau=.05,
         alpha=.01,
