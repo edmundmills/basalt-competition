@@ -96,13 +96,11 @@ class SoftActorCritic:
             # so we can use replay buffers current state to calculate the reward
             next_state = self.replay_buffer.current_state()
 
-            if step < self.batch_size * 2:
-                reward = 0
+            if step < self.batch_size * 1.5:
+                reward = .5
             else:
                 reward = self.curiosity_module.reward(current_state, action,
                                                       next_state, done)
-            if self.run.wandb:
-                wandb.log({'reward': reward})
 
             self.replay_buffer.current_trajectory().rewards.append(reward)
 
@@ -111,18 +109,30 @@ class SoftActorCritic:
 
             doing_sac_updates = step >= self.starting_steps
             if step > self.batch_size:
+                q_losses = []
+                policy_losses = []
+                curiosity_losses = []
+                average_target_Qs = []
+                average_online_Qs = []
                 for i in range(self.updates_per_step):
-                    q_loss, policy_loss, curiosity_loss, average_target_Qs, \
-                        average_online_Qs = self.train_one_batch(
+                    q_loss, policy_loss, curiosity_loss, average_target_Q, \
+                        average_online_Q = self.train_one_batch(
                             self.replay_buffer.sample(batch_size=self.batch_size),
                             do_sac_updates=doing_sac_updates)
                     if self.run.wandb:
-                        wandb.log({'policy_loss': policy_loss,
-                                   'q_loss': q_loss,
-                                   'curiosity_loss': curiosity_loss,
-                                   'average_target_Qs': average_target_Qs,
-                                   'average_online_Qs': average_online_Qs,
-                                   'average_its_per_s': self.run.iteration_rate()})
+                        q_losses = q_losses.append(q_loss)
+                        policy_losses = policy_losses.append(policy_loss)
+                        curiosity_losses = curiosity_losses.append(curiosity_loss)
+                        average_target_Qs = average_target_Qs.append(average_target_Q)
+                        average_online_Q = average_online_Qs.append(average_online_Q)
+                if self.run.wandb:
+                    wandb.log({'reward': reward,
+                               'policy_loss': mean(policy_losses),
+                               'q_loss': mean(q_losses),
+                               'curiosity_loss': mean(curiosity_losses),
+                               'average_target_Qs': mean(average_target_Qs),
+                               'average_online_Qs': mean(average_online_Qs),
+                               'average_its_per_s': self.run.iteration_rate()})
 
             if doing_sac_updates and step % self.target_update_interval:
                 self._soft_update_target()
@@ -174,10 +184,10 @@ class SoftActorCritic:
             self.policy_optimizer.step()
             policy_loss = policy_loss.detach()
         else:
-            q_loss = None
-            policy_loss = None
-            average_target_Qs = None
-            average_online_Qs = None
+            q_loss = 0
+            policy_loss = 0
+            average_target_Q = 0
+            average_online_Q = 0
 
         # update curiosity
         curiosity_loss = self.curiosity_module.loss(*batch)
@@ -186,7 +196,7 @@ class SoftActorCritic:
         self.curiosity_optimizer.step()
         curiosity_loss = curiosity_loss.detach()
 
-        return q_loss, policy_loss, curiosity_loss, average_target_Qs, average_online_Qs
+        return q_loss, policy_loss, curiosity_loss, average_target_Q, average_online_Q
 
     def save(self, save_path):
         Path(save_path).mkdir(exist_ok=True)
