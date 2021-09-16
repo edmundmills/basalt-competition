@@ -21,6 +21,11 @@ class SoftQNetwork(Network):
     def get_Q(self, state):
         return self.forward(state)
 
+    def get_Q_s_a(self, state, action):
+        Qs = self.get_Q(state)
+        Q_s_a = th.gather(Qs, dim=1, index=actions.unsqueeze(1))
+        return Q_s_a
+
     def get_V(self, Qs):
         v = self.alpha * th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
         return v
@@ -47,3 +52,23 @@ class SoftQNetwork(Network):
             while ActionSpace.threw_snowball(state, action):
                 action = np.random.choice(self.actions)
         return action
+
+
+class TwinnedSoftQNetwork(nn.module):
+    def __init__(self, alpha, **kwargs):
+        self.alpha = alpha
+        self._q_network_1 = SoftQNetwork(alpha, **kwargs)
+        self._q_network_2 = SoftQNetwork(alpha, **kwargs)
+
+    def get_Q(self, state):
+        return self._q_network_1.get_Q(state), self._q_network_2.get_Q(state)
+
+    def get_Q_s_a(self, state, action):
+        Q1s = self._q_network_1.get_Q(state)
+        Q2s = self._q_network_2.get_Q(state)
+        Q1_s_a = th.gather(Q1s, dim=1, index=actions.unsqueeze(1))
+        Q2_s_a = th.gather(Q2s, dim=1, index=actions.unsqueeze(1))
+        return Q1_s_a, Q2_s_a
+
+    def get_V(self, Qs):
+        return self._q_network_1.get_V(self, Qs)

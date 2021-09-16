@@ -1,5 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from helpers.gpu import states_to_device
 
 import numpy as np
 import torch as th
@@ -96,10 +97,9 @@ class CuriosityModule(nn.Module):
             reward = self.eta * F.mse_loss(next_features, predicted_next_features).item()
         return reward
 
-    def loss(state, action, next_state, _done):
+    def loss(state, action, next_state, _done, _reward):
         # loss for predicted action
-        states, next_states = zip(*[th.chunk(state_component, 2, dim=0)
-                                    for state_component in all_states])
+        states, next_states = states_to_device((state, next_state), self.device)
         predicted_actions = self.curiosity_module.predict_action(states, next_states)
         action_loss = F.cross_entropy(predicted_actions, actions)
 

@@ -38,14 +38,15 @@ def main():
     logging.getLogger().setLevel(logging.INFO)
 
     config = dict(
-        policy_lr=1e-4,
-        q_lr=1e-4,
+        q_lr=3e-4,
+        policy_lr=3e-5,
         curiosity_lr=1e-4,
-        starting_steps=100,
-        training_steps=2500,
-        batch_size=64,
-        alpha=1,
-        discount_factor=0.99,
+        starting_steps=500,
+        training_steps=5000,
+        batch_size=256,
+        tau=.05,
+        alpha=.01,
+        discount_factor=.99,
         n_observation_frames=3,
         environment=environment,
         infra='colab',
