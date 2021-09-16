@@ -4,6 +4,7 @@ from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from algorithms.online_imitation import OnlineImitation
+from algorithms.sac import SoftActorCritic, IQLearnSAC
 
 import torch as th
 import numpy as np
@@ -77,15 +78,22 @@ def main():
 
     config = dict(
         learning_rate=3e-5,
+        q_lr=3e-4,
+        policy_lr=1e-4,
+        curiosity_lr=3e-4,
+        starting_steps=2000,
         training_steps=2000,
-        batch_size=64,
-        alpha=1e-4,
+        batch_size=256,
+        alpha=1e-2,
         discount_factor=0.99,
+        tau=.1,
         n_observation_frames=3,
         environment=environment,
-        algorithm='online_imitation',
+        algorithm='sac',
         loss_function='iqlearn',
+        double_q=False
     )
+    assert(!(config['loss_function'] == 'iqlearn' and config['double_q']))
     run = TrainingRun(config=config,
                       checkpoint_freqency=1000,
                       wandb=args.wandb)
@@ -93,8 +101,8 @@ def main():
 
     if args.wandb:
         wandb.init(
-            project="iqlearn stabilization",
-            notes="lower lr and alpha",
+            project="iqlearn sac",
+            notes="remove double q trick",
             config=config,
         )
 
@@ -131,10 +139,12 @@ def main():
         display.start()
 
     # Train Agent
-    training_algorithm = OnlineImitation(loss_function_name=config['loss_function'],
-                                         termination_critic=critic)
-    model = SoftQNetwork(alpha=config['alpha'],
-                         n_observation_frames=config['n_observation_frames'])
+    training_algorithm = IQLearnSAC(expert_dataset, run)
+
+    # training_algorithm = OnlineImitation(loss_function_name=config['loss_function'],
+    #                                      termination_critic=critic)
+    # model = SoftQNetwork(alpha=config['alpha'],
+    #                      n_observation_frames=config['n_observation_frames'])
 
     if args.debug_env:
         print('Starting Debug Env')
@@ -143,7 +153,8 @@ def main():
     env = start_env(debug_env=args.debug_env)
 
     if not args.profile:
-        model, replay_buffer = training_algorithm(model, env, expert_dataset, run)
+        model, replay_buffer = training_algorithm(env)
+        # model, replay_buffer = training_algorithm(model, env, expert_dataset, run)
     else:
         print('Training with profiler')
         config['training_steps'] = 510
@@ -153,8 +164,7 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                model, replay_buffer = training_algorithm(
-                    model, env, expert_dataset, run, profiler=prof)
+                model, replay_buffer = training_algorithm(env, profiler=prof)
             # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")

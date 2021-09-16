@@ -1,5 +1,6 @@
-from algorithms.loss_functions.iqlearn import IQLearn
-from algorithms.loss_functions.sqil import Sqil
+from algorithms.algorithm import Algorithm
+from algorithms.loss_functions.iqlearn import IQLearnLoss
+from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
 
@@ -12,30 +13,37 @@ import wandb
 import os
 
 
-class OnlineImitation:
-    def __init__(self, loss_function_name, termination_critic=None):
+class OnlineImitation(Algorithm):
+    def __init__(self, run, termination_critic=None):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.termination_critic = termination_critic
-        self.loss_function_name = loss_function_name
+        self.run = run
+        self.lr = self.run.config['learning_rate']
+        self.starting_steps = self.run.config['starting_steps']
+        self.training_steps = self.run.config['training_steps']
+        self.batch_size = self.run.config['batch_size']
 
-    def __call__(self, model, env, expert_dataset, run, profiler=None):
-        if self.loss_function_name == 'sqil':
-            self.loss_function = Sqil(model, run)
-        elif self.loss_function_name == 'iqlearn':
-            self.loss_function = IQLearn(model, run)
+    def __call__(self, model, env, expert_dataset, profiler=None):
+        if self.run.config['loss_function'] == 'sqil':
+            self.loss_function = SqilLoss(model, self.run)
+        elif self.run.config['loss_function'] == 'iqlearn':
+            self.loss_function = IQLearnLoss(model, self.run)
 
         optimizer = th.optim.Adam(model.parameters(),
-                                  lr=run.config['learning_rate'])
+                                  lr=self.lr)
 
         replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
-                                          batch_size=run.config['batch_size'],
+                                          batch_size=self.batch_size,
                                           expert_sample_fraction=0.5,
                                           n_observation_frames=model.n_observation_frames)
 
+        if self.starting_steps > 0:
+            self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
         obs = env.reset()
+        replay_buffer.new_trajectory()
         replay_buffer.current_trajectory().append_obs(obs)
 
-        for step in range(run.config['training_steps']):
+        for step in range(self.training_steps):
             iter_count = step + 1
 
             current_state = replay_buffer.current_trajectory().current_state(
@@ -46,7 +54,7 @@ class OnlineImitation:
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
-                    if run.wandb:
+                    if self.run.wandb:
                         wandb.log({'termination_reward': reward})
                 else:
                     reward = 0
@@ -64,11 +72,11 @@ class OnlineImitation:
                 loss.backward()
                 optimizer.step()
 
-                if run.wandb:
+                if self.run.wandb:
                     wandb.log({'loss': loss.detach()})
-                run.step()
+                self.run.step()
 
-            run.print_update()
+            self.run.print_update()
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
@@ -78,9 +86,10 @@ class OnlineImitation:
 
             if profiler:
                 profiler.step()
-            if run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0 \
-                    and iter_count < run.config['training_steps']:
-                model.save(os.path.join('train', f'{run.name}.pth'))
+            if self.run.checkpoint_freqency and \
+                iter_count % self.run.checkpoint_freqency == 0 \
+                    and iter_count < self.run.config['training_steps']:
+                model.save(os.path.join('train', f'{self.run.name}.pth'))
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')

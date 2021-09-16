@@ -1,5 +1,7 @@
 from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
+from algorithms.algorithm import Algorithm
 from algorithms.loss_functions.sac import SACQLoss, SACPolicyLoss
+from algorithms.loss_functions.iqlearn import IQLearnLossSAC
 from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
@@ -9,36 +11,29 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 import wandb
 import os
 from pathlib import Path
 
 
-class SoftActorCritic:
-    def __init__(self, run,
-                 actor=None,
-                 expert_dataset=None):
+class SoftActorCritic(Algorithm):
+    def __init__(self, run, actor=None):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.run = run
         self.starting_steps = run.config['starting_steps']
+        self.suppress_snowball_steps = run.config['suppress_snowball_steps']
+        self.training_steps = run.config['training_steps']
         self.batch_size = run.config['batch_size']
-        assert(self.starting_steps > self.batch_size)
         self.tau = run.config['tau']
+        self.double_q = run.config['double_q']
         self.target_update_interval = 1
         self.updates_per_step = 1
-        self.curiosity_updates_per_step = 3
-
+        self.curiosity_pretraining_steps = 0
         # Set up replay buffer
-        if expert_dataset is None:
-            self.replay_buffer = ReplayBuffer(
-                reward=True, n_observation_frames=self.run.config['n_observation_frames'])
-        else:
-            self.replay_buffer = MixedReplayBuffer(
-                expert_dataset=expert_dataset,
-                batch_size=run.config['batch_size'],
-                expert_sample_fraction=0.5,
-                n_observation_frames=self.run.config['n_observation_frames'])
+        self.replay_buffer = ReplayBuffer(
+            reward=True, n_observation_frames=self.run.config['n_observation_frames'])
 
         # Set up networks - actor
         if actor is not None:
@@ -49,48 +44,84 @@ class SoftActorCritic:
                 alpha=run.config['alpha']).to(self.device)
 
         # Set up networks - critic
-        self.online_q = TwinnedSoftQNetwork(
-            n_observation_frames=run.config['n_observation_frames'],
-            alpha=run.config['alpha']).to(self.device)
-        self.target_q = TwinnedSoftQNetwork(
-            n_observation_frames=run.config['n_observation_frames'],
-            alpha=run.config['alpha']).to(self.device)
+        if self.double_q:
+            self.online_q = TwinnedSoftQNetwork(
+                n_observation_frames=run.config['n_observation_frames'],
+                alpha=run.config['alpha']).to(self.device)
+            self.target_q = TwinnedSoftQNetwork(
+                n_observation_frames=run.config['n_observation_frames'],
+                alpha=run.config['alpha']).to(self.device)
+        else:
+            self.online_q = SoftQNetwork(
+                n_observation_frames=run.config['n_observation_frames'],
+                alpha=run.config['alpha']).to(self.device)
+            self.target_q = SoftQNetwork(
+                n_observation_frames=run.config['n_observation_frames'],
+                alpha=run.config['alpha']).to(self.device)
+
         self.target_q.load_state_dict(self.online_q.state_dict())
         disable_gradients(self.target_q)
-
-        self.curiosity_module = CuriosityModule(
-            n_observation_frames=run.config['n_observation_frames']).to(self.device)
 
         # Loss functions
         self._q_loss = SACQLoss(self.online_q, self.target_q, run)
         self._policy_loss = SACPolicyLoss(self.actor, self.online_q, run)
 
         # Optimizers
-        self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
-                                                 lr=run.config['curiosity_lr'])
         self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
                                               lr=run.config['policy_lr'])
         self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
                                          lr=run.config['q_lr'])
+
+    def _reward_function(self, current_state, action, next_state, done):
+        return 0
+
+    def _updates_per_step(self, step):
+        return self.updates_per_step
+
+    def update_q(self, batch):
+        q_loss, metrics = self._q_loss(*batch)
+        self.q_optimizer.zero_grad(set_to_none=True)
+        q_loss.backward()
+        self.q_optimizer.step()
+        return metrics
+
+    def update_policy(self, batch):
+        policy_loss, metrics = self._policy_loss(*batch)
+        self.policy_optimizer.zero_grad(set_to_none=True)
+        policy_loss.backward()
+        self.policy_optimizer.step()
+        return metrics
 
     def _soft_update_target(self):
         for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
             target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
 
     def __call__(self, env, profiler=None):
+        self.generate_random_trajectories(self.replay_buffer, env, self.starting_steps)
+
+        if self.curiosity_pretraining_steps > 0:
+            self._train_curiosity_module()
+            self._assign_rewards_to_replay_buffer()
+            self._copy_curiosity_features_all_networks()
+
+        print('Training actor / critic')
         obs = env.reset()
+        self.replay_buffer.new_trajectory()
         self.replay_buffer.current_trajectory().append_obs(obs)
         current_state = self.replay_buffer.current_state()
 
-        for step in range(self.run.config['training_steps']):
+        for step in range(self.training_steps):
+            # take action, update replay buffer
             iter_count = step + 1
-            if iter_count <= self.run.config['starting_steps']:
-                action = self.actor.random_action(current_state)
-            else:
-                action = self.actor.get_action(current_state)
+            action = self.actor.get_action(current_state)
 
             self.replay_buffer.current_trajectory().actions.append(action)
-            obs, _, done, _ = env.step(action)
+            if step < self.suppress_snowball_steps \
+                    and ActionSpace.threw_snowball(current_state, action):
+                print('Snowball suppressed')
+                obs, _, done, _ = env.step(-1)
+            else:
+                obs, _, done, _ = env.step(action)
 
             self.replay_buffer.current_trajectory().append_obs(obs)
             self.replay_buffer.current_trajectory().done = done
@@ -99,48 +130,40 @@ class SoftActorCritic:
             # so we can use replay buffers current state to calculate the reward
             next_state = self.replay_buffer.current_state()
 
-            if step <= self.batch_size:
-                reward = 1
-            else:
-                reward = self.curiosity_module.reward(current_state, action,
-                                                      next_state, done)
+            reward = self._reward_function(current_state, action,
+                                           next_state, done)
 
             self.replay_buffer.current_trajectory().rewards.append(reward)
 
             self.replay_buffer.increment_step()
             current_state = next_state
 
-            doing_sac_updates = (step >= self.starting_steps)
-            updates_per_step = self.curiosity_updates_per_step \
-                if step < self.starting_steps else self.updates_per_step
-            if step > self.batch_size:
-                q_losses = []
-                policy_losses = []
-                curiosity_losses = []
-                average_target_Qs = []
-                average_online_Qs = []
+            # train models
+            if len(self.replay_buffer) > self.batch_size:
+                updates_per_step = self._updates_per_step(step)
+                step_metrics = None
                 for i in range(updates_per_step):
-                    q_loss, policy_loss, curiosity_loss, average_target_Q, \
-                        average_online_Q = self.train_one_batch(
-                            self.replay_buffer.sample(batch_size=self.batch_size),
-                            do_sac_updates=doing_sac_updates)
-                    q_losses.append(q_loss)
-                    policy_losses.append(policy_loss)
-                    curiosity_losses.append(curiosity_loss)
-                    average_target_Qs.append(average_target_Q)
-                    average_online_Qs.append(average_online_Q)
+                    batch = self.replay_buffer.sample(batch_size=self.batch_size)
+                    metrics = self.train_one_batch(batch)
+
+                    # collect and log metrics:
+                    if step_metrics is None:
+                        step_metrics = {}
+                        for k, v in iter(metrics.items()):
+                            step_metrics[k] = [v]
+                    else:
+                        for k, v in iter(metrics.items()):
+                            step_metrics[k].append(v)
+                for k, v in iter(step_metrics.items()):
+                    step_metrics[k] = sum(v) / updates_per_step
                 if self.run.wandb:
                     wandb.log(
                         {'reward': reward,
-                         'policy_loss': sum(policy_losses) / updates_per_step,
-                         'q_loss': sum(q_losses) / updates_per_step,
-                         'curiosity_loss': sum(curiosity_losses) / updates_per_step,
-                         'average_target_Qs': sum(average_target_Qs) / updates_per_step,
-                         'average_online_Qs': sum(average_online_Qs) / updates_per_step,
+                         **step_metrics,
                          'average_its_per_s': self.run.iteration_rate()})
 
-            if doing_sac_updates and step % self.target_update_interval:
-                self._soft_update_target()
+                if step % self.target_update_interval:
+                    self._soft_update_target()
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
@@ -149,62 +172,159 @@ class SoftActorCritic:
                 self.replay_buffer.current_trajectory().append_obs(obs)
                 current_state = self.replay_buffer.current_state()
 
+            # print info about run (it/s)
             self.run.step()
             self.run.print_update()
 
             if profiler:
                 profiler.step()
 
+            # save checkpoints, currently just saves actor and gifs
             if self.run.checkpoint_freqency \
                     and iter_count % self.run.checkpoint_freqency == 0 \
                     and iter_count < self.run.config['training_steps']:
                 self.save(os.path.join('train', f'{self.run.name}.pth'))
+                self.replay_buffer.save_gifs(
+                    os.path.join('training_runs', f'{self.run.name}'))
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
         return self.actor, self.replay_buffer
 
-    def train_one_batch(self, batch, do_sac_updates=True):
+    def train_one_batch(self, batch):
         # load batch onto gpu
         obs, actions, next_obs, _done, rewards = batch
         states = ObservationSpace.obs_to_state(obs)
         next_states = ObservationSpace.obs_to_state(next_obs)
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
-        if do_sac_updates:
-            rewards = rewards.float().unsqueeze(1).to(self.device)
+        rewards = rewards.float().unsqueeze(1).to(self.device)
         batch = states, actions, next_states, _done, rewards
 
-        if do_sac_updates:
-            # update q
-            q_loss, average_target_Q = self._q_loss(*batch)
-            self.q_optimizer.zero_grad(set_to_none=True)
-            q_loss.backward()
-            self.q_optimizer.step()
-            q_loss = q_loss.detach()
-
-            # update policy
-            policy_loss, average_online_Q = self._policy_loss(*batch)
-            self.policy_optimizer.zero_grad(set_to_none=True)
-            policy_loss.backward()
-            self.policy_optimizer.step()
-            policy_loss = policy_loss.detach()
-        else:
-            q_loss = 0
-            policy_loss = 0
-            average_target_Q = 0
-            average_online_Q = 0
-
-        # update curiosity
-        curiosity_loss = self.curiosity_module.loss(*batch)
-        self.curiosity_optimizer.zero_grad(set_to_none=True)
-        curiosity_loss.backward()
-        self.curiosity_optimizer.step()
-        curiosity_loss = curiosity_loss.detach()
-
-        return q_loss, policy_loss, curiosity_loss, average_target_Q, average_online_Q
+        policy_metrics = self.update_policy(batch)
+        q_metrics = self.update_q(batch)
+        metrics = {**policy_metrics, **q_metrics}
+        return metrics
 
     def save(self, save_path):
         Path(save_path).mkdir(exist_ok=True)
         self.actor.save(os.path.join(save_path, 'actor.pth'))
-        self.target_q.save(os.path.join(save_path, 'critc.pth'))
+
+
+class IntrinsicCuriosityTraining(SoftActorCritic):
+    def __init__(self, run, actor=None, **kwargs):
+        super().__init__(run, actor, **kwargs)
+        self.curiosity_pretraining_steps = run.config['curiosity_pretraining_steps']
+        self.curiosity_module = CuriosityModule(
+            n_observation_frames=run.config['n_observation_frames']).to(self.device)
+        self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
+                                                 lr=run.config['curiosity_lr'])
+
+    def _reward_function(self, current_state, action, next_state, done):
+        reward = self.curiosity_module.reward(current_state, action,
+                                              next_state, done)
+        return reward
+
+    def _assign_rewards_to_replay_buffer(self):
+        print('Calculating rewards for initial steps...')
+        reward_dataloader = DataLoader(self.replay_buffer, shuffle=False,
+                                       batch_size=self.batch_size, num_workers=4)
+        calculated_rewards = []
+        for obs, actions, next_obs, done, _reward in reward_dataloader:
+            states = ObservationSpace.obs_to_state(obs)
+            next_states = ObservationSpace.obs_to_state(next_obs)
+            states, next_states = states_to_device((states, next_states), self.device)
+            actions = actions.to(self.device)
+            done = done.to(self.device)
+            rewards = self.curiosity_module.bulk_rewards(states, actions,
+                                                         next_states, done)
+            calculated_rewards.extend(rewards)
+        self.replay_buffer.update_rewards(calculated_rewards)
+
+    def _copy_curiosity_features_all_networks(self):
+        self.actor.cnn.load_state_dict(self.curiosity_module.features.state_dict())
+        if self.double_q:
+            self.online_q._q_network_1.cnn.load_state_dict(
+                self.curiosity_module.features.state_dict())
+            self.online_q._q_network_2.cnn.load_state_dict(
+                self.curiosity_module.features.state_dict())
+            self.target_q._q_network_1.cnn.load_state_dict(
+                self.curiosity_module.features.state_dict())
+            self.target_q._q_network_2.cnn.load_state_dict(
+                self.curiosity_module.features.state_dict())
+        else:
+            self.online_q.cnn.load_state_dict(
+                self.curiosity_module.features.state_dict())
+            self.target_q.cnn.load_state_dict(
+                self.curiosity_module.features.state_dict())
+
+    def update_curiosity(self, batch):
+        curiosity_loss, metrics = self.curiosity_module.loss(*batch)
+        self.curiosity_optimizer.zero_grad(set_to_none=True)
+        curiosity_loss.backward()
+        self.curiosity_optimizer.step()
+        return metrics
+
+    def train_one_batch(self, batch, curiosity_only=False):
+        # load batch onto gpu
+        obs, actions, next_obs, _done, rewards = batch
+        states = ObservationSpace.obs_to_state(obs)
+        next_states = ObservationSpace.obs_to_state(next_obs)
+        states, next_states = states_to_device((states, next_states), self.device)
+        actions = actions.to(self.device)
+        rewards = rewards.float().unsqueeze(1).to(self.device)
+        batch = states, actions, next_states, _done, rewards
+
+        if not curiosity_only:
+            policy_metrics = self.update_policy(batch)
+            q_metrics = self.update_q(batch)
+        else:
+            policy_metrics = {}
+            q_metrics = {}
+        curiosity_metrics = self.update_curiosity(batch)
+
+        metrics = {**policy_metrics, **q_metrics, **curiosity_metrics}
+        return metrics
+
+    def _train_curiosity_module(self):
+        for step in range(self.curiosity_pretraining_steps):
+            batch = self.replay_buffer.sample(batch_size=self.batch_size)
+            metrics = self.train_one_batch(batch, curiosity_only=True)
+            self.run.step()
+            self.run.print_update()
+            if self.run.wandb:
+                wandb.log(
+                    {**metrics,
+                     'average_its_per_s': self.run.iteration_rate()})
+
+
+class IQLearnSAC(SoftActorCritic):
+    def __init__(self, expert_dataset, run, actor=None, **kwargs):
+        super().__init__(run, actor, **kwargs)
+
+        self.replay_buffer = MixedReplayBuffer(
+            expert_dataset=expert_dataset,
+            batch_size=run.config['batch_size'],
+            expert_sample_fraction=0.5,
+            n_observation_frames=self.run.config['n_observation_frames'])
+
+        self._q_loss = IQLearnLossSAC(self.online_q, run, target_q=self.target_q)
+
+    def train_one_batch(self, batch):
+        expert_batch, replay_batch = batch
+        # load batch onto gpu and reconstruct batch with relevant data
+        all_states, expert_actions, _replay_actions, = \
+            self._q_loss.batches_to_device(expert_batch, replay_batch)
+
+        expert_states, replay_states, expert_next_states, replay_next_states = all_states
+
+        batch_for_q = expert_states, expert_actions, expert_next_states, \
+            replay_states, _replay_actions, replay_next_states
+        q_metrics = self.update_q(batch_for_q)
+
+        batch_for_policy = [th.cat(state_component, dim=0) for state_component in
+                            zip(expert_states, replay_states)], None, None, None, None
+        policy_metrics = self.update_policy(batch_for_policy)
+
+        metrics = {**policy_metrics, **q_metrics}
+        return metrics

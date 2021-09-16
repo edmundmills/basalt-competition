@@ -4,7 +4,7 @@ import torch as th
 import torch.nn.functional as F
 
 
-class Sqil:
+class SqilLoss:
     def __init__(self, model, run):
         self.model = model
         self.actions = ActionSpace.actions()
