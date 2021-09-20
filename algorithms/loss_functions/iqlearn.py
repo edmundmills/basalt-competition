@@ -118,8 +118,8 @@ class IQLearnLossSAC(IQLearnLoss):
         self.target_q = target_q
         self.online_q = self.model
 
-    def __call__(self, expert_states, expert_actions, expert_next_states,
-                 replay_states, _replay_actions, replay_next_states):
+    def __call__(self, expert_states, expert_actions, expert_next_states, expert_done,
+                 replay_states, _replay_actions, replay_next_states, replay_done):
         current_states, current_state_lengths = cat_states((expert_states, replay_states))
         current_Qs = self.online_q.get_Q(current_states)
         current_Vs = self.online_q.get_V(current_Qs)

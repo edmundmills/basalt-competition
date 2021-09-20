@@ -302,13 +302,13 @@ class IQLearnSAC(SoftActorCritic):
     def train_one_batch(self, batch):
         expert_batch, replay_batch = batch
         # load batch onto gpu and reconstruct batch with relevant data
-        all_states, expert_actions, _replay_actions, = \
+        all_states, expert_actions, _replay_actions, expert_done, replay_done = \
             self._q_loss.batches_to_device(expert_batch, replay_batch)
 
         expert_states, replay_states, expert_next_states, replay_next_states = all_states
 
-        batch_for_q = expert_states, expert_actions, expert_next_states, \
-            replay_states, _replay_actions, replay_next_states
+        batch_for_q = expert_states, expert_actions, expert_next_states, expert_done, \
+            replay_states, _replay_actions, replay_next_states, replay_done
         q_metrics = self.update_q(batch_for_q)
 
         batch_for_policy = [th.cat(state_component, dim=0) for state_component in
