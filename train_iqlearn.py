@@ -1,5 +1,4 @@
 from helpers.datasets import TrajectoryStepDataset
-from helpers.training_runs import TrainingRun
 from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
@@ -87,11 +86,8 @@ def main():
         environment=environment,
         algorithm='online_imitation',
         loss_function='iqlearn',
+        wandb=args.wandb
     )
-    run = TrainingRun(config=config,
-                      checkpoint_freqency=1000,
-                      wandb=args.wandb)
-    config['model_name'] = run.name
 
     if args.wandb:
         wandb.init(
@@ -109,7 +105,7 @@ def main():
         display.start()
 
     # Train Agent
-    training_algorithm = OnlineImitation(run)
+    training_algorithm = OnlineImitation(config)
     model = SoftQNetwork(alpha=config['alpha'],
                          n_observation_frames=config['n_observation_frames'])
 
@@ -124,7 +120,7 @@ def main():
     else:
         print('Training with profiler')
         config['training_steps'] = 510
-        profile_dir = f'./logs/{run.name}/'
+        profile_dir = f'./logs/{training_algorithm.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
                      schedule=schedule(skip_first=32, wait=5,
@@ -139,7 +135,7 @@ def main():
                 profile_art.save()
 
     if not args.debug_env:
-        model_save_path = os.path.join('train', f'{run.name}.pth')
+        model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
         model.save(model_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
@@ -148,7 +144,7 @@ def main():
 
     if args.gifs:
         print('Saving demo gifs')
-        image_paths = replay_buffer.save_gifs(f'training_runs/{run.name}')
+        image_paths = replay_buffer.save_gifs(f'training_runs/{training_algorithm.name}')
         if args.wandb:
             gif_art = wandb.Artifact("demos", type="gif")
             for image_path in image_paths:

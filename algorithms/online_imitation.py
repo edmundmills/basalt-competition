@@ -14,20 +14,19 @@ import os
 
 
 class OnlineImitation(Algorithm):
-    def __init__(self, run, termination_critic=None):
-        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+    def __init__(self, config, termination_critic=None):
+        super().__init__(config)
         self.termination_critic = termination_critic
-        self.run = run
-        self.lr = self.run.config['learning_rate']
-        self.starting_steps = self.run.config['starting_steps']
-        self.training_steps = self.run.config['training_steps']
-        self.batch_size = self.run.config['batch_size']
+        self.lr = config['learning_rate']
+        self.starting_steps = config['starting_steps']
+        self.training_steps = config['training_steps']
+        self.batch_size = config['batch_size']
 
     def __call__(self, model, env, expert_dataset, profiler=None):
-        if self.run.config['loss_function'] == 'sqil':
-            self.loss_function = SqilLoss(model, self.run)
-        elif self.run.config['loss_function'] == 'iqlearn':
-            self.loss_function = IQLearnLoss(model, self.run)
+        if self.config['loss_function'] == 'sqil':
+            self.loss_function = SqilLoss(model, self.config)
+        elif self.config['loss_function'] == 'iqlearn':
+            self.loss_function = IQLearnLoss(model, self.config)
 
         optimizer = th.optim.Adam(model.parameters(),
                                   lr=self.lr)
@@ -39,9 +38,8 @@ class OnlineImitation(Algorithm):
 
         if self.starting_steps > 0:
             self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
-        obs = env.reset()
-        replay_buffer.new_trajectory()
-        replay_buffer.current_trajectory().append_obs(obs)
+
+        self.start_new_trajectory(env, replay_buffer)
 
         for step in range(self.training_steps):
             iter_count = step + 1
@@ -54,7 +52,7 @@ class OnlineImitation(Algorithm):
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
-                    if self.run.wandb:
+                    if self.wandb:
                         wandb.log({'termination_reward': reward})
                 else:
                     reward = 0
@@ -72,25 +70,21 @@ class OnlineImitation(Algorithm):
                 loss.backward()
                 optimizer.step()
 
-                if self.run.wandb:
+                if self.wandb:
                     wandb.log({'loss': loss.detach()})
-                self.run.step()
-
-            self.run.print_update()
+            self.log_step()
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
-                replay_buffer.new_trajectory()
-                obs = env.reset()
-                replay_buffer.current_trajectory().append_obs(obs)
+                self.start_new_trajectory(env, replay_buffer)
 
             if profiler:
                 profiler.step()
-            if self.run.checkpoint_freqency and \
-                iter_count % self.run.checkpoint_freqency == 0 \
-                    and iter_count < self.run.config['training_steps']:
-                model.save(os.path.join('train', f'{self.run.name}.pth'))
-                replay_buffer.save_gifs(os.path.join('training_runs', f'{self.run.name}'))
+            if self.checkpoint_freqency and \
+                iter_count % self.checkpoint_freqency == 0 \
+                    and iter_count < self.training_steps:
+                model.save(os.path.join('train', f'{self.name}.pth'))
+                replay_buffer.save_gifs(self.save_path)
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')

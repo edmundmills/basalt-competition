@@ -89,32 +89,12 @@ class TerminationCritic():
         reward = min((average_rating * 20000) - 1, 2.0)
         return reward
 
-    def train(self, dataset, run):
-        optimizer = th.optim.Adam(self.model.parameters(), lr=run.config['learning_rate'])
+    def train(self, dataset, config):
         termination_dataset = TerminateEpisodeDataset(dataset)
-        dataloader = DataLoader(termination_dataset, batch_size=run.config['batch_size'],
-                                shuffle=True, num_workers=4)
-
-        iter_count = 0
-        for epoch in range(run.config['epochs']):
-            for _, (dataset_obs, dataset_actions,
-                    _next_obs, _done) in enumerate(dataloader):
-                loss = self.loss(dataset_obs, dataset_actions)
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                iter_count += 1
-                run.append_loss(loss.detach().cpu())
-                run.print_update(iter_count)
-            print(f'Epoch #{epoch + 1} completed')
-
-        print('Training complete')
-        th.save(self.model.state_dict(), os.path.join('train', f'{run.name}.pth'))
-        run.save_data()
-        del termination_dataset
-        del dataloader
+        training_algorithm = SupervisedLearning(config)
+        training_algorithm(self, termination_dataset)
+        th.save(self.model.state_dict(), os.path.join(
+            'train', f'{training_algorithm.name}.pth'))
 
     def loss(self, termination_obs, termination_actions):
         pov, items = ObservationSpace.obs_to_state(termination_obs)
@@ -133,6 +113,9 @@ class TerminationCritic():
         loss = F.binary_cross_entropy(predict_terminate,
                                       terminated.float().to(self.device))
         return loss
+
+    def parameters(self):
+        self.model.parameters()
 
     def load_parameters(self, model_file_path):
         self.model.load_state_dict(

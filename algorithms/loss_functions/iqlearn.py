@@ -6,12 +6,12 @@ import torch.nn.functional as F
 
 
 class IQLearnLoss:
-    def __init__(self, model, run):
+    def __init__(self, model, config):
         self.model = model
         self.actions = ActionSpace.actions()
-        self.alpha = run.config['alpha']
-        self.discount_factor = run.config['discount_factor']
-        self.n_observation_frames = run.config['n_observation_frames']
+        self.alpha = config['alpha']
+        self.discount_factor = config['discount_factor']
+        self.n_observation_frames = config['n_observation_frames']
 
     def batches_to_device(self, expert_batch, replay_batch):
         device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
@@ -66,8 +66,8 @@ class IQLearnLoss:
 
 
 class IQLearnLossSAC(IQLearnLoss):
-    def __init__(self, model, run, target_q):
-        super().__init__(model, run)
+    def __init__(self, model, config, target_q):
+        super().__init__(model, config)
         self.target_q = target_q
         self.online_q = self.model
 

@@ -1,4 +1,3 @@
-from helpers.training_runs import TrainingRun
 from algorithms.supervised import SupervisedLearning
 from environment.start import start_env
 
@@ -43,10 +42,8 @@ def main():
         n_observation_frames=3,
         environment=environment,
         algorithm='supervised_learning',
+        wandb=args.wandb
     )
-    run = TrainingRun(config=config,
-                      wandb=args.wandb)
-    config['model_name'] = run.name
 
     # Start WandB
     if args.wandb:
@@ -57,7 +54,7 @@ def main():
         )
 
     # Train Agent
-    training_algorithm = SupervisedLearning(run)
+    training_algorithm = SupervisedLearning(config)
 
     # set up dataset
     dataset = TrajectoryStepDataset(
@@ -76,7 +73,7 @@ def main():
     else:
         print('Training with profiler')
         config['training_steps'] = 510
-        profile_dir = f'./logs/{run.name}/'
+        profile_dir = f'./logs/{training_algorithm.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
                      schedule=schedule(skip_first=32, wait=5,
@@ -93,7 +90,7 @@ def main():
                 profile_art.save()
 
     if not args.debug_env:
-        model_save_path = os.path.join('train', f'{run.name}.pth')
+        model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
         training_algorithm.save(model_save_path)
 
     # Training 100% Completed

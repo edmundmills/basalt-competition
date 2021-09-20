@@ -1,4 +1,3 @@
-from helpers.training_runs import TrainingRun
 from algorithms.sac import IntrinsicCuriosityTraining
 from environment.start import start_env
 
@@ -55,16 +54,12 @@ def main():
         n_observation_frames=3,
         environment=environment,
         algorithm='curiosity',
-        double_q=True
+        double_q=True,
+        wandb=args.wandb
     )
     if args.debug_env:
         config['starting_steps'] = 200
         config['curiosity_pretraining_steps'] = 50
-
-    run = TrainingRun(config=config,
-                      checkpoint_freqency=500,
-                      wandb=args.wandb)
-    config['model_name'] = run.name
 
     # Start WandB
     if args.wandb:
@@ -80,7 +75,7 @@ def main():
         display.start()
 
     # Train Agent
-    training_algorithm = IntrinsicCuriosityTraining(run)
+    training_algorithm = IntrinsicCuriosityTraining(config)
 
     if args.debug_env:
         print('Starting Debug Env')
@@ -93,7 +88,7 @@ def main():
     else:
         print('Training with profiler')
         config['training_steps'] = 510
-        profile_dir = f'./logs/{run.name}/'
+        profile_dir = f'./logs/{training_algorithm.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
                      schedule=schedule(skip_first=32, wait=5,
@@ -106,7 +101,7 @@ def main():
                     profile_art.add_file(profile_file_path)
                 profile_art.save()
 
-    model_save_path = os.path.join('train', f'{run.name}.pth')
+    model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
     if not args.debug_env:
         training_algorithm.save(model_save_path)
         if args.wandb:
@@ -116,7 +111,7 @@ def main():
 
     if args.gifs:
         print('Saving demo gifs')
-        image_paths = replay_buffer.save_gifs(f'training_runs/{run.name}')
+        image_paths = replay_buffer.save_gifs(f'training_runs/{training_algorithm.name}')
         if args.wandb:
             gif_art = wandb.Artifact("demos", type="gif")
             for image_path in image_paths:

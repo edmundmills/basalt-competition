@@ -1,5 +1,4 @@
 from helpers.datasets import TrajectoryStepDataset
-from helpers.training_runs import TrainingRun
 from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
@@ -82,6 +81,7 @@ def main():
         policy_lr=1e-4,
         curiosity_lr=3e-4,
         starting_steps=2000,
+        suppress_snowball_steps=500,
         training_steps=2000,
         batch_size=256,
         alpha=1e-2,
@@ -91,13 +91,9 @@ def main():
         environment=environment,
         algorithm='sac',
         loss_function='iqlearn',
-        double_q=False
+        double_q=False,
+        wandb=args.wandb
     )
-    assert(!(config['loss_function'] == 'iqlearn' and config['double_q']))
-    run = TrainingRun(config=config,
-                      checkpoint_freqency=1000,
-                      wandb=args.wandb)
-    config['model_name'] = run.name
 
     if args.wandb:
         wandb.init(
@@ -118,10 +114,9 @@ def main():
                                  learning_rate=1e-4,
                                  batch_size=32,
                                  environment=environment)
-            critic_run = TrainingRun(config=critic_config)
 
             expert_dataset.n_observation_frames = 1
-            critic.train(expert_dataset, critic_run)
+            critic.train(expert_dataset, critic_config)
             expert_dataset.n_observation_frames = config['n_observation_frames']
         else:
             for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
@@ -139,12 +134,7 @@ def main():
         display.start()
 
     # Train Agent
-    training_algorithm = IQLearnSAC(expert_dataset, run)
-
-    # training_algorithm = OnlineImitation(loss_function_name=config['loss_function'],
-    #                                      termination_critic=critic)
-    # model = SoftQNetwork(alpha=config['alpha'],
-    #                      n_observation_frames=config['n_observation_frames'])
+    training_algorithm = IQLearnSAC(expert_dataset, config)
 
     if args.debug_env:
         print('Starting Debug Env')
@@ -154,18 +144,16 @@ def main():
 
     if not args.profile:
         model, replay_buffer = training_algorithm(env)
-        # model, replay_buffer = training_algorithm(model, env, expert_dataset, run)
     else:
         print('Training with profiler')
         config['training_steps'] = 510
-        profile_dir = f'./logs/{run.name}/'
+        profile_dir = f'./logs/{training_algorithm.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
                 model, replay_buffer = training_algorithm(env, profiler=prof)
-            # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
                 for profile_file_path in Path(profile_dir).iterdir():
@@ -173,7 +161,7 @@ def main():
                 profile_art.save()
 
     if not args.debug_env:
-        model_save_path = os.path.join('train', f'{run.name}.pth')
+        model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
         model.save(model_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
@@ -182,7 +170,7 @@ def main():
 
     if args.gifs:
         print('Saving demo gifs')
-        image_paths = replay_buffer.save_gifs(f'training_runs/{run.name}')
+        image_paths = replay_buffer.save_gifs(f'training_runs/{training_algorithm.name}')
         if args.wandb:
             gif_art = wandb.Artifact("demos", type="gif")
             for image_path in image_paths:
