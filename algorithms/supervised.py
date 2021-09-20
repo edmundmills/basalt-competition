@@ -1,3 +1,4 @@
+from algorithms.algorithm import Algorithm
 from helpers.datasets import TestDataset
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.gpu import states_to_device
@@ -16,7 +17,7 @@ class SupervisedLearning(Algorithm):
         self.batch_size = config['batch_size']
 
     def __call__(self, model, train_dataset, test_dataset=None):
-        optimizer = th.optim.Adam(self.model.parameters(), lr=self.lr)
+        optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size,
                                       shuffle=True, num_workers=4)
         if test_dataset is not None:

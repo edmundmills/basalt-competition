@@ -1,7 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from networks.base_network import Network
-from helpers
-
+from helpers.gpu import states_to_device
 import torch as th
 import torch.nn.functional as F
 import numpy as np
@@ -32,9 +31,9 @@ class BC(Network):
         actions = ActionSpace.dataset_action_batch_to_actions(actions)
         mask = actions != -1
         actions = actions[mask]
-        states = [state_component[mask] for state_component in states]
         actions = th.from_numpy(actions).long().to(self.device)
-        states = states_to_device((states), device=self.device)
+        states = [state_component[mask].to(self.device)
+                  for state_component in states]
         action_probabilities = self.forward(states)
         loss = F.cross_entropy(action_probabilities, actions)
         return loss
