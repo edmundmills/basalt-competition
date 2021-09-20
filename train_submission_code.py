@@ -69,7 +69,6 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--termination-critic', dest='termination_critic',
                            action='store_true', default=False)

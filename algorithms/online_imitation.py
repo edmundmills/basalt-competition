@@ -8,6 +8,7 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
+from collections import deque
 
 import wandb
 import os
@@ -56,7 +57,12 @@ class OnlineImitation(Algorithm):
 
         print((f'{self.algorithm_name}: Starting training'
                f' for {self.training_steps} steps (iteration {self.iter_count})'))
+        rewards_window = deque(maxlen=10)  # last N rewards
+        steps_window = deque(maxlen=10)  # last N episode steps
 
+        episode_reward = 0
+        episode_steps = 0
+            
         for step in range(self.training_steps):
             current_state = replay_buffer.current_trajectory().current_state(
                 n_observation_frames=model.n_observation_frames)
@@ -73,7 +79,10 @@ class OnlineImitation(Algorithm):
             else:
                 reward = 0
 
-            next_obs, _, done, _ = env.step(action)
+            next_obs, r, done, _ = env.step(action)
+            episode_reward += r
+            episode_steps += 1
+
             replay_buffer.append_step(action, reward, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
@@ -96,6 +105,14 @@ class OnlineImitation(Algorithm):
             if done:
                 print(f'Trajectory completed at iteration {self.iter_count}')
                 self.start_new_trajectory(env, replay_buffer)
+
+                rewards_window.append(episode_reward)
+                steps_window.append(episode_steps)
+                wandb.log({'Rewards/train_reward': np.mean(rewards_window)}, step=self.iter_count)
+                wandb.log({'Timesteps/train': np.mean(steps_window)}, step=self.iter_count)
+
+                episode_reward = 0
+                episode_steps = 0
 
             if profiler:
                 profiler.step()

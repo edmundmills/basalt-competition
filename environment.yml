@@ -16,6 +16,8 @@ dependencies:
     - pyro4
     - ipdb
     - wandb
+    - moviepy
+    - imageio
     - argparse
     - numpy
     - opencv-python

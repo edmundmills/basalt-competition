@@ -19,7 +19,6 @@ if [ -e utility/secrets.sh ]; then
     source utility/secrets.sh
 fi
 
-
 # Skip building docker image on run, by default each run means new docker image build
 if [[ " $@ " =~ " --no-build " ]]; then
     echo "Skipping docker image build"
@@ -30,17 +29,11 @@ fi
 
 ARGS="${@}"
 
-# Source secrets
-if [ -e secrets.sh ]
-then
-    source utility/secrets.sh
-fi
-
-
 # Expected Env variables : in environ.sh
 if [[ " $@ " =~ " --nvidia " ]]; then
     nvidia-docker run \
     --net=host \
+    --user 0 \
     -e WANDB_API_KEY=${WANDB_API_KEY} \
     -v /scr-ssd/divgarg/datasets/minerl:/home/aicrowd/data \
     -v $(pwd)/performance:/home/aicrowd/performance \
