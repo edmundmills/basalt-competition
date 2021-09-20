@@ -86,7 +86,7 @@ def main():
                            action='store_false', default=True)
     argparser.add_argument('--virtual-display-false', dest='virtual_display',
                            action='store_false', default=True)
-    argparser.add_argument("overrides", nargs="*", default=["env=cave"])
+    argparser.add_argument("overrides", nargs="*", default=[])
 
     args = argparser.parse_args()
 
