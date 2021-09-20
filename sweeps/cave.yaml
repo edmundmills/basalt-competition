@@ -1,0 +1,29 @@
+name: findcave_sweep
+program: train_submission_code.py
+method: grid
+project: MineRLBasaltFindCave-v0
+entity: basalt
+
+metric:
+  name: Rewards/train_reward
+  goal: maximize
+parameters:
+  # seed:
+  #   value: 42
+  learning_rate:
+    values: [1e-4, 1e-3]
+  alpha:
+    values: [1e-2, 1e-3, 1e-4]
+  method.loss:
+      values: [v0, value, value_expert]
+  # method.grad_pen:
+  #   values: [True, False]
+  # method.tanh:
+  #   value: False
+  # method.chi:
+  #   value: False
+
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}

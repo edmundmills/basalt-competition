@@ -11,9 +11,9 @@ if __name__ == "__main__":
     os.environ['MINERL_ENVIRONMENT'] = environment
     env = start_env(debug_env=False)
     model = SoftQNetwork()
-    saved_agent_path = Path('train') / \
+    saved_model_path = Path('train') / \
         'MineRLBasaltBuildVillageHouse-v0_iqlearn_1631558462.pth'
-    model.load_parameters(saved_agent_path)
+    model.load_parameters(saved_model_path)
 
     # for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
     #     if ('sqil' in saved_agent_path.name

@@ -141,9 +141,9 @@ def main():
 
     if algorithm == 'sac' and loss_function == 'iqlearn':
         training_algorithm = IQLearnSAC(expert_dataset, config)
-    elif algorithm == 'online_imitation' and loss_function == 'iqlearn':
+    elif algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config)
-    elif algorithm == 'supervised_learning' and loss_function == 'sqil':
+    elif algorithm == 'supervised_learning':
         training_algorithm = SupervisedLearning(expert_dataset, model, config)
     elif algorithm == 'curiosity':
         training_algorithm = IntrinsicCuriosityTraining(config)
