@@ -1,5 +1,4 @@
-from networks.bc import BCAgent
-from networks.soft_q import SqilAgent, IQLearnAgent, SoftQAgent
+from networks.soft_q import SoftQNetwork
 from helpers.trajectories import Trajectory, TrajectoryGenerator
 from environment.start import start_env
 
@@ -11,10 +10,10 @@ if __name__ == "__main__":
     environment = 'MineRLBasaltBuildVillageHouse-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
     env = start_env(debug_env=False)
-    agent = SoftQAgent()
+    model = SoftQNetwork()
     saved_agent_path = Path('train') / \
         'MineRLBasaltBuildVillageHouse-v0_iqlearn_1631558462.pth'
-    agent.load_parameters(saved_agent_path)
+    model.load_parameters(saved_agent_path)
 
     # for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
     #     if ('sqil' in saved_agent_path.name
@@ -22,7 +21,7 @@ if __name__ == "__main__":
     #         print(f'Loading {saved_agent_path.name} as agent')
     #         agent.load_parameters(saved_agent_path)
     #         break
-    generator = TrajectoryGenerator(env, agent)
+    generator = TrajectoryGenerator(env, model)
     trajectory = generator.generate(max_episode_length=2000)
     env.close()
     trajectory.view()

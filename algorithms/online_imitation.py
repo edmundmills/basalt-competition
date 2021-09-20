@@ -14,15 +14,20 @@ import os
 
 
 class OnlineImitation(Algorithm):
-    def __init__(self, config, termination_critic=None):
+    def __init__(self, expert_dataset, model, config, termination_critic=None):
         super().__init__(config)
         self.termination_critic = termination_critic
         self.lr = config['learning_rate']
         self.starting_steps = config['starting_steps']
         self.training_steps = config['training_steps']
         self.batch_size = config['batch_size']
+        self.model = model
+        self.expert_dataset = expert_dataset
 
-    def __call__(self, model, env, expert_dataset, profiler=None):
+    def __call__(self, env, profiler=None):
+        model = self.model
+        expert_dataset = self.expert_dataset
+
         if self.config['loss_function'] == 'sqil':
             self.loss_function = SqilLoss(model, self.config)
         elif self.config['loss_function'] == 'iqlearn':
@@ -63,15 +68,14 @@ class OnlineImitation(Algorithm):
             replay_buffer.append_step(action, reward, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
-                loss = self.loss_function(replay_buffer.sample_expert(),
-                                          replay_buffer.sample_replay())
+                loss, metrics = self.loss_function(replay_buffer.sample_expert(),
+                                                   replay_buffer.sample_replay())
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
                 if self.wandb:
-                    wandb.log({'loss': loss.detach()})
+                    wandb.log(metrics, step=step)
             self.log_step()
 
             if done:

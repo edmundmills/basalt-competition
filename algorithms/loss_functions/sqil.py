@@ -56,4 +56,4 @@ class SqilLoss:
         y = batch_rewards + self.discount_factor * V_next
 
         loss = F.mse_loss(predicted_Qs, y)
-        return loss
+        return loss, {}

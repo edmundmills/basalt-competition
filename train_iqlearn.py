@@ -52,7 +52,7 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
-    environment = 'MineRLBasaltBuildVillageHouse-v0'
+    environment = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
@@ -78,7 +78,7 @@ def main():
     config = dict(
         learning_rate=3e-4,
         starting_steps=2000,
-        training_steps=2000,
+        training_steps=5000,
         batch_size=256,
         alpha=1e-3,
         discount_factor=0.99,

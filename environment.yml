@@ -1,22 +1,22 @@
 name: minerl
 channels:
-  - conda-forge
-  - defaults
   - pytorch
+  - defaults
 dependencies:
-  - python=3.7
-  - pip
-  - py-opencv
-  - cudatoolkit=10.0
+  - cudatoolkit=10.2
+  - pytorch
+  - torchvision>=0.4
   - pip:
     - crowdai_api
     - minerl
     - coloredlogs
     - matplotlib
     - pyro4
+    - ipdb
     - wandb
-    - pytorch
     - argparse
     - numpy
-    - gym
-    - torchvision
+    - opencv-python
+    - gym==0.19.0
+    - pyvirtualdisplay
+    - hydra-core

@@ -1,6 +1,7 @@
 from helpers.environment import ObservationSpace, ActionSpace
 
 import time
+import os
 from pathlib import Path
 import torch as th
 
@@ -9,15 +10,15 @@ class Algorithm:
     def __init__(self, config):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.config = config
-        self.wandb = config['wandb']
-        self.algorithm_name = config['algorithm']
-        self.environment = config['environment']
+        self.wandb = config.wandb
+        self.algorithm_name = config.algorithm
+        self.environment = config.env.name
         self.timestamps = []
         self.update_frequency = 50
         self.checkpoint_freqency = 1000
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
         save_path = Path('training_runs') / self.name
-        save_path.mkdir(exist_ok=True)
+        os.makedirs(save_path.as_posix(), exist_ok=True)
         self.save_path = save_path
 
     def generate_random_trajectories(self, replay_buffer, env, steps):

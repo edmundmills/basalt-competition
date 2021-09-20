@@ -21,42 +21,42 @@ from pathlib import Path
 class SoftActorCritic(Algorithm):
     def __init__(self, config, actor=None):
         super().__init__(config)
-        self.starting_steps = config['starting_steps']
-        self.suppress_snowball_steps = config['suppress_snowball_steps']
-        self.training_steps = config['training_steps']
-        self.batch_size = config['batch_size']
-        self.tau = config['tau']
-        self.double_q = config['double_q']
+        self.starting_steps = config.starting_steps
+        self.suppress_snowball_steps = config.suppress_snowball_steps
+        self.training_steps = config.training_steps
+        self.batch_size = config.batch_size
+        self.tau = config.tau
+        self.double_q = config.double_q
         self.target_update_interval = 1
         self.updates_per_step = 1
         self.curiosity_pretraining_steps = 0
         # Set up replay buffer
         self.replay_buffer = ReplayBuffer(
-            reward=True, n_observation_frames=config['n_observation_frames'])
+            reward=True, n_observation_frames=config.n_observation_frames)
 
         # Set up networks - actor
         if actor is not None:
             self.actor = actor.to(self.device)
         else:
             self.actor = SoftQNetwork(
-                n_observation_frames=config['n_observation_frames'],
-                alpha=config['alpha']).to(self.device)
+                n_observation_frames=config.n_observation_frames,
+                alpha=config.alpha).to(self.device)
 
         # Set up networks - critic
         if self.double_q:
             self.online_q = TwinnedSoftQNetwork(
-                n_observation_frames=config['n_observation_frames'],
-                alpha=config['alpha']).to(self.device)
+                n_observation_frames=config.n_observation_frames,
+                alpha=config.alpha).to(self.device)
             self.target_q = TwinnedSoftQNetwork(
-                n_observation_frames=config['n_observation_frames'],
-                alpha=config['alpha']).to(self.device)
+                n_observation_frames=config.n_observation_frames,
+                alpha=config.alpha).to(self.device)
         else:
             self.online_q = SoftQNetwork(
-                n_observation_frames=config['n_observation_frames'],
-                alpha=config['alpha']).to(self.device)
+                n_observation_frames=config.n_observation_frames,
+                alpha=config.alpha).to(self.device)
             self.target_q = SoftQNetwork(
-                n_observation_frames=config['n_observation_frames'],
-                alpha=config['alpha']).to(self.device)
+                n_observation_frames=config.n_observation_frames,
+                alpha=config.alpha).to(self.device)
 
         self.target_q.load_state_dict(self.online_q.state_dict())
         disable_gradients(self.target_q)
@@ -67,9 +67,9 @@ class SoftActorCritic(Algorithm):
 
         # Optimizers
         self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
-                                              lr=config['policy_lr'])
+                                              lr=config.policy_lr)
         self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
-                                         lr=config['q_lr'])
+                                         lr=config.q_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
         return 0
@@ -204,11 +204,11 @@ class SoftActorCritic(Algorithm):
 class IntrinsicCuriosityTraining(SoftActorCritic):
     def __init__(self, config, actor=None, **kwargs):
         super().__init__(config, actor, **kwargs)
-        self.curiosity_pretraining_steps = config['curiosity_pretraining_steps']
+        self.curiosity_pretraining_steps = config.curiosity_pretraining_steps
         self.curiosity_module = CuriosityModule(
-            n_observation_frames=config['n_observation_frames']).to(self.device)
+            n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
-                                                 lr=config['curiosity_lr'])
+                                                 lr=config.curiosity_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
         reward = self.curiosity_module.reward(current_state, action,
@@ -293,9 +293,9 @@ class IQLearnSAC(SoftActorCritic):
 
         self.replay_buffer = MixedReplayBuffer(
             expert_dataset=expert_dataset,
-            batch_size=config['batch_size'],
+            batch_size=config.batch_size,
             expert_sample_fraction=0.5,
-            n_observation_frames=config['n_observation_frames'])
+            n_observation_frames=config.n_observation_frames)
 
         self._q_loss = IQLearnLossSAC(self.online_q, config, target_q=self.target_q)
 
