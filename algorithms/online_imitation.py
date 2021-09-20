@@ -90,6 +90,7 @@ class OnlineImitation(Algorithm):
                 iter_count % self.run.checkpoint_freqency == 0 \
                     and iter_count < self.run.config['training_steps']:
                 model.save(os.path.join('train', f'{self.run.name}.pth'))
+                replay_buffer.save_gifs(os.path.join('training_runs', f'{self.run.name}'))
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
