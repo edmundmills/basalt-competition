@@ -191,16 +191,6 @@ def main():
             model_art.add_file(model_save_path)
             model_art.save()
 
-    # save gifs
-    if args.gifs and replay_buffer is not None:
-        print('Saving demo gifs')
-        image_paths = replay_buffer.save_gifs(f'training_runs/{training_algorithm.name}')
-        if args.wandb:
-            gif_art = wandb.Artifact("demos", type="gif")
-            for image_path in image_paths:
-                gif_art.add_file(image_path)
-            gif_art.save()
-
     # Training 100% Completed
     # aicrowd_helper.register_progress(1)
     if args.virtual_display:

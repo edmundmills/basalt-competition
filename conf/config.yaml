@@ -7,7 +7,7 @@ exp_name: ''
 project_name: ${env.name}
 device: ???  # to be specified later
 
-checkpoint_freqency: 500
+checkpoint_frequency: 500
 
 discount_factor: 0.99
 n_observation_frames: 3

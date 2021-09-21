@@ -157,6 +157,26 @@ class ReplayBuffer:
             self.trajectories[trajectory_idx].rewards[step_idx] \
                 = rewards[idx]
 
+    def recent_frames(self, number_of_steps):
+        self._transform = self.transform
+        self._n_observation_frames = self.n_observation_frames
+        self.transform = None
+        self.n_observation_frames = 1
+        total_steps = len(self)
+        steps = min(number_of_steps, total_steps)
+        frame_skip = 2
+        frames = int(round(total_steps / (frame_skip + 1)))
+        step_rate = 20  # steps / second
+        frame_rate = int(round(step_rate / (frame_skip + 1)))
+        step_indices = [total_steps - steps + frame *
+                        (frame_skip + 1) for frame in range(frames)]
+        images = [self[min(step_idx, total_steps-1)][0]['pov'].astype(np.uint8)
+                  for step_idx in step_indices]
+        images = np.stack(images, 0).transpose(0, 3, 1, 2)
+        self.transform = self._transform
+        self.n_observation_frames = self._n_observation_frames
+        return images, frame_rate
+
 
 class MixedReplayBuffer(ReplayBuffer):
     '''

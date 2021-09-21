@@ -75,13 +75,12 @@ class OnlineImitation(Algorithm):
                 loss.backward()
                 optimizer.step()
                 if self.wandb:
-                    wandb.log(metrics, step=step)
+                    wandb.log(metrics, step=iter_count)
 
             self.log_step()
 
-            if self.checkpoint_freqency and \
-                iter_count % self.checkpoint_freqency == 0 \
-                    and iter_count < self.training_steps:
+            if self.checkpoint_frequency and \
+                    iter_count % self.checkpoint_frequency == 0:
                 self.save_checkpoint(iter_count,
                                      replay_buffer=replay_buffer,
                                      models_with_names=[(model, 'model')])

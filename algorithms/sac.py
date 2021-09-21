@@ -163,9 +163,8 @@ class SoftActorCritic(Algorithm):
                     self._soft_update_target()
 
             # save checkpoints, currently just saves actor and gifs
-            if self.checkpoint_freqency \
-                    and iter_count % self.checkpoint_freqency == 0 \
-                    and iter_count < self.training_steps:
+            if self.checkpoint_frequency \
+                    and iter_count % self.checkpoint_frequency == 0:
                 self.save_checkpoint(iter_count,
                                      replay_buffer=self.replay_buffer,
                                      models_with_names=[(self.actor, 'actor'),
