@@ -130,7 +130,7 @@ def main():
 
     # initialize dataset, model, algorithm
     if algorithm in ['online_imitation', 'supervised_learning'] \
-            or loss_function == 'iqlearn':
+            or (algorithm == 'sac' and loss_function == 'iqlearn'):
         expert_dataset = TrajectoryStepDataset(
             debug_dataset=args.debug_env,
             n_observation_frames=config.n_observation_frames)
