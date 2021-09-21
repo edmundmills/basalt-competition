@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 class SoftActorCritic(Algorithm):
-    def __init__(self, config, actor=None):
+    def __init__(self, config, actor=None, initial_replay_buffer=None):
         super().__init__(config)
         self.starting_steps = config.starting_steps
         self.suppress_snowball_steps = config.suppress_snowball_steps

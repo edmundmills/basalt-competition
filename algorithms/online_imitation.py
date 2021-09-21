@@ -14,7 +14,8 @@ import os
 
 
 class OnlineImitation(Algorithm):
-    def __init__(self, expert_dataset, model, config, termination_critic=None):
+    def __init__(self, expert_dataset, model, config, termination_critic=None,
+                 initial_replay_buffer=None):
         super().__init__(config)
         self.termination_critic = termination_critic
         self.lr = config['learning_rate']
@@ -23,10 +24,12 @@ class OnlineImitation(Algorithm):
         self.batch_size = config['batch_size']
         self.model = model
         self.expert_dataset = expert_dataset
+        self.initial_replay_buffer = initial_replay_buffer
 
     def __call__(self, env, profiler=None):
         model = self.model
         expert_dataset = self.expert_dataset
+        initial_replay_buffer = self.initial_replay_buffer
 
         if self.config['loss_function'] == 'sqil':
             self.loss_function = SqilLoss(model, self.config)
@@ -39,9 +42,10 @@ class OnlineImitation(Algorithm):
         replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
                                           batch_size=self.batch_size,
                                           expert_sample_fraction=0.5,
-                                          n_observation_frames=model.n_observation_frames)
+                                          n_observation_frames=model.n_observation_frames,
+                                          initial_replay_buffer=initial_replay_buffer)
 
-        if self.starting_steps > 0:
+        if self.starting_steps > 0 and initial_replay_buffer is None:
             self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
 
         self.start_new_trajectory(env, replay_buffer)

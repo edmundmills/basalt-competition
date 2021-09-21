@@ -188,12 +188,17 @@ class MixedReplayBuffer(ReplayBuffer):
                  expert_dataset,
                  batch_size=64,
                  expert_sample_fraction=0.5,
-                 n_observation_frames=1):
+                 n_observation_frames=1,
+                 initial_replay_buffer=None):
         self.batch_size = batch_size
         self.expert_sample_fraction = expert_sample_fraction
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
         super().__init__(n_observation_frames=n_observation_frames)
+        if initial_replay_buffer is not None:
+            self.trajectories = initial_replay_buffer.trajectories
+            self.step_lookup = initial_replay_buffer.step_lookup
+            self.reward = initial_replay_buffer.reward
         self.expert_dataset = expert_dataset
         self.expert_dataloader = self._initialize_dataloader()
 

@@ -19,16 +19,16 @@ training_steps: 10000
 learning_rate: 3e-4
 alpha: 1e-3
 
+# for curiosity
+pretraining: false
+curiosity_pretraining_steps: 1500
+curiosity_lr: 3e-4
+
 # for SAC
 double_q: false
 tau: .05
 q_lr: 3e-4
 policy_lr: 1e-4
-
-# for curiosity
-curiosity_pretraining_steps: 1500
-curiosity_lr: 3e-4
-
 
 algorithm: 'sac'  # curiosity, supervised_learning, online_imitation, sac
 loss_function: 'iqlearn'  # iqlearn, sqil
