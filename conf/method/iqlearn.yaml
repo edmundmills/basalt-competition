@@ -1,0 +1,2 @@
+type: 'iqlearn'
+loss: 'value_expert'

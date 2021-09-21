@@ -4,13 +4,13 @@ import torch as th
 import torch.nn.functional as F
 
 
-class Sqil:
-    def __init__(self, model, run):
+class SqilLoss:
+    def __init__(self, model, config):
         self.model = model
         self.actions = ActionSpace.actions()
-        self.alpha = run.config['alpha']
-        self.discount_factor = run.config['discount_factor']
-        self.n_observation_frames = run.config['n_observation_frames']
+        self.alpha = config['alpha']
+        self.discount_factor = config['discount_factor']
+        self.n_observation_frames = config['n_observation_frames']
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
 
     def __call__(self, expert_batch, replay_batch):
@@ -56,4 +56,4 @@ class Sqil:
         y = batch_rewards + self.discount_factor * V_next
 
         loss = F.mse_loss(predicted_Qs, y)
-        return loss
+        return loss, {}

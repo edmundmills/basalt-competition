@@ -1,4 +1,5 @@
 import os
+import copy
 
 import numpy as np
 import torch as th
@@ -146,6 +147,10 @@ class ActionSpace:
                              len(ObservationSpace.items())))
         return actions
 
+    def random_action():
+        action = np.random.choice(ActionSpace.actions())
+        return action
+
     def one_hot_snowball():
         snowball_number = ObservationSpace.items().index('snowball')
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
@@ -166,6 +171,15 @@ class ActionSpace:
             actions = actions.squeeze().tolist()
         return [item == 'snowball' and action == 11
                 for item, action in zip(equipped_items, actions)]
+
+    def threw_snowball_tensor(states, actions, device):
+        use_actions = th.eq(actions, 11).reshape(-1, 1)
+        batch_size = use_actions.size()[0]
+        snowball_tensor = ActionSpace.one_hot_snowball().repeat(batch_size, 1).to(device)
+        snowball_equipped = th.all(
+            th.eq(th.chunk(states[1], 2, dim=1)[1], snowball_tensor), dim=1, keepdim=True)
+        threw_snowball = use_actions * snowball_equipped
+        return threw_snowball.type(th.uint8)
 
     def dataset_action_batch_to_actions(dataset_actions, camera_margin=5):
         """
@@ -234,22 +248,27 @@ class MirrorAugment():
             obs, action, next_obs, done, reward = sample
         else:
             obs, action, next_obs, done = sample
-        action = self.mirror_action(action)
-        obs['pov'] = np.ascontiguousarray(np.flip(obs['pov'], axis=1))
-        next_obs['pov'] = np.ascontiguousarray(np.flip(obs['pov'], axis=1))
+        new_action = self.mirror_action(action)
+        new_obs = obs.copy()
+        new_next_obs = next_obs.copy()
+        new_obs['pov'] = np.ascontiguousarray(np.flip(new_obs['pov'].copy(), axis=1))
+        new_next_obs['pov'] = np.ascontiguousarray(
+            np.flip(new_next_obs['pov'].copy(), axis=1))
         if len(sample) == 5:
-            sample = obs, action, next_obs, done, reward
+            sample = new_obs, new_action, new_next_obs, done, reward
         else:
-            sample = obs, action, next_obs, done = sample
+            sample = new_obs, new_action, new_next_obs, done
         return sample
 
     def mirror_action(self, action):
         if action == 2:
-            action = 3
+            new_action = 3
         elif action == 3:
-            action = 2
+            new_action = 2
         elif action == 9:
-            action = 10
+            new_action = 10
         elif action == 10:
-            action = 9
-        return action
+            new_action = 9
+        else:
+            new_action = copy.copy(action)
+        return new_action

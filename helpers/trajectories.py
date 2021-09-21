@@ -106,9 +106,9 @@ class Trajectory:
 
 
 class TrajectoryGenerator:
-    def __init__(self, env, agent):
+    def __init__(self, env, model):
         self.env = env
-        self.agent = agent
+        self.model = model
 
     def generate(self, max_episode_length=10000):
         trajectory = Trajectory()
@@ -118,8 +118,8 @@ class TrajectoryGenerator:
             trajectory.append_obs(obs)
             state = ObservationSpace.obs_to_state(
                 trajectory.current_obs(
-                    n_observation_frames=self.agent.n_observation_frames))
-            action = self.agent.get_action(state)
+                    n_observation_frames=self.model.n_observation_frames))
+            action = self.model.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done

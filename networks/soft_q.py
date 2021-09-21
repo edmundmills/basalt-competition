@@ -46,13 +46,6 @@ class SoftQNetwork(Network):
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
-    def random_action(self, state, surpress_snowball=True):
-        action = np.random.choice(self.actions)
-        if surpress_snowball:
-            while ActionSpace.threw_snowball(state, action):
-                action = np.random.choice(self.actions)
-        return action
-
 
 class TwinnedSoftQNetwork(nn.Module):
     def __init__(self, alpha, **kwargs):

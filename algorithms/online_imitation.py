@@ -1,5 +1,6 @@
-from algorithms.loss_functions.iqlearn import IQLearn
-from algorithms.loss_functions.sqil import Sqil
+from algorithms.algorithm import Algorithm
+from algorithms.loss_functions.iqlearn import IQLearnLoss
+from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
 
@@ -12,30 +13,40 @@ import wandb
 import os
 
 
-class OnlineImitation:
-    def __init__(self, loss_function_name, termination_critic=None):
-        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+class OnlineImitation(Algorithm):
+    def __init__(self, expert_dataset, model, config, termination_critic=None):
+        super().__init__(config)
         self.termination_critic = termination_critic
-        self.loss_function_name = loss_function_name
+        self.lr = config['learning_rate']
+        self.starting_steps = config['starting_steps']
+        self.training_steps = config['training_steps']
+        self.batch_size = config['batch_size']
+        self.model = model
+        self.expert_dataset = expert_dataset
 
-    def __call__(self, model, env, expert_dataset, run, profiler=None):
-        if self.loss_function_name == 'sqil':
-            self.loss_function = Sqil(model, run)
-        elif self.loss_function_name == 'iqlearn':
-            self.loss_function = IQLearn(model, run)
+    def __call__(self, env, profiler=None):
+        model = self.model
+        expert_dataset = self.expert_dataset
+
+        if self.config['loss_function'] == 'sqil':
+            self.loss_function = SqilLoss(model, self.config)
+        elif self.config['loss_function'] == 'iqlearn':
+            self.loss_function = IQLearnLoss(model, self.config)
 
         optimizer = th.optim.Adam(model.parameters(),
-                                  lr=run.config['learning_rate'])
+                                  lr=self.lr)
 
         replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
-                                          batch_size=run.config['batch_size'],
+                                          batch_size=self.batch_size,
                                           expert_sample_fraction=0.5,
                                           n_observation_frames=model.n_observation_frames)
 
-        obs = env.reset()
-        replay_buffer.current_trajectory().append_obs(obs)
+        if self.starting_steps > 0:
+            self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
 
-        for step in range(run.config['training_steps']):
+        self.start_new_trajectory(env, replay_buffer)
+
+        for step in range(self.training_steps):
             iter_count = step + 1
 
             current_state = replay_buffer.current_trajectory().current_state(
@@ -46,7 +57,7 @@ class OnlineImitation:
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
-                    if run.wandb:
+                    if self.wandb:
                         wandb.log({'termination_reward': reward})
                 else:
                     reward = 0
@@ -57,30 +68,27 @@ class OnlineImitation:
             replay_buffer.append_step(action, reward, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
-                loss = self.loss_function(replay_buffer.sample_expert(),
-                                          replay_buffer.sample_replay())
+                loss, metrics = self.loss_function(replay_buffer.sample_expert(),
+                                                   replay_buffer.sample_replay())
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
-                if run.wandb:
-                    wandb.log({'loss': loss.detach()})
-                run.step()
-
-            run.print_update()
+                if self.wandb:
+                    wandb.log(metrics, step=step)
+            self.log_step()
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
-                replay_buffer.new_trajectory()
-                obs = env.reset()
-                replay_buffer.current_trajectory().append_obs(obs)
+                self.start_new_trajectory(env, replay_buffer)
 
             if profiler:
                 profiler.step()
-            if run.checkpoint_freqency and iter_count % run.checkpoint_freqency == 0 \
-                    and iter_count < run.config['training_steps']:
-                model.save(os.path.join('train', f'{run.name}.pth'))
+            if self.checkpoint_freqency and \
+                iter_count % self.checkpoint_freqency == 0 \
+                    and iter_count < self.training_steps:
+                model.save(os.path.join('train', f'{self.name}.pth'))
+                replay_buffer.save_gifs(self.save_path)
                 print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')

@@ -11,6 +11,7 @@ EXITED_SIGNAL_PATH = os.getenv('EXITED_SIGNAL_PATH', 'shared/exited')
 if EVALUATION_STAGE in ['all', 'training']:
     aicrowd_helper.training_start()
     try:
+        print('Running training code')
         train_submission_code.main()
         aicrowd_helper.training_end()
     except Exception as e:

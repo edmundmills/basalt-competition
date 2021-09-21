@@ -3,16 +3,13 @@ from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from algorithms.online_imitation import OnlineImitation
-from algorithms.sac import SoftActorCritic, IQLearnSAC, IntrinsicCuriosityTraining
+from algorithms.sac import SoftActorCritic, IQLearnSAC
 
 import torch as th
 import numpy as np
 
 
 from pyvirtualdisplay import Display
-import hydra
-from hydra import compose, initialize
-from omegaconf import DictConfig, OmegaConf
 import wandb
 from pathlib import Path
 import argparse
@@ -48,18 +45,6 @@ MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5
 #     submission_timeout=MINERL_TRAINING_TIMEOUT * 60,
 #     initial_poll_timeout=600
 # )
-os.environ["MINERL_DATA_ROOT"] = MINERL_DATA_ROOT
-
-
-def get_config(args):
-    with initialize(config_path='conf'):
-        cfg = compose('config.yaml', overrides=args.overrides)
-
-    cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
-    cfg.wandb = args.wandb
-    cfg.hydra_base_dir = os.getcwd()
-    print(OmegaConf.to_yaml(cfg))
-    return cfg
 
 
 def main():
@@ -67,105 +52,71 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
+    environment = 'MineRLBasaltFindCave-v0'
+    os.environ['MINERL_ENVIRONMENT'] = environment
 
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--termination-critic', dest='termination_critic',
                            action='store_true', default=False)
     argparser.add_argument('--train-critic-false', dest='train_critic',
-                           action='store_true', default=True)
+                           action='store_false', default=True)
     argparser.add_argument('--debug-env', dest='debug_env',
                            action='store_true', default=False)
     argparser.add_argument('--profile', dest='profile',
                            action='store_true', default=False)
-    argparser.add_argument('--wandb-false', dest='wandb',
-                           action='store_false', default=True)
-    argparser.add_argument('--virtual-display-false', dest='virtual_display',
-                           action='store_false', default=True)
-    argparser.add_argument('--save-gifs-false', dest='gifs',
-                           action='store_false', default=True)
-    argparser.add_argument("overrides", nargs="*", default=["env=cave"])
-
+    argparser.add_argument('--wandb', dest='wandb',
+                           action='store_true', default=False)
+    argparser.add_argument('--virtual-display', dest='virtual_display',
+                           action='store_true', default=False)
+    argparser.add_argument('--save-gifs', dest='gifs',
+                           action='store_true', default=False)
     args = argparser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
 
-    config = get_config(args)
-    environment = config.env.name
-    os.environ['MINERL_ENVIRONMENT'] = environment
+    config = dict(
+        learning_rate=3e-4,
+        starting_steps=2000,
+        training_steps=5000,
+        batch_size=256,
+        alpha=1e-3,
+        discount_factor=0.99,
+        n_observation_frames=3,
+        environment=environment,
+        algorithm='online_imitation',
+        loss_function='iqlearn',
+        wandb=args.wandb
+    )
 
     if args.wandb:
         wandb.init(
-            project=config.project_name,
-            entity="basalt",
-            notes="test",
+            project="iqlearn stabilization",
+            notes="note",
             config=config,
         )
 
-    # Train termination critic - probably not currently working
-    if args.termination_critic:
-        critic = TerminationCritic()
-        if args.train_critic:
-            critic_config = dict(algorithm='termination_critic',
-                                 epochs=5,
-                                 learning_rate=1e-4,
-                                 batch_size=32,
-                                 environment=environment)
-
-            expert_dataset.n_observation_frames = 1
-            critic.train(expert_dataset, critic_config)
-            expert_dataset.n_observation_frames = config['n_observation_frames']
-        else:
-            for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-                if ('termination_critic' in saved_agent_path.name
-                        and environment in saved_agent_path.name):
-                    print(f'Loading {saved_agent_path.name} as termination critic')
-                    critic.load_parameters(saved_agent_path)
-                    break
-    else:
-        critic = None
-
-    algorithm = config.algorithm
-    loss_function = config.loss_function
-
-    # initialize dataset, model, algorithm
-    if algorithm in ['online_imitation', 'supervised_learning'] \
-            or (algorithm == 'sac' and loss_function == 'iqlearn'):
-        expert_dataset = TrajectoryStepDataset(
-            debug_dataset=args.debug_env,
-            n_observation_frames=config.n_observation_frames)
-
-    if algorithm in ['online_imitation', 'supervised_learning']:
-        model = SoftQNetwork(alpha=config.alpha,
-                             n_observation_frames=config.n_observation_frames)
-
-    if algorithm == 'sac' and loss_function == 'iqlearn':
-        training_algorithm = IQLearnSAC(expert_dataset, config)
-    elif algorithm == 'online_imitation':
-        training_algorithm = OnlineImitation(expert_dataset, model, config)
-    elif algorithm == 'supervised_learning':
-        training_algorithm = SupervisedLearning(expert_dataset, model, config)
-    elif algorithm == 'curiosity':
-        training_algorithm = IntrinsicCuriosityTraining(config)
+    expert_dataset = TrajectoryStepDataset(
+        debug_dataset=args.debug_env, n_observation_frames=config['n_observation_frames'])
 
     # Start Virual Display
     if args.virtual_display:
         display = Display(visible=0, size=(400, 300))
         display.start()
 
-    # Start env
-    if algorithm != 'supervised_learning':
-        if args.debug_env:
-            print('Starting Debug Env')
-        else:
-            print(f'Starting Env: {environment}')
-        env = start_env(debug_env=args.debug_env)
-    else:
-        env = None
+    # Train Agent
+    training_algorithm = OnlineImitation(config)
+    model = SoftQNetwork(alpha=config['alpha'],
+                         n_observation_frames=config['n_observation_frames'])
 
-    # run algorithm
+    if args.debug_env:
+        print('Starting Debug Env')
+    else:
+        print(f'Starting Env: {environment}')
+    env = start_env(debug_env=args.debug_env)
+
     if not args.profile:
-        model, replay_buffer = training_algorithm(env)
+        model, replay_buffer = training_algorithm(model, env, expert_dataset)
     else:
         print('Training with profiler')
         config['training_steps'] = 510
@@ -175,14 +126,14 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                model, replay_buffer = training_algorithm(env, profiler=prof)
+                model, replay_buffer = training_algorithm(model, env, expert_dataset,
+                                                          profiler=prof)
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
                 for profile_file_path in Path(profile_dir).iterdir():
                     profile_art.add_file(profile_file_path)
                 profile_art.save()
 
-    # save model
     if not args.debug_env:
         model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
         model.save(model_save_path)
@@ -191,8 +142,7 @@ def main():
             model_art.add_file(model_save_path)
             model_art.save()
 
-    # save gifs
-    if args.gifs and replay_buffer is not None:
+    if args.gifs:
         print('Saving demo gifs')
         image_paths = replay_buffer.save_gifs(f'training_runs/{training_algorithm.name}')
         if args.wandb:
@@ -205,8 +155,7 @@ def main():
     # aicrowd_helper.register_progress(1)
     if args.virtual_display:
         display.stop()
-    if env is not None:
-        env.close()
+    env.close()
 
 
 if __name__ == "__main__":

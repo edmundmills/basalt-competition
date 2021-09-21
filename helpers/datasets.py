@@ -122,8 +122,8 @@ class ReplayBuffer:
         self._n_observation_frames = self.n_observation_frames
         self.transform = None
         self.n_observation_frames = 1
-        gif_count = 10
-        gif_steps = 100
+        gif_count = 8
+        gif_steps = 200
         frame_skip = 1
         frames = int(round(gif_steps / (frame_skip + 1)))
         step_rate = 20  # steps / second
@@ -150,6 +150,12 @@ class ReplayBuffer:
         self.transform = self._transform
         self.n_observation_frames = self._n_observation_frames
         return image_paths
+
+    def update_rewards(self, rewards):
+        assert(len(rewards) == len(self))
+        for idx, (trajectory_idx, step_idx) in enumerate(self.step_lookup):
+            self.trajectories[trajectory_idx].rewards[step_idx] \
+                = rewards[idx]
 
 
 class MixedReplayBuffer(ReplayBuffer):
@@ -191,5 +197,29 @@ class MixedReplayBuffer(ReplayBuffer):
                 expert_done) = next(self.expert_dataloader)
         return expert_obs, expert_actions, expert_next_obs, expert_done
 
-    def sample(self):
+    def sample(self, batch_size):
         return self.sample_expert(), self.sample_replay()
+
+
+class TestDataset:
+    def __init__(self,
+                 dataset,
+                 batch_size=264):
+        self.batch_size = batch_size
+        self.dataset = dataset
+        self.dataloader = self._initialize_dataloader()
+
+    def _initialize_dataloader(self):
+        return iter(DataLoader(self.dataset,
+                               shuffle=True,
+                               batch_size=self.batch_size,
+                               num_workers=4,
+                               drop_last=True))
+
+    def sample(self):
+        try:
+            obs, actions, next_obs, done = next(self.dataloader)
+        except StopIteration:
+            self.dataloader = self._initialize_dataloader()
+            obs, actions, next_obs, done = next(self.dataloader)
+        return obs, actions, next_obs, done
