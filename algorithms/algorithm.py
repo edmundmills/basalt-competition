@@ -88,12 +88,12 @@ class Algorithm:
             model.save(os.path.join('train', f'{name}.pth'))
         if replay_buffer is not None:
             gif_paths = []
-            gif_name = f'step_{iter_count}_tr_{len(replay_buffer.trajectories)}'
+            gif_name = f'trajectory_{len(replay_buffer.trajectories)}'
             gif_path = replay_buffer.current_trajectory().save_gif(self.save_path,
                                                                    gif_name)
             gif_paths.append(gif_path)
             if len(replay_buffer.trajectories) > 1:
-                gif_name2 = f'step_{iter_count}_tr_{len(replay_buffer.trajectories)-1}'
+                gif_name2 = f'trajectory_{len(replay_buffer.trajectories)-1}'
                 previous_trajectory = replay_buffer.trajectories[-2]
                 gif_path2 = previous_trajectory.save_gif(self.save_path, gif_name2)
                 gif_paths.append(gif_path2)

@@ -1,2 +1,2 @@
 type: 'iqlearn'
-loss: 'value_expert'
+loss: 'value'
