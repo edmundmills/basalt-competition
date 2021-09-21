@@ -88,7 +88,7 @@ class CuriosityModule(nn.Module):
             current_features, next_features = th.chunk(features, 2, dim=0)
             predicted_next_features = self.predict_next_features(current_features, action)
             reward = self.eta * F.mse_loss(next_features,
-                                           predicted_next_features).item() - 1
+                                           predicted_next_features).item()
         return reward
 
     def bulk_rewards(self, state, actions, next_state, done):
@@ -103,7 +103,7 @@ class CuriosityModule(nn.Module):
             reward = th.mean(reward, dim=1, keepdim=True)
         threw_snowball = ActionSpace.threw_snowball_tensor(state, actions, self.device)
         reward = reward * (1 - threw_snowball) - threw_snowball
-        reward = reward * self.eta - 1
+        reward = reward * self.eta
         return reward.squeeze().tolist()
 
     def loss(self, states, actions, next_states, _done, _rewards):
