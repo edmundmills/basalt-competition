@@ -76,7 +76,15 @@ class OnlineImitation(Algorithm):
                 optimizer.step()
                 if self.wandb:
                     wandb.log(metrics, step=step)
+
             self.log_step()
+
+            if self.checkpoint_freqency and \
+                iter_count % self.checkpoint_freqency == 0 \
+                    and iter_count < self.training_steps:
+                self.save_checkpoint(iter_count,
+                                     replay_buffer=replay_buffer,
+                                     models_with_names=[(model, 'model')])
 
             if done:
                 print(f'Trajectory completed at step {iter_count}')
@@ -84,12 +92,6 @@ class OnlineImitation(Algorithm):
 
             if profiler:
                 profiler.step()
-            if self.checkpoint_freqency and \
-                iter_count % self.checkpoint_freqency == 0 \
-                    and iter_count < self.training_steps:
-                model.save(os.path.join('train', f'{self.name}.pth'))
-                replay_buffer.save_gifs(self.save_path)
-                print(f'Checkpoint saved at step {iter_count}')
 
         print('Training complete')
         return model, replay_buffer

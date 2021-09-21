@@ -2,7 +2,9 @@ from helpers.environment import ObservationSpace, ActionSpace
 
 import time
 import os
+import wandb
 from pathlib import Path
+
 import torch as th
 
 
@@ -15,7 +17,7 @@ class Algorithm:
         self.environment = config.env.name
         self.timestamps = []
         self.update_frequency = 50
-        self.checkpoint_freqency = 1000
+        self.checkpoint_freqency = config.checkpoint_freqency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
         save_path = Path('training_runs') / self.name
         os.makedirs(save_path.as_posix(), exist_ok=True)
@@ -74,3 +76,25 @@ class Algorithm:
         duration = self.timestamps[-1] - self.timestamps[-iterations]
         rate = iterations / duration
         return rate
+
+    def save_checkpoint(self, iter_count, replay_buffer=None, models_with_names=()):
+        for model, name in models_with_names:
+            model.save(os.path.join('train', f'{name}.pth'))
+        if replay_buffer is not None:
+            gif_paths = []
+            gif_name = f'step_{iter_count}_tr_{len(replay_buffer.trajectories)}'
+            gif_path = replay_buffer.current_trajectory().save_gif(self.save_path,
+                                                                   gif_name)
+            gif_paths.append(gif_path)
+            if len(replay_buffer.trajectories) > 1:
+                gif_name2 = f'step_{iter_count}_tr_{len(replay_buffer.trajectories)-1}'
+                previous_trajectory = replay_buffer.trajectories[-2]
+                gif_path2 = previous_trajectory.save_gif(self.save_path, gif_name2)
+                gif_paths.append(gif_path2)
+            if self.wandb:
+                gif_art = wandb.Artifact("checkpoint", type="gif")
+                for gif_path in gif_paths:
+                    gif_art.add_file(gif_path)
+                gif_art.save()
+
+        print(f'Checkpoint saved at step {iter_count}')

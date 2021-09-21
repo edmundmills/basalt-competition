@@ -161,10 +161,6 @@ class SoftActorCritic(Algorithm):
                 if step % self.target_update_interval:
                     self._soft_update_target()
 
-            if done:
-                print(f'Trajectory completed at step {iter_count}')
-                current_state = self.start_new_trajectory(env, self.replay_buffer)
-
             self.log_step()
 
             if profiler:
@@ -174,9 +170,14 @@ class SoftActorCritic(Algorithm):
             if self.checkpoint_freqency \
                     and iter_count % self.checkpoint_freqency == 0 \
                     and iter_count < self.training_steps:
-                self.save(os.path.join('train', f'{self.name}.pth'))
-                self.replay_buffer.save_gifs(self.save_path)
-                print(f'Checkpoint saved at step {iter_count}')
+                self.save_checkpoint(iter_count,
+                                     replay_buffer=self.replay_buffer,
+                                     models_with_names=[(self.actor, 'actor'),
+                                                        (self.online_q, 'critic')])
+
+            if done:
+                print(f'Trajectory completed at step {iter_count}')
+                current_state = self.start_new_trajectory(env, self.replay_buffer)
 
         print('Training complete')
         return self.actor, self.replay_buffer

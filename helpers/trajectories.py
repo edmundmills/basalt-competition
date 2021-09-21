@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
+from PIL import Image
+
 
 class Trajectory:
     def __init__(self, path=None):
@@ -100,6 +102,24 @@ class Trajectory:
             step_name = f'step{str(step).zfill(5)}.npy'
             step_dict = {'step': step, 'obs': obs, 'action': action, 'done': done}
             np.save(file=steps_path / step_name, arr=step_dict)
+
+    def save_gif(self, save_dir_path, filename):
+        save_dir_path = Path(save_dir_path)
+        save_dir_path.mkdir(exist_ok=True)
+        frame_skip = 1
+        frames = min(int(round(len(self) / (frame_skip + 1))), len(self.obs))
+        step_rate = 20  # steps / second
+        frame_rate = step_rate / (frame_skip + 1)
+        duration = frames / frame_rate
+        total_steps = len(self)
+        step_indices = [frame * (frame_skip + 1) for frame in range(frames)]
+        images = [Image.fromarray(self.obs[step_idx]['pov'].astype(np.uint8))
+                  for step_idx in step_indices]
+        image_path = save_dir_path / f'{filename}.gif'
+        images[0].save(image_path,
+                       save_all=True, append_images=images[1:],
+                       optimize=False, duration=duration, loop=0)
+        return image_path
 
     def view(self):
         viewer = TrajectoryViewer(self).view()
