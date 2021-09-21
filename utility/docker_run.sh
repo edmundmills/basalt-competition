@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script run your submission inside a docker image, this is identical in termrs of 
+# This script run your submission inside a docker image, this is identical in termrs of
 # how your code will be executed on AIcrowd platform, with the exception of some
 # environment variables removed (which do not work outside AICrowd platform)
 
@@ -20,16 +20,26 @@ else
     ./utility/docker_build.sh
 fi
 
+# Source secrets
+if [ -e utility/secrets.sh ]
+then
+    source utility/secrets.sh
+fi
+
 # Expected Env variables : in environ.sh
 if [[ " $@ " =~ " --nvidia " ]]; then
-    sudo nvidia-docker run \
+    nvidia-docker run \
     --net=host \
     --user 0 \
+    -e WANDB_API_KEY=${WANDB_API_KEY} \
+    -v /scr-ssd/divgarg/datasets/minerl:/home/aicrowd/data \
+    -v $(pwd)/performance:/home/aicrowd/performance \
+    -v $(pwd)/.gradle:/home/aicrowd/.gradle \
     -it ${IMAGE_NAME}:${IMAGE_TAG} \
     /bin/bash
 else
     echo "To run your submission with nvidia drivers, use \"--nvidia\" with this script"
-    sudo docker run \
+    docker run \
     --net=host \
     --user 0 \
     -it ${IMAGE_NAME}:${IMAGE_TAG} \
