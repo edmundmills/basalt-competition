@@ -32,7 +32,8 @@ class Algorithm:
             action = ActionSpace.random_action()
             replay_buffer.current_trajectory().actions.append(action)
 
-            if ActionSpace.threw_snowball(current_state, action):
+            suppressed_snowball = ActionSpace.threw_snowball(current_state, action)
+            if suppressed_snowball:
                 print('Snowball suppressed')
                 obs, _, done, _ = env.step(-1)
             else:
@@ -51,6 +52,11 @@ class Algorithm:
             if done or (iter_count % 1000 == 0 and iter_count != steps):
                 print(f'Starting trajectory completed at step {iter_count}')
                 current_state = self.start_new_trajectory(env, replay_buffer)
+            elif suppressed_snowball:
+                replay_buffer.current_trajectory().done = True
+                replay_buffer.new_trajectory()
+                replay_buffer.current_trajectory().append_obs(obs)
+                current_state = replay_buffer.current_state()
 
             self.log_step()
 

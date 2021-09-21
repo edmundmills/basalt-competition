@@ -112,8 +112,9 @@ class SoftActorCritic(Algorithm):
             action = self.actor.get_action(current_state)
 
             self.replay_buffer.current_trajectory().actions.append(action)
-            if step < self.suppress_snowball_steps \
-                    and ActionSpace.threw_snowball(current_state, action):
+            suppressed_snowball = step < self.suppress_snowball_steps \
+                and ActionSpace.threw_snowball(current_state, action)
+            if suppressed_snowball:
                 print('Snowball suppressed')
                 obs, _, done, _ = env.step(-1)
             else:
@@ -161,11 +162,6 @@ class SoftActorCritic(Algorithm):
                 if step % self.target_update_interval:
                     self._soft_update_target()
 
-            self.log_step()
-
-            if profiler:
-                profiler.step()
-
             # save checkpoints, currently just saves actor and gifs
             if self.checkpoint_freqency \
                     and iter_count % self.checkpoint_freqency == 0 \
@@ -178,6 +174,16 @@ class SoftActorCritic(Algorithm):
             if done:
                 print(f'Trajectory completed at step {iter_count}')
                 current_state = self.start_new_trajectory(env, self.replay_buffer)
+            elif suppressed_snowball:
+                self.replay_buffer.current_trajectory().done = True
+                self.replay_buffer.new_trajectory()
+                self.replay_buffer.current_trajectory().append_obs(obs)
+                current_state = self.replay_buffer.current_state()
+
+            self.log_step()
+
+            if profiler:
+                profiler.step()
 
         print('Training complete')
         return self.actor, self.replay_buffer
