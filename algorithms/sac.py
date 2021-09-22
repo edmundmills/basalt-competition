@@ -198,7 +198,7 @@ class SoftActorCritic(Algorithm):
         next_states = ObservationSpace.obs_to_state(next_obs)
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
-        done = th.as_tensor(done).float().to(self.device)
+        done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
         batch = states, actions, next_states, done, rewards
 
@@ -268,13 +268,14 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
 
     def train_one_batch(self, batch, curiosity_only=False):
         # load batch onto gpu
-        obs, actions, next_obs, _done, rewards = batch
+        obs, actions, next_obs, done, rewards = batch
         states = ObservationSpace.obs_to_state(obs)
         next_states = ObservationSpace.obs_to_state(next_obs)
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
+        done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, _done, rewards
+        batch = states, actions, next_states, done, rewards
 
         if not curiosity_only:
             policy_metrics = self.update_policy(batch)
