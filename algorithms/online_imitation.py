@@ -14,7 +14,8 @@ import os
 
 
 class OnlineImitation(Algorithm):
-    def __init__(self, expert_dataset, model, config, termination_critic=None):
+    def __init__(self, expert_dataset, model, config, termination_critic=None,
+                 initial_replay_buffer=None, initial_iter_count=0):
         super().__init__(config)
         self.termination_critic = termination_critic
         self.lr = config['learning_rate']
@@ -23,10 +24,13 @@ class OnlineImitation(Algorithm):
         self.batch_size = config['batch_size']
         self.model = model
         self.expert_dataset = expert_dataset
+        self.initial_replay_buffer = initial_replay_buffer
+        self.iter_count += initial_iter_count
 
     def __call__(self, env, profiler=None):
         model = self.model
         expert_dataset = self.expert_dataset
+        initial_replay_buffer = self.initial_replay_buffer
 
         if self.config['loss_function'] == 'sqil':
             self.loss_function = SqilLoss(model, self.config)
@@ -36,29 +40,34 @@ class OnlineImitation(Algorithm):
         optimizer = th.optim.Adam(model.parameters(),
                                   lr=self.lr)
 
+        if initial_replay_buffer is not None:
+            print((f'Using initial replay buffer'
+                   f' with {len(initial_replay_buffer)} steps'))
         replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
                                           batch_size=self.batch_size,
                                           expert_sample_fraction=0.5,
-                                          n_observation_frames=model.n_observation_frames)
+                                          n_observation_frames=model.n_observation_frames,
+                                          initial_replay_buffer=initial_replay_buffer)
 
-        if self.starting_steps > 0:
+        if self.starting_steps > 0 and initial_replay_buffer is None:
             self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
 
         self.start_new_trajectory(env, replay_buffer)
 
-        for step in range(self.training_steps):
-            iter_count = step + 1
+        print((f'{self.algorithm_name}: Starting training'
+               f' for {self.training_steps} steps (iteration {self.iter_count})'))
 
+        for step in range(self.training_steps):
             current_state = replay_buffer.current_trajectory().current_state(
                 n_observation_frames=model.n_observation_frames)
             action = model.get_action(current_state)
             if ActionSpace.threw_snowball(current_state, action):
-                print(f'Threw Snowball at step {iter_count}')
+                print(f'Threw Snowball at iteration {self.iter_count}')
                 if self.termination_critic is not None:
                     reward = self.termination_critic.termination_reward(current_state)
                     print(f'Termination reward: {reward:.2f}')
                     if self.wandb:
-                        wandb.log({'termination_reward': reward})
+                        wandb.log({'termination_reward': reward}, step=self.iter_count)
                 else:
                     reward = 0
             else:
@@ -75,22 +84,21 @@ class OnlineImitation(Algorithm):
                 loss.backward()
                 optimizer.step()
                 if self.wandb:
-                    wandb.log(metrics, step=iter_count)
+                    wandb.log(metrics, step=self.iter_count)
 
             self.log_step()
 
             if self.checkpoint_frequency and \
-                    iter_count % self.checkpoint_frequency == 0:
-                self.save_checkpoint(iter_count,
-                                     replay_buffer=replay_buffer,
+                    self.iter_count % self.checkpoint_frequency == 0:
+                self.save_checkpoint(replay_buffer=replay_buffer,
                                      models_with_names=[(model, 'model')])
 
             if done:
-                print(f'Trajectory completed at step {iter_count}')
+                print(f'Trajectory completed at iteration {self.iter_count}')
                 self.start_new_trajectory(env, replay_buffer)
 
             if profiler:
                 profiler.step()
 
-        print('Training complete')
+        print(f'{self.algorithm_name}: Training complete')
         return model, replay_buffer

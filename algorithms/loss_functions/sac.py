@@ -11,21 +11,21 @@ class SACQLoss:
         self.discount_factor = config.discount_factor
         self.double_q = config.double_q
 
-    def __call__(self, states, actions, next_states, _done, rewards):
+    def __call__(self, states, actions, next_states, done, rewards):
         if self.double_q:
             Q1_s_a, Q2_s_a = self.online_q.get_Q_s_a(states, actions)
             with th.no_grad():
                 next_Q1s, next_Q2s = self.target_q.get_Q(next_states)
                 next_Qs = th.min(next_Q1s, next_Q2s)
             next_Vs = self.target_q.get_V(next_Qs)
-            target_Qs = rewards + self.discount_factor * next_Vs
+            target_Qs = rewards + (1 - done) * self.discount_factor * next_Vs
             loss = F.mse_loss(Q1_s_a, target_Qs) + F.mse_loss(Q2_s_a, target_Qs)
         else:
             Q_s_a = self.online_q.get_Q_s_a(states, actions)
             with th.no_grad():
                 next_Qs = self.target_q.get_Q(next_states)
             next_Vs = self.target_q.get_V(next_Qs)
-            target_Qs = rewards + self.discount_factor * next_Vs
+            target_Qs = rewards + (1 - done) * self.discount_factor * next_Vs
             loss = F.mse_loss(Q_s_a, target_Qs)
 
         metrics = {'q_loss': loss.detach().item(),

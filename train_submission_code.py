@@ -57,6 +57,8 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
+    cfg.pretraining.wandb = args.wandb
+    cfg.pretrain = args.pretrain
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     return cfg
@@ -73,6 +75,8 @@ def main():
                            action='store_true', default=False)
     argparser.add_argument('--train-critic-false', dest='train_critic',
                            action='store_true', default=True)
+    argparser.add_argument('--pretrain', dest='pretrain',
+                           action='store_true', default=False)
     argparser.add_argument('--debug-env', dest='debug_env',
                            action='store_true', default=False)
     argparser.add_argument('--profile', dest='profile',
@@ -102,7 +106,8 @@ def main():
             config=config,
         )
 
-    # Train termination critic - probably not currently working
+    # Train termination critic - probably not currently working. possibly could be useful
+    # if we're stuggling to get the agent to do this successfully
     if args.termination_critic:
         critic = TerminationCritic()
         if args.train_critic:
@@ -125,6 +130,30 @@ def main():
     else:
         critic = None
 
+    # Start Virual Display
+    if args.virtual_display:
+        display = Display(visible=0, size=(400, 300))
+        display.start()
+
+    # Start env
+    if config.algorithm != 'supervised_learning':
+        if args.debug_env:
+            print('Starting Debug Env')
+        else:
+            print(f'Starting Env: {environment}')
+        env = start_env(debug_env=args.debug_env)
+    else:
+        env = None
+
+    if config.pretrain:
+        pretraining_algorithm = IntrinsicCuriosityTraining(config.pretraining)
+        pretrained_model, pretrainining_replay = pretraining_algorithm(env)
+        pretraining_iter_count = pretraining_algorithm.iter_count
+    else:
+        pretrained_model = None
+        pretrainining_replay = None
+        pretraining_iter_count = 0
+
     algorithm = config.algorithm
     loss_function = config.loss_function
 
@@ -135,33 +164,22 @@ def main():
             debug_dataset=args.debug_env,
             n_observation_frames=config.n_observation_frames)
 
-    if algorithm in ['online_imitation', 'supervised_learning']:
+    if pretrained_model is not None:
+        model = pretrained_model
+    elif algorithm in ['online_imitation', 'supervised_learning']:
         model = SoftQNetwork(alpha=config.alpha,
                              n_observation_frames=config.n_observation_frames)
 
     if algorithm == 'sac' and loss_function == 'iqlearn':
-        training_algorithm = IQLearnSAC(expert_dataset, config)
+        training_algorithm = IQLearnSAC(expert_dataset, config,
+                                        initial_replay_buffer=pretrainining_replay,
+                                        initial_iter_count=pretraining_iter_count)
     elif algorithm == 'online_imitation':
-        training_algorithm = OnlineImitation(expert_dataset, model, config)
+        training_algorithm = OnlineImitation(expert_dataset, model, config,
+                                             initial_replay_buffer=pretrainining_replay,
+                                             initial_iter_count=pretraining_iter_count)
     elif algorithm == 'supervised_learning':
         training_algorithm = SupervisedLearning(expert_dataset, model, config)
-    elif algorithm == 'curiosity':
-        training_algorithm = IntrinsicCuriosityTraining(config)
-
-    # Start Virual Display
-    if args.virtual_display:
-        display = Display(visible=0, size=(400, 300))
-        display.start()
-
-    # Start env
-    if algorithm != 'supervised_learning':
-        if args.debug_env:
-            print('Starting Debug Env')
-        else:
-            print(f'Starting Env: {environment}')
-        env = start_env(debug_env=args.debug_env)
-    else:
-        env = None
 
     # run algorithm
     if not args.profile:
