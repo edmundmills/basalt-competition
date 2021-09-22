@@ -40,6 +40,9 @@ class OnlineImitation(Algorithm):
         optimizer = th.optim.Adam(model.parameters(),
                                   lr=self.lr)
 
+        if initial_replay_buffer is not None:
+            print((f'Using initial replay buffer'
+                   f' with {len(initial_replay_buffer)} steps'))
         replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
                                           batch_size=self.batch_size,
                                           expert_sample_fraction=0.5,

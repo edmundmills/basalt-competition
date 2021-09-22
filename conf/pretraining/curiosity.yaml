@@ -7,10 +7,10 @@ n_observation_frames: 3
 alpha: 1e-1
 wandb: ???
 
-starting_steps: 5000
-curiosity_pretraining_steps: 1500
+starting_steps: 10000
+curiosity_pretraining_steps: 1000
 suppress_snowball_steps: 500
-training_steps: 10000
+training_steps: 20000
 
 batch_size: 256
 discount_factor: 0.99
