@@ -139,7 +139,7 @@ class TrajectoryGenerator:
         self.env = env
         self.model = model
 
-    def generate(self, max_episode_length=10000):
+    def generate(self, max_episode_length=100000):
         trajectory = Trajectory()
         obs = self.env.reset()
 
