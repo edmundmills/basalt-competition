@@ -51,7 +51,7 @@ class SACPolicyLoss:
         else:
             Qs = self.online_q.get_Q(states)
         # this is elementwise multiplication to get expectation of Q for following policy
-        expected_Q_policy = th.mean(Qs * action_probabilities, dim=1, keepdim=True)
+        expected_Q_policy = th.sum(Qs * action_probabilities, dim=1, keepdim=True)
         # entropy has negative sign: -logpi.
         # whole term is negative since we want to maximize Q and entropy
         loss = -th.mean(expected_Q_policy + self.policy.alpha * entropies)

@@ -4,11 +4,11 @@ checkpoint_frequency: 500
 
 env: ${..env}
 n_observation_frames: 3
-alpha: 1e-2
+alpha: 1e-1
 wandb: ???
 
-starting_steps: 5000
-curiosity_pretraining_steps: 500
+starting_steps: 10000
+curiosity_pretraining_steps: 1000
 suppress_snowball_steps: 1000
 training_steps: 20000
 
