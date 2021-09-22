@@ -4,6 +4,7 @@ checkpoint_frequency: 500
 
 env: ${..env}
 n_observation_frames: 3
+frame_selection_noise: 0
 alpha: 1e-1
 wandb: ???
 

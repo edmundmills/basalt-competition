@@ -65,15 +65,17 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, n_observation_frames=self.n_observation_frames)
+            step_idx, n_observation_frames=self.n_observation_frames,
+            frame_selection_noise=self.frame_selection_noise)
         if self.transform:
             sample = self.transform(sample)
         return sample
 
 
 class ReplayBuffer:
-    def __init__(self, n_observation_frames=1, reward=True):
+    def __init__(self, n_observation_frames=1, frame_selection_noise=0 reward=True):
         self.n_observation_frames = n_observation_frames
+        self.frame_selection_noise = frame_selection_noise
         self.trajectories = [Trajectory()]
         self.step_lookup = []
         self.reward = reward
@@ -85,7 +87,8 @@ class ReplayBuffer:
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, n_observation_frames=self.n_observation_frames, reward=self.reward)
+            step_idx, n_observation_frames=self.n_observation_frames,
+            reward=self.reward, frame_selection_noise=self.frame_selection_noise)
         if self.transform:
             sample = self.transform(sample)
         return sample
@@ -191,12 +194,14 @@ class MixedReplayBuffer(ReplayBuffer):
                  batch_size=64,
                  expert_sample_fraction=0.5,
                  n_observation_frames=1,
+                 frame_selection_noise=0,
                  initial_replay_buffer=None):
         self.batch_size = batch_size
         self.expert_sample_fraction = expert_sample_fraction
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
-        super().__init__(n_observation_frames=n_observation_frames)
+        super().__init__(n_observation_frames=n_observation_frames,
+                         frame_selection_noise=frame_selection_noise)
         if initial_replay_buffer is not None:
             self.trajectories = initial_replay_buffer.trajectories
             self.step_lookup = initial_replay_buffer.step_lookup

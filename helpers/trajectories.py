@@ -1,6 +1,7 @@
 from helpers.environment import EnvironmentHelper, ObservationSpace, ActionSpace
 
 import math
+import random
 import os
 import shutil
 from pathlib import Path
@@ -44,40 +45,49 @@ class Trajectory:
         obs['pov'] = np.ascontiguousarray(obs['pov'])
         self.obs.append(obs)
 
-    def get_item(self, idx, n_observation_frames=1, reward=False):
+    def get_item(self, idx, n_observation_frames=1,
+                 frame_selection_noise=0, reward=False):
         obs, action, next_obs, done = self[idx]
         if n_observation_frames > 1:
-            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames)
+            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames,
+                                                           frame_selection_noise)
             next_obs['frame_sequence'] = self.additional_frames(idx + 1,
-                                                                n_observation_frames)
+                                                                n_observation_frames,
+                                                                frame_selection_noise)
         if reward:
             return obs, action, next_obs, done, self.rewards[idx]
         return obs, action, next_obs, done
 
-    def current_obs(self, n_observation_frames=1):
+    def current_obs(self, n_observation_frames=1, frame_selection_noise=0):
         current_idx = len(self) - 1
         obs = self.obs[current_idx]
         if n_observation_frames > 1:
             obs['frame_sequence'] = self.additional_frames(current_idx,
-                                                           n_observation_frames)
+                                                           n_observation_frames,
+                                                           frame_selection_noise)
         return obs
 
     def current_state(self, **kwargs):
         return ObservationSpace.obs_to_state(self.current_obs(**kwargs))
 
-    def get_obs(self, idx, n_observation_frames=1):
+    def get_obs(self, idx, n_observation_frames=1, frame_selection_noise=0):
         obs = self.obs[idx]
         if n_observation_frames > 1:
-            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames)
+            obs['frame_sequence'] = self.additional_frames(idx,
+                                                           n_observation_frames,
+                                                           frame_selection_noise)
         return obs
 
-    def additional_frames(self, step, n_observation_frames):
+    def additional_frames(self, step, n_observation_frames, frame_selection_noise):
         if n_observation_frames <= 1:
             return None
 
+        frame_range = n_observation_frames - 1 + frame_selection_noise
+        relative_frames = reversed(sorted(random.sample(
+            range(frame_range), n_observation_frames - 1)))
+        print(relative_frames)
         frame_indices = [max(0, step - 1 - frame_number)
-                         for frame_number
-                         in reversed(range(n_observation_frames - 1))]
+                         for frame_number in relative_frames]
         frames = th.cat([th.from_numpy(self.obs[frame_idx]['pov'].copy())
                          for frame_idx in frame_indices], dim=2)
         return frames

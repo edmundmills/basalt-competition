@@ -23,6 +23,7 @@ class OnlineImitation(Algorithm):
         self.starting_steps = config['starting_steps']
         self.training_steps = config['training_steps']
         self.batch_size = config['batch_size']
+        self.frame_selection_noise = config['frame_selection_noise']
         self.model = model
         self.expert_dataset = expert_dataset
         self.initial_replay_buffer = initial_replay_buffer
@@ -48,6 +49,7 @@ class OnlineImitation(Algorithm):
                                           batch_size=self.batch_size,
                                           expert_sample_fraction=0.5,
                                           n_observation_frames=model.n_observation_frames,
+                                          frame_selection_noise=self.frame_selection_noise,
                                           initial_replay_buffer=initial_replay_buffer)
 
         if self.starting_steps > 0 and initial_replay_buffer is None:
