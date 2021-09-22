@@ -43,6 +43,7 @@ class SACPolicyLoss:
     def __call__(self, states, _actions, _next_states, _done, _rewards):
         actor_Qs = self.policy.get_Q(states)
         entropies = self.policy.entropy(actor_Qs)
+        action_probabilities = self.policy.action_probabilities(actor_Qs)
 
         if self.double_q:
             Q1s, Q2s = self.online_q.get_Q(states)
@@ -50,8 +51,12 @@ class SACPolicyLoss:
         else:
             Qs = self.online_q.get_Q(states)
         # this is elementwise multiplication to get expectation of Q for following policy
-        expected_Q_policy = Qs * self.policy.action_probabilities(actor_Qs)
-        loss = th.mean(expected_Q_policy - self.policy.alpha * entropies)
+        expected_Q_policy = th.mean(Qs * action_probabilities, dim=1, keepdim=True)
+        # entropy has negative sign: -logpi.
+        # whole term is negative since we want to maximize Q and entropy
+        loss = -th.mean(expected_Q_policy + self.policy.alpha * entropies)
         metrics = {'policy_loss': loss.detach().item(),
-                   'average_online_Q': Qs.detach().mean().item()}
+                   'average_online_Q': Qs.detach().mean().item(),
+                   'policy_Q': expected_Q_policy.detach().mean().item(),
+                   'entropy': entropies.detach().mean().item()}
         return loss, metrics

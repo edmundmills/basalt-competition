@@ -35,7 +35,7 @@ class SoftQNetwork(Network):
         return probabilities
 
     def entropy(self, Qs):
-        entropies = F.log_softmax(Qs/self.alpha, dim=1).sum(dim=1, keepdim=True)
+        entropies = -F.log_softmax(Qs/self.alpha, dim=1).sum(dim=1, keepdim=True)
         return entropies
 
     def get_action(self, state):
