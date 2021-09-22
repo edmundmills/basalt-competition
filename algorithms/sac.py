@@ -279,7 +279,11 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
         done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
-        rewards = rewards.float().unsqueeze(1).to(self.device)
+        if not curiosity_only:
+            rewards = rewards.float().unsqueeze(1).to(self.device)
+            mean_reward = rewards.mean().item()
+            std_reward = rewards.std().item()
+            rewards = (rewards - mean_reward) / std_reward
         batch = states, actions, next_states, done, rewards
 
         if not curiosity_only:
