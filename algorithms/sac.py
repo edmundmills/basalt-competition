@@ -103,19 +103,23 @@ class SoftActorCritic(Algorithm):
             self._assign_rewards_to_replay_buffer()
             self._copy_curiosity_features_all_networks()
 
-        print('Training actor / critic')
+        print((f'{self.algorithm_name}: training actor / critic'
+               f' for {self.training_steps}'))
         current_state = self.start_new_trajectory(env, self.replay_buffer)
 
         for step in range(self.training_steps):
             # take action, update replay buffer
-            iter_count = step + 1
             action = self.actor.get_action(current_state)
-
             self.replay_buffer.current_trajectory().actions.append(action)
+
+            if step == 0 and self.suppress_snowball_steps > 0:
+                print(('Suppressing throwing snowball for'
+                       f' {self.suppress_snowball_steps}'))
+            elif step == self.suppress_snowball_steps and step != 0:
+                print('No longer suppressing snowball')
             suppressed_snowball = step < self.suppress_snowball_steps \
                 and ActionSpace.threw_snowball(current_state, action)
             if suppressed_snowball:
-                print('Snowball suppressed')
                 obs, _, done, _ = env.step(-1)
             else:
                 obs, _, done, _ = env.step(action)
@@ -157,21 +161,21 @@ class SoftActorCritic(Algorithm):
                     wandb.log(
                         {'reward': reward,
                          **step_metrics,
-                         'average_its_per_s': self.iteration_rate()})
+                         'average_its_per_s': self.iteration_rate()},
+                        step=self.iter_count)
 
                 if step % self.target_update_interval:
                     self._soft_update_target()
 
             # save checkpoints, currently just saves actor and gifs
             if self.checkpoint_frequency \
-                    and iter_count % self.checkpoint_frequency == 0:
-                self.save_checkpoint(iter_count,
-                                     replay_buffer=self.replay_buffer,
+                    and self.iter_count % self.checkpoint_frequency == 0:
+                self.save_checkpoint(replay_buffer=self.replay_buffer,
                                      models_with_names=[(self.actor, 'actor'),
                                                         (self.online_q, 'critic')])
 
             if done:
-                print(f'Trajectory completed at step {iter_count}')
+                print(f'Trajectory completed at iteration {self.iter_count}')
                 current_state = self.start_new_trajectory(env, self.replay_buffer)
             elif suppressed_snowball:
                 self.replay_buffer.current_trajectory().done = True
@@ -184,18 +188,19 @@ class SoftActorCritic(Algorithm):
             if profiler:
                 profiler.step()
 
-        print('Training complete')
+        print(f'{self.algorithm_name}: Training complete')
         return self.actor, self.replay_buffer
 
     def train_one_batch(self, batch):
         # load batch onto gpu
-        obs, actions, next_obs, _done, rewards = batch
+        obs, actions, next_obs, done, rewards = batch
         states = ObservationSpace.obs_to_state(obs)
         next_states = ObservationSpace.obs_to_state(next_obs)
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
+        done = th.as_tensor(done).float().to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, _done, rewards
+        batch = states, actions, next_states, done, rewards
 
         policy_metrics = self.update_policy(batch)
         q_metrics = self.update_q(batch)
@@ -283,6 +288,8 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         return metrics
 
     def _train_curiosity_module(self):
+        print((f'Pretraining curiosity module for'
+              f' {self.curiosity_pretraining_steps} steps'))
         for step in range(self.curiosity_pretraining_steps):
             batch = self.replay_buffer.sample(batch_size=self.batch_size)
             metrics = self.train_one_batch(batch, curiosity_only=True)

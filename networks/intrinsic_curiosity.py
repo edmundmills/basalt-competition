@@ -75,10 +75,8 @@ class CuriosityModule(nn.Module):
 
     def reward(self, state, action, next_state, done):
         if done:
-            print('Done')
             return -1
         if ActionSpace.threw_snowball(state, action):
-            print('Threw Snowball')
             return -1
         states = states_to_device((state, next_state), self.device)
         action = th.tensor([action], device=self.device, dtype=th.int64).reshape(-1)
