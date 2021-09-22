@@ -62,7 +62,7 @@ class OnlineImitation(Algorithm):
 
         episode_reward = 0
         episode_steps = 0
-            
+
         for step in range(self.training_steps):
             current_state = replay_buffer.current_trajectory().current_state(
                 n_observation_frames=model.n_observation_frames)
@@ -108,8 +108,11 @@ class OnlineImitation(Algorithm):
 
                 rewards_window.append(episode_reward)
                 steps_window.append(episode_steps)
-                wandb.log({'Rewards/train_reward': np.mean(rewards_window)}, step=self.iter_count)
-                wandb.log({'Timesteps/train': np.mean(steps_window)}, step=self.iter_count)
+                if self.wandb:
+                    wandb.log({'Rewards/train_reward': np.mean(rewards_window)},
+                              step=self.iter_count)
+                    wandb.log({'Timesteps/train': np.mean(steps_window)},
+                              step=self.iter_count)
 
                 episode_reward = 0
                 episode_steps = 0

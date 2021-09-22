@@ -12,7 +12,7 @@ class DebugEnv:
         obs = {"pov": np.random.randint(0, 255, (64, 64, 3)),
                "inventory": self.inventory,
                "equipped_items": {"mainhand": {'type': 'snowball'}}}
-        _reward = None
+        _reward = 0
         _info = None
         done = np.random.choice([True, False], p=[.02, .98])
         return obs, _reward, done, _info

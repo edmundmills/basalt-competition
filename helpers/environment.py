@@ -10,7 +10,8 @@ class EnvironmentHelper:
     environment_names = ['MineRLBasaltBuildVillageHouse-v0',
                          'MineRLBasaltCreateVillageAnimalPen-v0',
                          'MineRLBasaltFindCave-v0',
-                         'MineRLBasaltMakeWaterfall-v0']
+                         'MineRLBasaltMakeWaterfall-v0',
+                         'MineRLTreechop-v0']
 
 
 class ObservationSpace:
@@ -52,6 +53,7 @@ class ObservationSpace:
     },
         'MineRLBasaltFindCave-v0': {'snowball': 1},
         'MineRLBasaltMakeWaterfall-v0': {'waterbucket': 1, 'snowball': 1},
+        'MineRLTreechop-v0': {'snowball': 1},
     }
 
     frame_shape = (3, 64, 64)
@@ -110,12 +112,16 @@ class ObservationSpace:
         return inventory
 
     def obs_to_state(obs):
-        items = th.cat((ObservationSpace.obs_to_inventory(obs),
-                        ObservationSpace.obs_to_equipped_item(obs)), dim=1)
         pov = ObservationSpace.obs_to_pov(obs)
         frame_sequence = ObservationSpace.obs_to_frame_sequence(obs)
         if frame_sequence is not None:
             pov = th.cat((pov, frame_sequence), dim=1)
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment == 'MineRLTreechop-v0':
+            items = th.zeros((pov.size()[0], 2))
+        else:
+            items = th.cat((ObservationSpace.obs_to_inventory(obs),
+                            ObservationSpace.obs_to_equipped_item(obs)), dim=1)
         state = (pov, items)
         return state
 
@@ -145,6 +151,10 @@ class ActionSpace:
     def actions():
         actions = list(range(len(ActionSpace.action_name_list) - 1 +
                              len(ObservationSpace.items())))
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment == 'MineRLTreechop-v0':
+            # no use or equip actions
+            actions = actions[:-2]
         return actions
 
     def random_action():
@@ -156,6 +166,9 @@ class ActionSpace:
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
 
     def threw_snowball(obs_or_state, action):
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment == 'MineRLTreechop-v0':
+            return False
         if isinstance(obs_or_state, dict):
             equipped_item = obs_or_state['equipped_items']['mainhand']['type']
         else:
@@ -166,6 +179,9 @@ class ActionSpace:
         return action == 11 and equipped_item == 'snowball'
 
     def threw_snowball_list(obs, actions):
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment == 'MineRLTreechop-v0':
+            return [False for action in actions]
         equipped_items = obs['equipped_items']['mainhand']['type']
         if isinstance(actions, th.Tensor):
             actions = actions.squeeze().tolist()
@@ -198,17 +214,19 @@ class ActionSpace:
         left_actions = dataset_actions["left"].reshape(-1)
         right_actions = dataset_actions["right"].reshape(-1)
         jump_actions = dataset_actions["jump"].reshape(-1)
-        equip_actions = dataset_actions["equip"]
-        use_actions = dataset_actions["use"].reshape(-1)
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment != 'MineRLTreechop-v0':
+            equip_actions = dataset_actions["equip"]
+            use_actions = dataset_actions["use"].reshape(-1)
 
         batch_size = len(attack_actions)
         actions = np.zeros((batch_size,), dtype=np.int)
         items = ObservationSpace.items()
 
         for i in range(batch_size):
-            if use_actions[i] == 1:
+            if environment != 'MineRLTreechop-v0' and use_actions[i] == 1:
                 actions[i] = 11
-            elif equip_actions[i] in items:
+            elif environment != 'MineRLTreechop-v0' and equip_actions[i] in items:
                 actions[i] = 12 + items.index(equip_actions[i])
             elif camera_actions[i][0] < -camera_margin:
                 actions[i] = 6

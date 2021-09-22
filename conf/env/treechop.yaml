@@ -1,0 +1,4 @@
+name: MineRLTreechop-v0
+demo: MineRLTreechop-v0_1000
+# learn_steps: 1e5
+# eval_interval: 1e3

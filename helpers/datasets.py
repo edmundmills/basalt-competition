@@ -55,6 +55,8 @@ class TrajectoryStepDataset(Dataset):
             trajectory_idx += 1
             if self.debug_dataset and trajectory_idx >= 2:
                 break
+            if self.environment == 'MineRLTreechop-v0' and trajectory_idx >= 60:
+                break
         return trajectories, step_lookup
 
     def __len__(self):
