@@ -25,7 +25,7 @@ learning_rate: 3e-4
 alpha: 1e-1
 
 
-algorithm: 'sac'  # curiosity, supervised_learning, online_imitation, sac
+algorithm: 'online_imitation'  # curiosity, supervised_learning, online_imitation, sac
 loss_function: 'iqlearn'  # iqlearn, sqil
 
 hydra_base_dir: ""

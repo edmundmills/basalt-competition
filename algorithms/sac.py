@@ -19,7 +19,8 @@ from pathlib import Path
 
 
 class SoftActorCritic(Algorithm):
-    def __init__(self, config, actor=None, initial_replay_buffer=None):
+    def __init__(self, config, actor=None,
+                 initial_replay_buffer=None, initial_iter_count=0):
         super().__init__(config)
         self.starting_steps = config.starting_steps
         self.suppress_snowball_steps = config.suppress_snowball_steps
@@ -31,8 +32,12 @@ class SoftActorCritic(Algorithm):
         self.updates_per_step = 1
         self.curiosity_pretraining_steps = 0
         # Set up replay buffer
-        self.replay_buffer = ReplayBuffer(
-            reward=True, n_observation_frames=config.n_observation_frames)
+        if initial_replay_buffer is None:
+            self.replay_buffer = ReplayBuffer(
+                reward=True, n_observation_frames=config.n_observation_frames)
+        else:
+            self.replay_buffer = initial_replay_buffer
+        self.iter_count += initial_iter_count
 
         # Set up networks - actor
         if actor is not None:
@@ -298,7 +303,8 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
             if self.wandb:
                 wandb.log(
                     {**metrics,
-                     'average_its_per_s': self.iteration_rate()})
+                     'average_its_per_s': self.iteration_rate()},
+                    step=self.iter_count)
 
 
 class IQLearnSAC(SoftActorCritic):
