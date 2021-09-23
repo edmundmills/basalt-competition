@@ -106,7 +106,7 @@ class SoftActorCritic(Algorithm):
         if self.curiosity_pretraining_steps > 0:
             self._train_curiosity_module()
             self._assign_rewards_to_replay_buffer()
-            self._copy_curiosity_features_all_networks()
+            # self._copy_curiosity_features_all_networks()
 
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))

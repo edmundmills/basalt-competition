@@ -8,13 +8,13 @@ alpha: 1e-1
 wandb: ???
 
 starting_steps: 10000
-curiosity_pretraining_steps: 1000
+curiosity_pretraining_steps: 2000
 suppress_snowball_steps: 1000
 training_steps: 20000
 
 batch_size: 256
 discount_factor: 0.99
-curiosity_lr: 3e-4
+curiosity_lr: 1e-3
 q_lr: 3e-4
 policy_lr: 1e-4
 tau: .05
