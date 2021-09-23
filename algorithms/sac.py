@@ -103,10 +103,10 @@ class SoftActorCritic(Algorithm):
     def __call__(self, env, profiler=None):
         self.generate_random_trajectories(self.replay_buffer, env, self.starting_steps)
 
-        if self.curiosity_pretraining_steps > 0:
-            self._train_curiosity_module()
-            self._assign_rewards_to_replay_buffer()
-            # self._copy_curiosity_features_all_networks()
+        # if self.curiosity_pretraining_steps > 0:
+        #     self._train_curiosity_module()
+        #     self._assign_rewards_to_replay_buffer()
+        #     # self._copy_curiosity_features_all_networks()
 
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
@@ -114,7 +114,10 @@ class SoftActorCritic(Algorithm):
 
         for step in range(self.training_steps):
             # take action, update replay buffer
-            action = self.actor.get_action(current_state)
+            if step >= self.curiosity_pretraining_steps:
+                action = self.actor.get_action(current_state)
+            else:
+                action = ActionSpace.random_action()
             self.replay_buffer.current_trajectory().actions.append(action)
 
             if step == 0 and self.suppress_snowball_steps > 0:
@@ -150,7 +153,10 @@ class SoftActorCritic(Algorithm):
                 step_metrics = None
                 for i in range(updates_per_step):
                     batch = self.replay_buffer.sample(batch_size=self.batch_size)
-                    metrics = self.train_one_batch(batch)
+                    if step < self.curiosity_pretraining_steps:
+                        metrics = self.train_one_batch(batch, curiosity_only=True)
+                    else:
+                        metrics = self.train_one_batch(batch)
 
                     # collect and log metrics:
                     if step_metrics is None:
