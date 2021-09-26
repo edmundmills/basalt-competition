@@ -233,30 +233,3 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def sample(self, batch_size):
         return self.sample_expert(), self.sample_replay()
-
-
-class TestDataset:
-    def __init__(self,
-                 dataset,
-                 batch_size=512):
-        self.dataset = dataset
-        self.batch_size = min(batch_size, len(self))
-        self.dataloader = self._initialize_dataloader()
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def _initialize_dataloader(self):
-        return iter(DataLoader(self.dataset,
-                               shuffle=True,
-                               batch_size=self.batch_size,
-                               num_workers=4,
-                               drop_last=True))
-
-    def sample(self):
-        try:
-            obs, actions, next_obs, done = next(self.dataloader)
-        except StopIteration:
-            self.dataloader = self._initialize_dataloader()
-            obs, actions, next_obs, done = next(self.dataloader)
-        return obs, actions, next_obs, done

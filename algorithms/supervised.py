@@ -1,5 +1,4 @@
 from algorithms.algorithm import Algorithm
-from helpers.datasets import TestDataset
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.gpu import states_to_device
 import os
@@ -20,8 +19,6 @@ class SupervisedLearning(Algorithm):
         optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size,
                                       shuffle=True, num_workers=4)
-        if test_dataset is not None:
-            test_dataset = TestDataset(test_dataset)
 
         iter_count = 0
         for epoch in range(self.epochs):
@@ -41,8 +38,7 @@ class SupervisedLearning(Algorithm):
 
             print(f'Epoch #{epoch + 1} completed')
             if test_dataset is not None and self.wandb:
-                test_batch = test_dataset.sample()
-                eval_metrics = self.eval(model, test_batch)
+                eval_metrics = self.eval(model, test_dataset)
                 print('Metrics: ', eval_metrics)
                 wandb.log(eval_metrics)
 
@@ -50,9 +46,17 @@ class SupervisedLearning(Algorithm):
         model.save(os.path.join('train', f'{self.name}.pth'))
         return model, None
 
-    def eval(self, model, batch):
-        obs, actions, _next_obs, _done = batch
-        with th.no_grad():
-            test_loss = model.loss(obs, actions)
-        eval_metrics = {'test_loss': test_loss.detach().item()}
+    def eval(self, model, test_dataset):
+        test_losses = []
+        dataloader = DataLoader(test_dataset,
+                                shuffle=False,
+                                batch_size=self.batch_size,
+                                num_workers=4,
+                                drop_last=True)
+        for obs, actions, _next_obs, _done in dataloader:
+            with th.no_grad():
+                test_loss = model.loss(obs, actions)
+                test_losses.append(test_loss.detach().item())
+        test_loss = sum(test_losses) / len(test_losses)
+        eval_metrics = {'test_loss': test_loss}
         return eval_metrics
