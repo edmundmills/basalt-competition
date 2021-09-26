@@ -12,12 +12,16 @@ env: ???
 method: ???
 wandb: ???
 
-
+# model attributes
 cnn_layers: 17
-n_observation_frames: 3
-frame_selection_noise: 0
-
+n_observation_frames: 4
 alpha: 1e-2
+
+# data augmentation
+frame_selection_noise: 0
+inventory_noise: 0
+random_translation: false
+mirror_augment: true
 
 
 seed: 0

@@ -47,10 +47,8 @@ class OnlineImitation(Algorithm):
                    f' with {len(initial_replay_buffer)} steps'))
         replay_buffer = MixedReplayBuffer(
             expert_dataset=expert_dataset,
+            config=self.config,
             batch_size=self.batch_size,
-            expert_sample_fraction=0.5,
-            n_observation_frames=model.n_observation_frames,
-            frame_selection_noise=self.frame_selection_noise,
             initial_replay_buffer=initial_replay_buffer)
 
         if self.starting_steps > 0 and initial_replay_buffer is None:

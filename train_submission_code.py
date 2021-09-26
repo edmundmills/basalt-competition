@@ -157,9 +157,7 @@ def main():
 
     # initialize dataset, model, algorithm
     if config.method.expert_dataset:
-        expert_dataset = TrajectoryStepDataset(
-            debug_dataset=args.debug_env,
-            n_observation_frames=config.n_observation_frames)
+        expert_dataset = TrajectoryStepDataset(config, debug_dataset=args.debug_env)
 
     if pretrained_model is not None:
         model = pretrained_model

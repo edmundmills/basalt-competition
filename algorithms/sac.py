@@ -34,9 +34,7 @@ class SoftActorCritic(Algorithm):
         self.curiosity_pretraining_steps = 0
         # Set up replay buffer
         if initial_replay_buffer is None:
-            self.replay_buffer = ReplayBuffer(
-                reward=True, n_observation_frames=config.n_observation_frames,
-                frame_selection_noise=config.frame_selection_noise)
+            self.replay_buffer = ReplayBuffer(config, reward=True)
         else:
             self.replay_buffer = initial_replay_buffer
         self.iter_count += initial_iter_count
@@ -327,10 +325,8 @@ class IQLearnSAC(SoftActorCritic):
 
         self.replay_buffer = MixedReplayBuffer(
             expert_dataset=expert_dataset,
-            batch_size=config.method.batch_size,
-            expert_sample_fraction=0.5,
-            n_observation_frames=config.n_observation_frames,
-            frame_selection_noise=config.frame_selection_noise)
+            config=config,
+            batch_size=config.method.batch_size)
 
         self._q_loss = IQLearnLossSAC(self.online_q, config, target_q=self.target_q)
 

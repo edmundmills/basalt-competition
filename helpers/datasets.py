@@ -20,18 +20,15 @@ from torch.utils.data.dataloader import default_collate
 
 
 class TrajectoryStepDataset(Dataset):
-    def __init__(self,
-                 transform=MirrorAugment(),
-                 n_observation_frames=1,
-                 frame_selection_noise=0,
-                 debug_dataset=False):
-        self.n_observation_frames = n_observation_frames
-        self.frame_selection_noise = frame_selection_noise
+    def __init__(self, config, debug_dataset=False):
+        self.n_observation_frames = config.n_observation_frames
+        self.frame_selection_noise = config.frame_selection_noise
+        self.inventory_noise = config.inventory_noise
+        self.transform = MirrorAugment() if config.mirror_augment else None
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
         self.environment_path = self.data_root / self.environment
-        self.transform = transform
         self.trajectories, self.step_lookup = self._load_data()
 
     def _load_data(self):
@@ -75,13 +72,14 @@ class TrajectoryStepDataset(Dataset):
 
 
 class ReplayBuffer:
-    def __init__(self, n_observation_frames=1, frame_selection_noise=0, reward=True):
-        self.n_observation_frames = n_observation_frames
-        self.frame_selection_noise = frame_selection_noise
+    def __init__(self, config, reward=True):
+        self.n_observation_frames = config.n_observation_frames
+        self.frame_selection_noise = config.frame_selection_noise
+        self.inventory_noise = config.inventory_noise
+        self.transform = MirrorAugment() if config.mirror_augment else None
         self.trajectories = [Trajectory()]
         self.step_lookup = []
         self.reward = reward
-        self.transform = MirrorAugment()
 
     def __len__(self):
         return len(self.step_lookup)
@@ -191,19 +189,13 @@ class MixedReplayBuffer(ReplayBuffer):
     and the remainder from the replay buffer.
     '''
 
-    def __init__(self,
-                 expert_dataset,
-                 batch_size=64,
-                 expert_sample_fraction=0.5,
-                 n_observation_frames=1,
-                 frame_selection_noise=0,
-                 initial_replay_buffer=None):
+    def __init__(self, expert_dataset, config,
+                 batch_size, initial_replay_buffer=None):
         self.batch_size = batch_size
-        self.expert_sample_fraction = expert_sample_fraction
+        self.expert_sample_fraction = config.method.expert_sample_fraction
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
-        super().__init__(n_observation_frames=n_observation_frames,
-                         frame_selection_noise=frame_selection_noise)
+        super().__init__(config)
         if initial_replay_buffer is not None:
             self.trajectories = initial_replay_buffer.trajectories
             self.step_lookup = initial_replay_buffer.step_lookup
