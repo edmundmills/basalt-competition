@@ -10,19 +10,13 @@ from torch.utils.data import DataLoader
 
 
 class SupervisedLearning(Algorithm):
-    def __init__(self, train_dataset, model, config, test_dataset=None):
+    def __init__(self, config):
         super().__init__(config)
-        self.epochs = config['epochs']
-        self.lr = config['learning_rate']
-        self.batch_size = config['batch_size']
-        self.model = model
-        self.train_dataset = train_dataset
-        self.test_dataset = test_dataset
+        self.epochs = config.epochs
+        self.lr = config.learning_rate
+        self.batch_size = config.batch_size
 
-    def __call__(self, _env=None):
-        model = self.model
-        train_dataset = self.train_dataset
-        test_dataset = self.test_dataset
+    def __call__(self, model, train_dataset, test_dataset=None, _env=None):
         optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size,
                                       shuffle=True, num_workers=4)
@@ -39,17 +33,18 @@ class SupervisedLearning(Algorithm):
                 loss.backward()
                 optimizer.step()
 
+                if self.wandb:
+                    wandb.log({'train_loss': loss.detach()}, step=self.iter_count)
+
                 iter_count += 1
                 self.log_step()
 
             print(f'Epoch #{epoch + 1} completed')
-            if self.test_dataset is not None and self.wandb:
+            if test_dataset is not None and self.wandb:
                 test_batch = test_dataset.sample()
                 eval_metrics = self.eval(model, test_batch)
                 print('Metrics: ', eval_metrics)
-                wandb.log(
-                    {**eval_metrics,
-                     'average_its_per_s': self.iteration_rate()})
+                wandb.log(eval_metrics)
 
         print('Training complete')
         model.save(os.path.join('train', f'{self.name}.pth'))
