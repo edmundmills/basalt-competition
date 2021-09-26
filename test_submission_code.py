@@ -1,3 +1,8 @@
+from networks import SoftQNetwork
+from helpers.environment import ObservationSpace, ActionSpace
+from environment.wrappers import ActionShaping
+from helpers.trajectories import TrajectoryGenerator
+
 import os
 import gym
 
@@ -8,8 +13,9 @@ class EpisodeDone(Exception):
 
 class Episode(gym.Env):
     """A class for a single episode."""
+
     def __init__(self, env):
-        self.env = env
+        self.env = ActionShaping(env)
         self.action_space = env.action_space
         self.observation_space = env.observation_space
         self._done = False
@@ -45,9 +51,9 @@ class MineRLAgent():
         THIS METHOD IS ONLY CALLED ONCE AT THE BEGINNING OF THE EVALUATION.
         DO NOT LOAD YOUR MODEL ANYWHERE ELSE.
         """
-        # This is a random agent so no need to do anything
-        # YOUR CODE GOES HERE
-        pass
+        self.model = SoftQNetwork(alpha=.001, n_observation_frames=3)
+        saved_model_path = Path('train') / 'model.pth'
+        self.model.load_parameters(saved_model_path)
 
     def run_agent_on_episode(self, single_episode_env: Episode):
         """This method runs your agent on a SINGLE episode.
@@ -63,8 +69,5 @@ class MineRLAgent():
         """
         # An implementation of a random agent
         # YOUR CODE GOES HERE
-        _ = single_episode_env.reset()
-        done = False
-        while not done:
-            random_act = single_episode_env.action_space.sample()
-            obs, reward, done, info = single_episode_env.step(random_act)
+        generator = TrajectoryGenerator(single_episode_env, self.model)
+        trajectory = generator.generate()

@@ -1,0 +1,12 @@
+type: 'bc'
+algorithm: 'behavioral_cloning'
+env: ${..env}
+
+
+epochs: 5
+learning_rate: .001
+batch_size: 64
+wandb: ???
+
+
+checkpoint_frequency: None

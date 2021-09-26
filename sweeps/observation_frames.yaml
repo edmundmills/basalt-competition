@@ -1,0 +1,17 @@
+name: observation_frame_sweep
+program: bc_experiment.py
+method: grid
+project: ObservationSpace
+entity: basalt
+
+metric:
+  name: test_loss
+  goal: minimize
+parameters:
+  n_observation_frames:
+    values: [1,2,3,4,5]
+
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}

@@ -1,5 +1,5 @@
 from helpers.environment import ObservationSpace, ActionSpace
-from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
 from helpers.gpu import states_to_device, cat_states
 
 import numpy as np
@@ -20,14 +20,14 @@ class CuriosityModule(nn.Module):
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.n_observation_frames = n_observation_frames
-        mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
+        mobilenet_features = mobilenet_v3_small(pretrained=True, progress=True).features
         self.features = nn.Sequential(
             nn.Sequential(nn.Conv2d(3*self.n_observation_frames, 16, kernel_size=(3, 3),
                                     stride=(2, 2), padding=(1, 1), bias=False),
                           nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
                                          affine=True, track_running_stats=True),
                           nn.Hardswish()),
-            *nn.Sequential(*mobilenet_features[1:])
+            *nn.Sequential(*mobilenet_features[1:6])
         )
         self.feature_dim = self._visual_features_dim(self.n_observation_frames)
         self.action_predictor = nn.Sequential(
