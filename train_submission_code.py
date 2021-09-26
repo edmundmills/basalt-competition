@@ -57,7 +57,6 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
-    cfg.pretraining.wandb = args.wandb
     cfg.pretrain = args.pretrain
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
@@ -135,7 +134,7 @@ def main():
         display.start()
 
     # Start env
-    if config.algorithm != 'supervised_learning':
+    if config.method.algorithm != 'supervised_learning':
         if args.debug_env:
             print('Starting Debug Env')
         else:
@@ -145,39 +144,38 @@ def main():
         env = None
 
     if config.pretrain:
-        pretraining_algorithm = IntrinsicCuriosityTraining(config.pretraining)
+        print('Starting Pretraining')
+        pretraining_algorithm = IntrinsicCuriosityTraining(config)
         pretrained_model, pretrainining_replay = pretraining_algorithm(env)
         pretraining_iter_count = pretraining_algorithm.iter_count
+        print('Pretraining Completed')
     else:
+        print('No Pretraining')
         pretrained_model = None
         pretrainining_replay = None
         pretraining_iter_count = 0
 
-    algorithm = config.algorithm
-    loss_function = config.loss_function
-
     # initialize dataset, model, algorithm
-    if algorithm in ['online_imitation', 'supervised_learning'] \
-            or (algorithm == 'sac' and loss_function == 'iqlearn'):
+    if config.method.expert_dataset:
         expert_dataset = TrajectoryStepDataset(
             debug_dataset=args.debug_env,
             n_observation_frames=config.n_observation_frames)
 
     if pretrained_model is not None:
         model = pretrained_model
-    elif algorithm in ['online_imitation', 'supervised_learning']:
+    elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
         model = SoftQNetwork(alpha=config.alpha,
                              n_observation_frames=config.n_observation_frames)
 
-    if algorithm == 'sac' and loss_function == 'iqlearn':
+    if config.method.name == 'iqlearn_sac':
         training_algorithm = IQLearnSAC(expert_dataset, config,
                                         initial_replay_buffer=pretrainining_replay,
                                         initial_iter_count=pretraining_iter_count)
-    elif algorithm == 'online_imitation':
+    elif config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config,
                                              initial_replay_buffer=pretrainining_replay,
                                              initial_iter_count=pretraining_iter_count)
-    elif algorithm == 'supervised_learning':
+    elif config.method.algorithm == 'supervised_learning':
         training_algorithm = SupervisedLearning(expert_dataset, model, config)
 
     # run algorithm

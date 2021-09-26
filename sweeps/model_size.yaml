@@ -1,4 +1,4 @@
-name: observation_frame_sweep
+name: model_size
 program: bc_experiment.py
 method: grid
 project: ObservationSpace
@@ -8,11 +8,8 @@ metric:
   name: test_loss
   goal: minimize
 parameters:
-  n_observation_frames:
-    values: [1,2,3,4,5]
-  # frame_selection_noise:
-  #   values: [0,1,2]
-
+  cnn_layers:
+    values: [5,7,9,11,13,15,17]
 command:
   - ${env}
   - ${interpreter}

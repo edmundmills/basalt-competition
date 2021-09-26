@@ -10,7 +10,7 @@ metric:
 parameters:
   # seed:
   #   value: 42
-  learning_rate:
+  method.learning_rate:
     values: [1e-4, 1e-3]
   alpha:
     values: [1e-2, 1e-3, 1e-4]

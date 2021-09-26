@@ -5,11 +5,12 @@ import torch.nn.functional as F
 
 
 class SACQLoss:
-    def __init__(self, online_q, target_q, config):
+    def __init__(self, online_q, target_q, config, pretraining=False):
         self.online_q = online_q
         self.target_q = target_q
-        self.discount_factor = config.discount_factor
-        self.double_q = config.double_q
+        method_config = config.pretraining if pretraining else config.method
+        self.discount_factor = method_config.discount_factor
+        self.double_q = method_config.double_q
 
     def __call__(self, states, actions, next_states, done, rewards):
         if self.double_q:
@@ -34,11 +35,12 @@ class SACQLoss:
 
 
 class SACPolicyLoss:
-    def __init__(self, policy, online_q, config):
+    def __init__(self, policy, online_q, config, pretraining=False):
         self.online_q = online_q
         self.policy = policy
-        self.discount_factor = config['discount_factor']
-        self.double_q = config.double_q
+        method_config = config.pretraining if pretraining else config.method
+        self.discount_factor = method_config.discount_factor
+        self.double_q = method_config.double_q
 
     def __call__(self, states, _actions, _next_states, _done, _rewards):
         actor_Qs = self.policy.get_Q(states)

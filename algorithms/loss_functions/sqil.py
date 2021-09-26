@@ -8,9 +8,10 @@ class SqilLoss:
     def __init__(self, model, config):
         self.model = model
         self.actions = ActionSpace.actions()
-        self.alpha = config['alpha']
-        self.discount_factor = config['discount_factor']
-        self.n_observation_frames = config['n_observation_frames']
+        self.alpha = config.alpha
+        self.n_observation_frames = config.n_observation_frames
+        method_config = config.pretraining if config.pretrain else config.method
+        self.discount_factor = method_config.discount_factor
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
 
     def __call__(self, expert_batch, replay_batch):

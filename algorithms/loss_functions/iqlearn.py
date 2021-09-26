@@ -10,9 +10,9 @@ class IQLearnLoss:
         self.config = config
         self.model = model
         self.actions = ActionSpace.actions()
-        self.alpha = config['alpha']
-        self.discount_factor = config['discount_factor']
-        self.n_observation_frames = config['n_observation_frames']
+        self.alpha = config.alpha
+        self.discount_factor = config.method.discount_factor
+        self.n_observation_frames = config.n_observation_frames
 
     def batches_to_device(self, expert_batch, replay_batch):
         device = th.device("cuda:0" if th.cuda.is_available() else "cpu")

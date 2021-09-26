@@ -19,11 +19,11 @@ class OnlineImitation(Algorithm):
                  initial_replay_buffer=None, initial_iter_count=0):
         super().__init__(config)
         self.termination_critic = termination_critic
-        self.lr = config['learning_rate']
-        self.starting_steps = config['starting_steps']
-        self.training_steps = config['training_steps']
-        self.batch_size = config['batch_size']
-        self.frame_selection_noise = config['frame_selection_noise']
+        self.lr = config.method.learning_rate
+        self.starting_steps = config.method.starting_steps
+        self.training_steps = config.method.training_steps
+        self.batch_size = config.method.batch_size
+        self.frame_selection_noise = config.frame_selection_noise
         self.model = model
         self.expert_dataset = expert_dataset
         self.initial_replay_buffer = initial_replay_buffer
@@ -34,9 +34,9 @@ class OnlineImitation(Algorithm):
         expert_dataset = self.expert_dataset
         initial_replay_buffer = self.initial_replay_buffer
 
-        if self.config['loss_function'] == 'sqil':
+        if self.config.method.loss_function == 'sqil':
             self.loss_function = SqilLoss(model, self.config)
-        elif self.config['loss_function'] == 'iqlearn':
+        elif self.config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(model, self.config)
 
         optimizer = th.optim.Adam(model.parameters(),
@@ -45,12 +45,13 @@ class OnlineImitation(Algorithm):
         if initial_replay_buffer is not None:
             print((f'Using initial replay buffer'
                    f' with {len(initial_replay_buffer)} steps'))
-        replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
-                                          batch_size=self.batch_size,
-                                          expert_sample_fraction=0.5,
-                                          n_observation_frames=model.n_observation_frames,
-                                          frame_selection_noise=self.frame_selection_noise,
-                                          initial_replay_buffer=initial_replay_buffer)
+        replay_buffer = MixedReplayBuffer(
+            expert_dataset=expert_dataset,
+            batch_size=self.batch_size,
+            expert_sample_fraction=0.5,
+            n_observation_frames=model.n_observation_frames,
+            frame_selection_noise=self.frame_selection_noise,
+            initial_replay_buffer=initial_replay_buffer)
 
         if self.starting_steps > 0 and initial_replay_buffer is None:
             self.generate_random_trajectories(replay_buffer, env, self.starting_steps)

@@ -7,9 +7,10 @@ from torch import nn
 
 
 class Network(nn.Module):
-    def __init__(self, n_observation_frames=1):
+    def __init__(self, n_observation_frames=1, cnn_layers=17):
         super().__init__()
         self.n_observation_frames = n_observation_frames
+        self.cnn_layers = cnn_layers
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.item_dim = 2 * len(ObservationSpace.items())
@@ -26,7 +27,7 @@ class Network(nn.Module):
                     nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
                                    affine=True, track_running_stats=True),
                     nn.Hardswish()),
-                *mobilenet_features[1:]
+                *mobilenet_features[1:self.cnn_layers]
             )
         self.visual_feature_dim = self._visual_features_dim()
         self.linear_input_dim = sum([self.visual_feature_dim,

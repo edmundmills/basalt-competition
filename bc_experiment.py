@@ -28,7 +28,6 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
-    cfg.method.wandb = args.wandb
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     return cfg
@@ -60,8 +59,9 @@ def main():
         )
 
     # Train Agent
-    training_algorithm = SupervisedLearning(config.method)
-    model = BC(n_observation_frames=config.n_observation_frames)
+    training_algorithm = SupervisedLearning(config)
+    model = BC(n_observation_frames=config.n_observation_frames,
+               cnn_layers=config.cnn_layers)
     # set up dataset
     dataset = TrajectoryStepDataset(
         debug_dataset=args.debug_env,

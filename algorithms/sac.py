@@ -19,15 +19,16 @@ from pathlib import Path
 
 
 class SoftActorCritic(Algorithm):
-    def __init__(self, config, actor=None,
+    def __init__(self, config, actor=None, pretraining=False,
                  initial_replay_buffer=None, initial_iter_count=0):
-        super().__init__(config)
-        self.starting_steps = config.starting_steps
-        self.suppress_snowball_steps = config.suppress_snowball_steps
-        self.training_steps = config.training_steps
-        self.batch_size = config.batch_size
-        self.tau = config.tau
-        self.double_q = config.double_q
+        super().__init__(config, pretraining=pretraining)
+        method_config = config.pretraining if pretraining else config.method
+        self.starting_steps = method_config.starting_steps
+        self.suppress_snowball_steps = method_config.suppress_snowball_steps
+        self.training_steps = method_config.training_steps
+        self.batch_size = method_config.batch_size
+        self.tau = method_config.tau
+        self.double_q = method_config.double_q
         self.target_update_interval = 1
         self.updates_per_step = 1
         self.curiosity_pretraining_steps = 0
@@ -68,14 +69,16 @@ class SoftActorCritic(Algorithm):
         disable_gradients(self.target_q)
 
         # Loss functions
-        self._q_loss = SACQLoss(self.online_q, self.target_q, config)
-        self._policy_loss = SACPolicyLoss(self.actor, self.online_q, config)
+        self._q_loss = SACQLoss(self.online_q, self.target_q,
+                                config, pretraining=pretraining)
+        self._policy_loss = SACPolicyLoss(self.actor, self.online_q,
+                                          config, pretraining=pretraining)
 
         # Optimizers
         self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
-                                              lr=config.policy_lr)
+                                              lr=method_config.policy_lr)
         self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
-                                         lr=config.q_lr)
+                                         lr=method_config.q_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
         return 0
@@ -123,7 +126,7 @@ class SoftActorCritic(Algorithm):
 
             if step == 0 and self.suppress_snowball_steps > 0:
                 print(('Suppressing throwing snowball for'
-                       f' {self.suppress_snowball_steps}'))
+                       f' {min(self.training_steps, self.suppress_snowball_steps)}'))
             elif step == self.suppress_snowball_steps and step != 0:
                 print('No longer suppressing snowball')
             suppressed_snowball = step < self.suppress_snowball_steps \
@@ -226,12 +229,12 @@ class SoftActorCritic(Algorithm):
 
 class IntrinsicCuriosityTraining(SoftActorCritic):
     def __init__(self, config, actor=None, **kwargs):
-        super().__init__(config, actor, **kwargs)
-        self.curiosity_pretraining_steps = config.curiosity_pretraining_steps
+        super().__init__(config, actor, pretraining=True, **kwargs)
+        self.curiosity_pretraining_steps = config.pretraining.curiosity_pretraining_steps
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
-                                                 lr=config.curiosity_lr)
+                                                 lr=config.pretraining.curiosity_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
         reward = self.curiosity_module.reward(current_state, action,
@@ -324,7 +327,7 @@ class IQLearnSAC(SoftActorCritic):
 
         self.replay_buffer = MixedReplayBuffer(
             expert_dataset=expert_dataset,
-            batch_size=config.batch_size,
+            batch_size=config.method.batch_size,
             expert_sample_fraction=0.5,
             n_observation_frames=config.n_observation_frames,
             frame_selection_noise=config.frame_selection_noise)

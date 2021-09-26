@@ -1,12 +1,8 @@
-type: 'bc'
-algorithm: 'behavioral_cloning'
-env: ${..env}
+name: 'bc'
+algorithm: 'supervised_learning'
 
+expert_dataset: true
 
-epochs: 5
+epochs: 20
 learning_rate: .001
-batch_size: 64
-wandb: ???
-
-
-checkpoint_frequency: None
+batch_size: 128

@@ -11,9 +11,9 @@ from torch.utils.data import DataLoader
 class SupervisedLearning(Algorithm):
     def __init__(self, config):
         super().__init__(config)
-        self.epochs = config.epochs
-        self.lr = config.learning_rate
-        self.batch_size = config.batch_size
+        self.epochs = config.method.epochs
+        self.lr = config.method.learning_rate
+        self.batch_size = config.method.batch_size
 
     def __call__(self, model, train_dataset, test_dataset=None, _env=None):
         optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
