@@ -10,6 +10,8 @@ metric:
 parameters:
   n_observation_frames:
     values: [1,2,3,4,5]
+  frame_selection_noise:
+    values: [0,1,2]
 
 command:
   - ${env}

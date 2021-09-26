@@ -64,7 +64,9 @@ def main():
     model = BC(n_observation_frames=config.n_observation_frames)
     # set up dataset
     dataset = TrajectoryStepDataset(
-        debug_dataset=args.debug_env, n_observation_frames=config.n_observation_frames)
+        debug_dataset=args.debug_env,
+        n_observation_frames=config.n_observation_frames,
+        frame_selection_noise=config.frame_selection_noise)
     train_dataset_size = int(0.8 * len(dataset))
     train_dataset, test_dataset \
         = th.utils.data.random_split(dataset,

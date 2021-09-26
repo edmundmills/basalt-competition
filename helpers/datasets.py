@@ -23,8 +23,10 @@ class TrajectoryStepDataset(Dataset):
     def __init__(self,
                  transform=MirrorAugment(),
                  n_observation_frames=1,
+                 frame_selection_noise=0,
                  debug_dataset=False):
         self.n_observation_frames = n_observation_frames
+        self.frame_selection_noise = frame_selection_noise
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
@@ -73,7 +75,7 @@ class TrajectoryStepDataset(Dataset):
 
 
 class ReplayBuffer:
-    def __init__(self, n_observation_frames=1, frame_selection_noise=0 reward=True):
+    def __init__(self, n_observation_frames=1, frame_selection_noise=0, reward=True):
         self.n_observation_frames = n_observation_frames
         self.frame_selection_noise = frame_selection_noise
         self.trajectories = [Trajectory()]
@@ -236,10 +238,13 @@ class MixedReplayBuffer(ReplayBuffer):
 class TestDataset:
     def __init__(self,
                  dataset,
-                 batch_size=264):
-        self.batch_size = batch_size
+                 batch_size=512):
         self.dataset = dataset
+        self.batch_size = min(batch_size, len(self))
         self.dataloader = self._initialize_dataloader()
+
+    def __len__(self):
+        return len(self.dataset)
 
     def _initialize_dataloader(self):
         return iter(DataLoader(self.dataset,

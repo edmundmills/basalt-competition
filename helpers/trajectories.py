@@ -85,7 +85,6 @@ class Trajectory:
         frame_range = n_observation_frames - 1 + frame_selection_noise
         relative_frames = reversed(sorted(random.sample(
             range(frame_range), n_observation_frames - 1)))
-        print(relative_frames)
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number in relative_frames]
         frames = th.cat([th.from_numpy(self.obs[frame_idx]['pov'].copy())
