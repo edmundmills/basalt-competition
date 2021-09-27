@@ -196,10 +196,10 @@ class ReplayBuffer:
         frame_rate = int(round(step_rate / (frame_skip + 1)))
         step_indices = [total_steps - steps + frame *
                         (frame_skip + 1) for frame in range(frames)]
-        images = [self[min(step_idx,
-                           total_steps-1)][0][0][0:3, :, :].numpy().astype(np.uint8)
+        images = [(self[min(step_idx, total_steps-1)][0][0][0:3, :, :].numpy()
+                   * 255).astype(np.uint8)
                   for step_idx in step_indices]
-        images = np.stack(images, 0).transpose(0, 3, 1, 2)
+        images = np.stack(images, 0)
         self.transforms = self._transforms
         self.n_observation_frames = self._n_observation_frames
         return images, frame_rate
