@@ -22,9 +22,9 @@ class SupervisedLearning(Algorithm):
 
         iter_count = 0
         for epoch in range(self.epochs):
-            for _, (dataset_obs, dataset_actions,
-                    _next_obs, _done) in enumerate(train_dataloader):
-                loss = model.loss(dataset_obs, dataset_actions)
+            for _, (states, dataset_actions,
+                    _next_states, _done, _rewards) in enumerate(train_dataloader):
+                loss = model.loss(states, dataset_actions)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -53,7 +53,7 @@ class SupervisedLearning(Algorithm):
                                 batch_size=self.batch_size,
                                 num_workers=4,
                                 drop_last=True)
-        for obs, actions, _next_obs, _done in dataloader:
+        for obs, actions, _next_obs, _done, _reward in dataloader:
             with th.no_grad():
                 test_loss = model.loss(obs, actions)
                 test_losses.append(test_loss.detach().item())

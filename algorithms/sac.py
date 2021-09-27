@@ -206,9 +206,7 @@ class SoftActorCritic(Algorithm):
 
     def train_one_batch(self, batch):
         # load batch onto gpu
-        obs, actions, next_obs, done, rewards = batch
-        states = ObservationSpace.obs_to_state(obs)
-        next_states = ObservationSpace.obs_to_state(next_obs)
+        states, actions, next_states, done, rewards = batch
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
         done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
@@ -244,9 +242,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         reward_dataloader = DataLoader(self.replay_buffer, shuffle=False,
                                        batch_size=self.batch_size, num_workers=4)
         calculated_rewards = []
-        for obs, actions, next_obs, done, _reward in reward_dataloader:
-            states = ObservationSpace.obs_to_state(obs)
-            next_states = ObservationSpace.obs_to_state(next_obs)
+        for states, actions, next_states, done, _reward in reward_dataloader:
             states, next_states = states_to_device((states, next_states), self.device)
             actions = actions.to(self.device)
             done = done.to(self.device)
@@ -281,9 +277,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
 
     def train_one_batch(self, batch, curiosity_only=False):
         # load batch onto gpu
-        obs, actions, next_obs, done, rewards = batch
-        states = ObservationSpace.obs_to_state(obs)
-        next_states = ObservationSpace.obs_to_state(next_obs)
+        states, actions, next_states, done, rewards = batch
         states, next_states = states_to_device((states, next_states), self.device)
         actions = actions.to(self.device)
         done = th.as_tensor(done).unsqueeze(1).float().to(self.device)

@@ -54,9 +54,8 @@ class Trajectory:
             next_obs['frame_sequence'] = self.additional_frames(idx + 1,
                                                                 n_observation_frames,
                                                                 frame_selection_noise)
-        if reward:
-            return obs, action, next_obs, done, self.rewards[idx]
-        return obs, action, next_obs, done
+        reward = self.rewards[idx] if reward else 0
+        return obs, action, next_obs, done, reward
 
     def current_obs(self, n_observation_frames=1, frame_selection_noise=0):
         current_idx = len(self) - 1
@@ -68,7 +67,8 @@ class Trajectory:
         return obs
 
     def current_state(self, **kwargs):
-        return ObservationSpace.obs_to_state(self.current_obs(**kwargs))
+        pov, items = ObservationSpace.obs_to_state(self.current_obs(**kwargs))
+        return pov.unsqueeze(0), items.unsqueeze(0)
 
     def get_obs(self, idx, n_observation_frames=1, frame_selection_noise=0):
         obs = self.obs[idx]
@@ -83,8 +83,8 @@ class Trajectory:
             return None
 
         frame_range = n_observation_frames - 1 + frame_selection_noise
-        relative_frames = reversed(sorted(random.sample(
-            range(frame_range), n_observation_frames - 1)))
+        relative_frames = sorted(random.sample(
+            range(frame_range), n_observation_frames - 1))
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number in relative_frames]
         frames = th.cat([th.from_numpy(self.obs[frame_idx]['pov'].copy())
@@ -154,9 +154,8 @@ class TrajectoryGenerator:
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs)
-            state = ObservationSpace.obs_to_state(
-                trajectory.current_obs(
-                    n_observation_frames=self.model.n_observation_frames))
+            state = trajectory.current_state(
+                n_observation_frames=self.model.n_observation_frames)
             action = self.model.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)

@@ -1,4 +1,5 @@
-from helpers.environment import ObservationSpace, MirrorAugment
+from helpers.environment import ObservationSpace, RandomHorizontalMirror, \
+    RandomTranslate, InventoryNoise
 from helpers.trajectories import Trajectory
 
 import minerl
@@ -24,7 +25,13 @@ class TrajectoryStepDataset(Dataset):
         self.n_observation_frames = config.n_observation_frames
         self.frame_selection_noise = config.frame_selection_noise
         self.inventory_noise = config.inventory_noise
-        self.transform = MirrorAugment() if config.mirror_augment else None
+        self.transforms = []
+        if config.mirror_augment:
+            self.transforms.append(RandomHorizontalMirror())
+        if config.random_translate:
+            self.transforms.append(RandomTranslate())
+        if config.inventory_noise > 0:
+            self.transforms.append(InventoryNoise(config.inventory_noise))
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
@@ -54,7 +61,7 @@ class TrajectoryStepDataset(Dataset):
             trajectory_idx += 1
             if self.debug_dataset and trajectory_idx >= 2:
                 break
-            if self.environment == 'MineRLTreechop-v0' and trajectory_idx >= 60:
+            if self.environment == 'MineRLTreechop-v0' and trajectory_idx >= 80:
                 break
         return trajectories, step_lookup
 
@@ -66,8 +73,12 @@ class TrajectoryStepDataset(Dataset):
         sample = self.trajectories[trajectory_idx].get_item(
             step_idx, n_observation_frames=self.n_observation_frames,
             frame_selection_noise=self.frame_selection_noise)
-        if self.transform:
-            sample = self.transform(sample)
+        obs, action, next_obs, done, reward = sample
+        state = ObservationSpace.obs_to_state(obs)
+        next_state = ObservationSpace.obs_to_state(next_obs)
+        sample = state, action, next_state, done, reward
+        for transform in self.transforms:
+            sample = transform(sample)
         return sample
 
 
@@ -76,7 +87,13 @@ class ReplayBuffer:
         self.n_observation_frames = config.n_observation_frames
         self.frame_selection_noise = config.frame_selection_noise
         self.inventory_noise = config.inventory_noise
-        self.transform = MirrorAugment() if config.mirror_augment else None
+        self.transforms = []
+        if config.mirror_augment:
+            self.transforms.append(RandomHorizontalMirror())
+        if config.random_translate:
+            self.transforms.append(RandomTranslate())
+        if config.inventory_noise > 0:
+            self.transforms.append(InventoryNoise(config.inventory_noise))
         self.trajectories = [Trajectory()]
         self.step_lookup = []
         self.reward = reward
@@ -89,8 +106,12 @@ class ReplayBuffer:
         sample = self.trajectories[trajectory_idx].get_item(
             step_idx, n_observation_frames=self.n_observation_frames,
             reward=self.reward, frame_selection_noise=self.frame_selection_noise)
-        if self.transform:
-            sample = self.transform(sample)
+        obs, action, next_obs, done, reward = sample
+        state = ObservationSpace.obs_to_state(obs)
+        next_state = ObservationSpace.obs_to_state(next_obs)
+        sample = state, action, next_state, done, reward
+        for transform in self.transforms:
+            sample = transform(sample)
         return sample
 
     def current_trajectory(self):
@@ -123,9 +144,9 @@ class ReplayBuffer:
     def save_gifs(self, path):
         path = Path(path)
         path.mkdir(exist_ok=True)
-        self._transform = self.transform
+        self._transforms = self.transforms
         self._n_observation_frames = self.n_observation_frames
-        self.transform = None
+        self.transforms = []
         self.n_observation_frames = 1
         gif_count = 8
         gif_steps = 200
@@ -152,7 +173,7 @@ class ReplayBuffer:
                            save_all=True, append_images=images[1:],
                            optimize=False, duration=duration, loop=0)
             image_paths.append(image_path)
-        self.transform = self._transform
+        self.transforms = self._transforms
         self.n_observation_frames = self._n_observation_frames
         return image_paths
 
@@ -163,9 +184,9 @@ class ReplayBuffer:
                 = rewards[idx]
 
     def recent_frames(self, number_of_steps):
-        self._transform = self.transform
+        self._transforms = self.transforms
         self._n_observation_frames = self.n_observation_frames
-        self.transform = None
+        self.transforms = []
         self.n_observation_frames = 1
         total_steps = len(self)
         steps = min(number_of_steps, total_steps)
@@ -175,10 +196,11 @@ class ReplayBuffer:
         frame_rate = int(round(step_rate / (frame_skip + 1)))
         step_indices = [total_steps - steps + frame *
                         (frame_skip + 1) for frame in range(frames)]
-        images = [self[min(step_idx, total_steps-1)][0]['pov'].astype(np.uint8)
+        images = [self[min(step_idx,
+                           total_steps-1)][0][0][0:3, :, :].numpy().astype(np.uint8)
                   for step_idx in step_indices]
         images = np.stack(images, 0).transpose(0, 3, 1, 2)
-        self.transform = self._transform
+        self.transforms = self._transforms
         self.n_observation_frames = self._n_observation_frames
         return images, frame_rate
 
@@ -215,13 +237,11 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def sample_expert(self):
         try:
-            (expert_obs, expert_actions, expert_next_obs,
-                expert_done) = next(self.expert_dataloader)
+            sample = next(self.expert_dataloader)
         except StopIteration:
             self.expert_dataloader = self._initialize_dataloader()
-            (expert_obs, expert_actions, expert_next_obs,
-                expert_done) = next(self.expert_dataloader)
-        return expert_obs, expert_actions, expert_next_obs, expert_done
+            sample = next(self.expert_dataloader)
+        return sample
 
     def sample(self, batch_size):
         return self.sample_expert(), self.sample_replay()

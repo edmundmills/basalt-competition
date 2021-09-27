@@ -26,8 +26,7 @@ class BC(Network):
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
-    def loss(self, obs, actions):
-        states = ObservationSpace.obs_to_state(obs)
+    def loss(self, states, actions):
         actions = ActionSpace.dataset_action_batch_to_actions(actions)
         mask = actions != -1
         actions = actions[mask]

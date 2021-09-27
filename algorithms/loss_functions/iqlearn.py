@@ -16,9 +16,10 @@ class IQLearnLoss:
 
     def batches_to_device(self, expert_batch, replay_batch):
         device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        expert_obs, expert_actions, expert_next_obs, expert_done = expert_batch
-        (replay_obs, replay_actions, replay_next_obs,
-         replay_done, _replay_rewards) = replay_batch
+        expert_states, expert_actions, expert_next_states, \
+            expert_done, _expert_rewards = expert_batch
+        replay_states, replay_actions, replay_next_states, \
+            replay_done, _replay_rewards = replay_batch
 
         expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
         expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
@@ -28,11 +29,6 @@ class IQLearnLoss:
 
         mask = (expert_actions != -1).squeeze()
         expert_actions = expert_actions[mask].to(device)
-
-        expert_states = ObservationSpace.obs_to_state(expert_obs)
-        expert_next_states = ObservationSpace.obs_to_state(expert_next_obs)
-        replay_states = ObservationSpace.obs_to_state(replay_obs)
-        replay_next_states = ObservationSpace.obs_to_state(replay_next_obs)
         expert_states = [state_component[mask] for state_component in expert_states]
         expert_next_states = [state_component[mask]
                               for state_component in expert_next_states]

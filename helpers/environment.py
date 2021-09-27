@@ -4,6 +4,8 @@ import copy
 import numpy as np
 import torch as th
 import torch.nn.functional as F
+import torch.nn as nn
+import kornia.augmentation as aug
 
 
 class EnvironmentHelper:
@@ -70,9 +72,7 @@ class ObservationSpace:
         obs = obs['pov']
         if isinstance(obs, np.ndarray):
             obs = th.from_numpy(obs.copy())
-        if len(obs.size()) == 3:
-            obs = obs.unsqueeze(0)
-        return obs.permute(0, 3, 1, 2) / 255.0
+        return obs.permute(2, 0, 1) / 255.0
 
     def obs_to_frame_sequence(obs):
         if 'frame_sequence' not in obs.keys():
@@ -80,21 +80,14 @@ class ObservationSpace:
         frame_sequence = obs['frame_sequence']
         if frame_sequence is None or frame_sequence.data[0] is None:
             return None
-        if len(frame_sequence.size()) == 3:
-            frame_sequence = frame_sequence.unsqueeze(0)
-        return frame_sequence.permute(0, 3, 1, 2) / 255.0
+        return frame_sequence.permute(2, 0, 1) / 255.0
 
     def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
-        if isinstance(equipped_item, str):
-            equipped_item = [equipped_item]
         items = ObservationSpace.items()
-        equipped = th.zeros((len(equipped_item), len(items))).long()
-        # room for optimization:
-        for idx, item in enumerate(equipped_item):
-            if item not in items:
-                continue
-            equipped[idx, items.index(item)] = 1
+        equipped = th.zeros((len(items))).long()
+        if equipped_item in items:
+            equipped[items.index(equipped_item)] = 1
         return equipped
 
     def obs_to_inventory(obs):
@@ -105,23 +98,23 @@ class ObservationSpace:
         elif isinstance(first_item, (int, np.int32)):
             inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
-        inventory = [inventory[item_name].unsqueeze(1) / starting_count
+        inventory = [inventory[item_name] / starting_count
                      for item_name, starting_count
                      in iter(ObservationSpace.starting_inventory().items())]
-        inventory = th.cat(inventory, dim=1)
+        inventory = th.cat(inventory, dim=0)
         return inventory
 
     def obs_to_state(obs):
         pov = ObservationSpace.obs_to_pov(obs)
         frame_sequence = ObservationSpace.obs_to_frame_sequence(obs)
         if frame_sequence is not None:
-            pov = th.cat((pov, frame_sequence), dim=1)
+            pov = th.cat((pov, frame_sequence), dim=0)
         environment = os.getenv('MINERL_ENVIRONMENT')
         if environment == 'MineRLTreechop-v0':
-            items = th.zeros((pov.size()[0], 2))
+            items = th.zeros((2))
         else:
             items = th.cat((ObservationSpace.obs_to_inventory(obs),
-                            ObservationSpace.obs_to_equipped_item(obs)), dim=1)
+                            ObservationSpace.obs_to_equipped_item(obs)), dim=0)
         state = (pov, items)
         return state
 
@@ -255,28 +248,9 @@ class ActionSpace:
         return actions
 
 
-class MirrorAugment():
+class RandomHorizontalMirror:
     def __init__(self):
-        return
-
-    def __call__(self, sample):
-        if np.random.choice([True, False]):
-            return sample
-        if len(sample) == 5:
-            obs, action, next_obs, done, reward = sample
-        else:
-            obs, action, next_obs, done = sample
-        new_action = self.mirror_action(action)
-        new_obs = obs.copy()
-        new_next_obs = next_obs.copy()
-        new_obs['pov'] = np.ascontiguousarray(np.flip(new_obs['pov'].copy(), axis=1))
-        new_next_obs['pov'] = np.ascontiguousarray(
-            np.flip(new_next_obs['pov'].copy(), axis=1))
-        if len(sample) == 5:
-            sample = new_obs, new_action, new_next_obs, done, reward
-        else:
-            sample = new_obs, new_action, new_next_obs, done
-        return sample
+        pass
 
     def mirror_action(self, action):
         if action == 2:
@@ -290,3 +264,62 @@ class MirrorAugment():
         else:
             new_action = copy.copy(action)
         return new_action
+
+    def mirror_pov(self, pov):
+        new_pov = th.flip(pov, dims=[2])
+        return new_pov
+
+    def __call__(self, sample):
+        if np.random.choice([True, False]):
+            return sample
+
+        state, action, next_state, done, reward = sample
+        pov, _items = state
+        next_pov, _next_items = next_state
+        new_state = self.mirror_pov(pov), _items
+        new_next_state = self.mirror_pov(next_pov), _next_items
+        new_action = self.mirror_action(action)
+        sample = new_state, new_action, new_next_state, done, reward
+        return sample
+
+
+class InventoryNoise:
+    def __init__(self, inventory_noise):
+        self.inventory_noise = inventory_noise
+
+    def transform(self, items):
+        item_dim = items.size()[0]
+        with th.no_grad():
+            noise = th.cat((th.randn((int(item_dim / 2))) * self.inventory_noise,
+                           th.zeros((int(item_dim / 2)))), dim=0)
+            new_items = th.clamp(items.clone() + noise, 0, 1)
+        return new_items
+
+    def __call__(self, sample):
+        state, action, next_state, done, reward = sample
+        _pov, items = state
+        _next_pov, next_items = next_state
+        new_state = _pov, self.transform(items)
+        new_next_state = _next_pov, self.transform(next_items)
+        sample = new_state, action, new_next_state, done, reward
+        return sample
+
+
+class RandomTranslate:
+    def __init__(self):
+        pass
+
+    def random_translate(self, pov):
+        transform = nn.Sequential(nn.ReplicationPad2d(4), aug.RandomCrop((64, 64)))
+        with th.no_grad():
+            new_pov = transform(pov.clone().unsqueeze(0)).squeeze()
+        return new_pov
+
+    def __call__(self, sample):
+        state, action, next_state, done, reward = sample
+        pov, _items = state
+        next_pov, _next_items = next_state
+        new_state = self.random_translate(pov), _items
+        new_next_state = self.random_translate(next_pov), _next_items
+        sample = new_state, action, new_next_state, done, reward
+        return sample

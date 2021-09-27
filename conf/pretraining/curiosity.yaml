@@ -1,5 +1,6 @@
 name: 'curiosity_pretraining'
 algorithm: 'curiosity_pretraining'
+drq: true
 
 
 starting_steps: 0

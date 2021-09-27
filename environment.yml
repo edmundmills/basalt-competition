@@ -24,3 +24,4 @@ dependencies:
     - gym==0.19.0
     - pyvirtualdisplay
     - hydra-core
+    - kornia
