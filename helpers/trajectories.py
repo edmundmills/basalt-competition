@@ -4,7 +4,7 @@ import math
 import os
 import shutil
 from pathlib import Path
-from collections import OrderedDict
+from collections import OrderedDict, deque
 
 import numpy as np
 import torch as th
@@ -16,75 +16,50 @@ import cv2
 
 
 class Trajectory:
-    def __init__(self, path=None):
-        self.path = path
-        self.obs = []
+    def __init__(self, n_observation_frames):
+        self.n_observation_frames = n_observation_frames
+        self.framestack = deque(maxlen=self.n_observation_frames)
+        self.states = []
         self.actions = []
         self.rewards = []
         self.done = False
         self.additional_data = OrderedDict()
 
     def __len__(self):
-        return len(self.obs)
+        return len(self.states)
 
     def __getitem__(self, idx):
         is_last_step = idx + 1 == len(self)
         done = is_last_step and self.done
         if done:
-            next_obs = self.obs[idx]
+            next_state = self.states[idx]
         elif is_last_step:
-            next_obs = None
+            next_state = None
         else:
-            next_obs = self.obs[idx + 1]
-        return(self.obs[idx], self.actions[idx], next_obs, done)
+            next_state = self.states[idx + 1]
+        reward = self.rewards[idx] if len(self.rewards) > 0 else 0
+        return self.states[idx], self.actions[idx], next_state, done, reward
 
     def append_obs(self, obs):
-        obs['pov'] = np.ascontiguousarray(obs['pov'])
-        self.obs.append(obs)
-
-    def get_item(self, idx, n_observation_frames=1, reward=False):
-        obs, action, next_obs, done = self[idx]
-        if n_observation_frames > 1:
-            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames)
-            next_obs['frame_sequence'] = self.additional_frames(idx + 1,
-                                                                n_observation_frames)
-        reward = self.rewards[idx] if reward else 0
-        return obs, action, next_obs, done, reward
-
-    def current_obs(self, n_observation_frames=1):
-        current_idx = len(self) - 1
-        obs = self.obs[current_idx]
-        if n_observation_frames > 1:
-            obs['frame_sequence'] = self.additional_frames(current_idx,
-                                                           n_observation_frames)
-        return obs
+        pov = ObservationSpace.obs_to_pov(obs)
+        # initialize framestack
+        while len(self.framestack) < self.n_observation_frames:
+            self.framestack.append(pov)
+        self.framestack.append(pov)
+        pov = th.cat(list(self.framestack), dim=0)
+        items = ObservationSpace.obs_to_items(obs)
+        state = pov, items
+        self.states.append(state)
 
     def current_state(self, **kwargs):
-        pov, items = ObservationSpace.obs_to_state(self.current_obs(**kwargs))
-        return pov, items
+        current_idx = len(self) - 1
+        state = self.states[current_idx]
+        return state
 
-    def get_obs(self, idx, n_observation_frames=1):
-        obs = self.obs[idx]
-        if n_observation_frames > 1:
-            obs['frame_sequence'] = self.additional_frames(idx,
-                                                           n_observation_frames)
-        return obs
-
-    def additional_frames(self, step, n_observation_frames):
-        if n_observation_frames <= 1:
-            return None
-
-        relative_frames = range(n_observation_frames - 1)
-        frame_indices = [max(0, step - 1 - frame_number)
-                         for frame_number in relative_frames]
-        frames = th.cat([th.from_numpy(self.obs[frame_idx]['pov'].copy())
-                         for frame_idx in frame_indices], dim=2)
-        return frames
-
-    def load(self, path):
-        self.obs = np.load(Path(path) / 'obs.npy', allow_pickle=True)
-        self.actions = np.load(Path(path) / 'actions.npy', allow_pickle=True)
-        self.done = True
+    def get_pov(self, idx):
+        pov, _items = self.states[idx]
+        single_frame = pov[-3:, :, :]
+        return single_frame
 
     def save(self, path):
         path.mkdir(exist_ok=True)
@@ -118,15 +93,16 @@ class Trajectory:
         return video_path
 
     def as_video_frames(self):
+        total_steps = len(self)
         frame_skip = 2
-        frames = min(int(round(len(self) / (frame_skip + 1))), len(self.obs))
+        frames = min(int(round(total_steps / (frame_skip + 1))), total_steps)
         step_rate = 20  # steps / second
         frame_rate = int(round(step_rate / (frame_skip + 1)))
         duration = frames / frame_rate
-        total_steps = len(self)
         step_indices = [frame * (frame_skip + 1) for frame in range(frames)]
-        images = [self.obs[step_idx]['pov'].astype(np.uint8).copy()[..., ::-1]
-                  for step_idx in step_indices]
+        images = [(self.get_pov(idx).numpy() * 255).astype(
+            np.uint8).transpose(1, 2, 0)[..., ::-1]
+            for idx in step_indices]
         return images, frame_rate
 
     def view(self):
@@ -139,13 +115,12 @@ class TrajectoryGenerator:
         self.model = model
 
     def generate(self, max_episode_length=100000):
-        trajectory = Trajectory()
+        trajectory = Trajectory(n_observation_frames=self.model.n_observation_frames)
         obs = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs)
-            state = trajectory.current_state(
-                n_observation_frames=self.model.n_observation_frames)
+            state = trajectory.current_state()
             action = self.model.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)

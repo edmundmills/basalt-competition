@@ -70,30 +70,14 @@ class ObservationSpace:
         pov = obs['pov']
         if isinstance(pov, np.ndarray):
             pov = th.from_numpy(pov.copy())
-        if len(pov.size()) == 3:
-            pov = pov.unsqueeze(0)
-        return pov.permute(0, 3, 1, 2) / 255.0
-
-    def obs_to_frame_sequence(obs):
-        if 'frame_sequence' not in obs.keys():
-            return None
-        frame_sequence = obs['frame_sequence']
-        if frame_sequence is None or frame_sequence.data[0] is None:
-            return None
-        if len(frame_sequence.size()) == 3:
-            frame_sequence = frame_sequence.unsqueeze(0)
-        return frame_sequence.permute(0, 3, 1, 2) / 255.0
+        return pov.permute(2, 0, 1) / 255.0
 
     def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
-        if isinstance(equipped_item, str):
-            equipped_item = [equipped_item]
         items = ObservationSpace.items()
-        equipped = th.zeros((len(equipped_item), len(items))).long()
-        for idx, item in enumerate(equipped_item):
-            if item not in items:
-                continue
-            equipped[idx, items.index(item)] = 1
+        equipped = th.zeros(len(items)).long()
+        if equipped_item in items:
+            equipped[items.index(equipped_item)] = 1
         return equipped
 
     def obs_to_inventory(obs):
@@ -104,38 +88,20 @@ class ObservationSpace:
         elif isinstance(first_item, (int, np.int32)):
             inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
         # normalize inventory by starting inventory
-        inventory = [inventory[item_name].unsqueeze(1) / starting_count
+        inventory = [inventory[item_name] / starting_count
                      for item_name, starting_count
                      in iter(ObservationSpace.starting_inventory().items())]
-        inventory = th.cat(inventory, dim=1)
+        inventory = th.cat(inventory, dim=0)
         return inventory
 
-    def obs_to_state(obs):
-        pov = ObservationSpace.obs_to_pov(obs)
-        batch_size = pov.size()[0]
-        frame_sequence = ObservationSpace.obs_to_frame_sequence(obs)
-        if frame_sequence is not None:
-            pov_frames = pov.chunk(batch_size, dim=0)
-            frame_sequence_frames = frame_sequence.chunk(batch_size, dim=0)
-            pov = [th.cat((pov_frame, frame_sequence_frame), dim=1)
-                   for pov_frame, frame_sequence_frame
-                   in zip(pov_frames, frame_sequence_frames)]
-            pov = th.cat(pov, dim=0)
+    def obs_to_items(obs):
         environment = os.getenv('MINERL_ENVIRONMENT')
         if environment == 'MineRLTreechop-v0':
-            items = th.zeros((batch_size, 2))
+            items = th.zeros(2)
         else:
             items = th.cat((ObservationSpace.obs_to_inventory(obs),
-                            ObservationSpace.obs_to_equipped_item(obs)), dim=1)
-        state = pov, items
-        return state
-
-    def batch_obs_to_states(batch):
-        obs, action, next_obs, done, reward = batch
-        state = ObservationSpace.obs_to_state(obs)
-        next_state = ObservationSpace.obs_to_state(next_obs)
-        batch = state, action, next_state, done, reward
-        return batch
+                            ObservationSpace.obs_to_equipped_item(obs)), dim=0)
+        return items
 
 
 class ActionSpace:

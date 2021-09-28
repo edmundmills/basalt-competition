@@ -1,5 +1,5 @@
 from algorithms.algorithm import Algorithm
-from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
+from algorithms.loss_functions.iqlearn import IQLearnLoss
 from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
@@ -69,8 +69,7 @@ class OnlineImitation(Algorithm):
         episode_steps = 0
 
         for step in range(self.training_steps):
-            current_state = replay_buffer.current_trajectory().current_state(
-                n_observation_frames=model.n_observation_frames)
+            current_state = replay_buffer.current_state()
             action = model.get_action(current_state)
             if ActionSpace.threw_snowball(current_state, action):
                 print(f'Threw Snowball at iteration {self.iter_count}')

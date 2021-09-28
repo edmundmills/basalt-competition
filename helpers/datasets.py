@@ -5,6 +5,7 @@ import minerl
 
 from pathlib import Path
 import os
+import time
 
 import torch as th
 import math
@@ -35,10 +36,10 @@ class TrajectoryStepDataset(Dataset):
             if not trajectory_path.is_dir():
                 continue
 
-            trajectory = Trajectory(path=trajectory_path)
+            trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
             for step_idx, (obs, action, _, _, done) \
                     in enumerate(data.load_data(str(trajectory_path))):
-                trajectory.obs.append(obs)
+                trajectory.append_obs(obs)
                 trajectory.actions.append(action)
                 trajectory.done = done
                 step_lookup.append((trajectory_idx, step_idx))
@@ -56,15 +57,14 @@ class TrajectoryStepDataset(Dataset):
 
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
-        sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, n_observation_frames=self.n_observation_frames)
+        sample = self.trajectories[trajectory_idx][step_idx]
         return sample
 
 
 class ReplayBuffer:
     def __init__(self, config):
         self.n_observation_frames = config.n_observation_frames
-        self.trajectories = [Trajectory()]
+        self.trajectories = [Trajectory(n_observation_frames=self.n_observation_frames)]
         self.step_lookup = []
 
     def __len__(self):
@@ -72,20 +72,18 @@ class ReplayBuffer:
 
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
-        sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, n_observation_frames=self.n_observation_frames,
-            reward=True)
+        sample = self.trajectories[trajectory_idx][step_idx]
         return sample
 
     def current_trajectory(self):
         return self.trajectories[-1]
 
     def current_state(self):
-        return self.current_trajectory().current_state(
-            n_observation_frames=self.n_observation_frames)
+        return self.current_trajectory().current_state()
 
     def new_trajectory(self):
-        self.trajectories.append(Trajectory())
+        self.trajectories.append(Trajectory(
+            n_observation_frames=self.n_observation_frames))
 
     def append_step(self, action, reward, next_obs, done):
         self.current_trajectory().actions.append(action)
@@ -103,25 +101,24 @@ class ReplayBuffer:
         sample_indices = random.sample(range(len(self.step_lookup)), replay_batch_size)
         replay_batch = [self[idx] for idx in sample_indices]
         batch = default_collate(replay_batch)
-        batch = ObservationSpace.batch_obs_to_states(batch)
         return batch
 
     def recent_frames(self, number_of_steps):
-        self._n_observation_frames = self.n_observation_frames
-        self.n_observation_frames = 1
         total_steps = len(self)
         steps = min(number_of_steps, total_steps)
         frame_skip = 2
         frames = int(round(total_steps / (frame_skip + 1)))
         step_rate = 20  # steps / second
         frame_rate = int(round(step_rate / (frame_skip + 1)))
-        step_indices = [total_steps - steps + frame *
-                        (frame_skip + 1) for frame in range(frames)]
-        images = [(self[min(step_idx, total_steps-1)][0][0][0:3, :, :].numpy()
-                   * 255).astype(np.uint8)
-                  for step_idx in step_indices]
+        step_indices = [min(total_steps - steps + frame * (frame_skip + 1),
+                            total_steps - 1)
+                        for frame in range(frames)]
+        indices = [self.step_lookup[step_index] for step_index in step_indices]
+        images = [self.trajectories[trajectory_idx].get_pov(step_idx)
+                  for trajectory_idx, step_idx in indices]
+        images = [(image.numpy() * 255).astype(np.uint8)
+                  for image in images]
         images = np.stack(images, 0)
-        self.n_observation_frames = self._n_observation_frames
         return images, frame_rate
 
 
@@ -160,7 +157,6 @@ class MixedReplayBuffer(ReplayBuffer):
         except StopIteration:
             self.expert_dataloader = self._initialize_dataloader()
             sample = next(self.expert_dataloader)
-        sample = ObservationSpace.batch_obs_to_states(sample)
         return sample
 
     def sample(self, batch_size):
