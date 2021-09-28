@@ -106,8 +106,8 @@ class PastFrameDropout:
 class DataAgumentation:
     def __init__(self, config):
         self.transforms = []
-        if config.dropout_frames > 0:
-            self.transforms.append(DropoutFrames(config.dropout_frames))
+        # if config.dropout_frames > 0:
+        #     self.transforms.append(DropoutFrames(config.dropout_frames))
         if config.mirror_augment:
             self.transforms.append(RandomHorizontalMirror())
         if config.random_translate:

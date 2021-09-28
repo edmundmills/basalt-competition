@@ -5,7 +5,7 @@ from algorithms.loss_functions.iqlearn import IQLearnLossSAC
 from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
-from helpers.gpu import states_to_device, disable_gradients
+from helpers.gpu import disable_gradients, batch_to_device, batches_to_device
 
 import numpy as np
 import torch as th
@@ -105,11 +105,6 @@ class SoftActorCritic(Algorithm):
     def __call__(self, env, profiler=None):
         self.generate_random_trajectories(self.replay_buffer, env, self.starting_steps)
 
-        # if self.curiosity_pretraining_steps > 0:
-        #     self._train_curiosity_module()
-        #     self._assign_rewards_to_replay_buffer()
-        #     # self._copy_curiosity_features_all_networks()
-
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
         current_state = self.start_new_trajectory(env, self.replay_buffer)
@@ -206,12 +201,8 @@ class SoftActorCritic(Algorithm):
 
     def train_one_batch(self, batch):
         # load batch onto gpu
-        states, actions, next_states, done, rewards = batch
-        states, next_states = states_to_device((states, next_states), self.device)
-        actions = actions.to(self.device)
-        done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
-        rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, done, rewards
+        batch = batch_to_device(batch)
+        batch = self.augmentation(batch)
 
         policy_metrics = self.update_policy(batch)
         q_metrics = self.update_q(batch)
@@ -237,37 +228,6 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                                               next_state, done)
         return reward
 
-    def _assign_rewards_to_replay_buffer(self):
-        print('Calculating rewards for initial steps...')
-        reward_dataloader = DataLoader(self.replay_buffer, shuffle=False,
-                                       batch_size=self.batch_size, num_workers=4)
-        calculated_rewards = []
-        for states, actions, next_states, done, _reward in reward_dataloader:
-            states, next_states = states_to_device((states, next_states), self.device)
-            actions = actions.to(self.device)
-            done = done.to(self.device)
-            rewards = self.curiosity_module.bulk_rewards(states, actions,
-                                                         next_states, done)
-            calculated_rewards.extend(rewards)
-        self.replay_buffer.update_rewards(calculated_rewards)
-
-    def _copy_curiosity_features_all_networks(self):
-        self.actor.cnn.load_state_dict(self.curiosity_module.features.state_dict())
-        if self.double_q:
-            self.online_q._q_network_1.cnn.load_state_dict(
-                self.curiosity_module.features.state_dict())
-            self.online_q._q_network_2.cnn.load_state_dict(
-                self.curiosity_module.features.state_dict())
-            self.target_q._q_network_1.cnn.load_state_dict(
-                self.curiosity_module.features.state_dict())
-            self.target_q._q_network_2.cnn.load_state_dict(
-                self.curiosity_module.features.state_dict())
-        else:
-            self.online_q.cnn.load_state_dict(
-                self.curiosity_module.features.state_dict())
-            self.target_q.cnn.load_state_dict(
-                self.curiosity_module.features.state_dict())
-
     def update_curiosity(self, batch):
         curiosity_loss, metrics = self.curiosity_module.loss(*batch)
         self.curiosity_optimizer.zero_grad(set_to_none=True)
@@ -276,17 +236,8 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         return metrics
 
     def train_one_batch(self, batch, curiosity_only=False):
-        # load batch onto gpu
-        states, actions, next_states, done, rewards = batch
-        states, next_states = states_to_device((states, next_states), self.device)
-        actions = actions.to(self.device)
-        done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
-        if not curiosity_only:
-            rewards = rewards.float().unsqueeze(1).to(self.device)
-            mean_reward = rewards.mean().item()
-            std_reward = rewards.std().item()
-            rewards = (rewards - mean_reward) / std_reward
-        batch = states, actions, next_states, done, rewards
+        batch = batch_to_device(batch)
+        batch = self.augmentation(batch)
 
         if not curiosity_only:
             policy_metrics = self.update_policy(batch)
@@ -312,6 +263,8 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                      'average_its_per_s': self.iteration_rate()},
                     step=self.iter_count)
 
+# not currently set up
+
 
 class IQLearnSAC(SoftActorCritic):
     def __init__(self, expert_dataset, config, actor=None, **kwargs):
@@ -326,9 +279,10 @@ class IQLearnSAC(SoftActorCritic):
 
     def train_one_batch(self, batch):
         expert_batch, replay_batch = batch
-        # load batch onto gpu and reconstruct batch with relevant data
-        all_states, expert_actions, _replay_actions, expert_done, replay_done = \
-            self._q_loss.batches_to_device(expert_batch, replay_batch)
+        expert_batch, replay_batch = batches_to_device(expert_batch, replay_batch)
+
+        expert_batch = self.augmentation(expert_batch)
+        replay_batch = self.augmentation(replay_batch)
 
         expert_states, replay_states, expert_next_states, replay_next_states = all_states
 
