@@ -21,6 +21,7 @@ from torch.utils.data.dataloader import default_collate
 class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
         self.n_observation_frames = config.n_observation_frames
+        self.frame_selection_noise = config.frame_selection_noise
         self.inventory_noise = config.inventory_noise
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
@@ -40,21 +41,12 @@ class TrajectoryStepDataset(Dataset):
                 continue
 
             trajectory = Trajectory(path=trajectory_path)
-            for step_idx, (obs, action, _reward, next_obs, done) \
+            for step_idx, (obs, action, _, _, done) \
                     in enumerate(data.load_data(str(trajectory_path))):
-                if step_idx == 0:
-                    trajectory.obs.append(obs)
-                    current_state = trajectory.current_state(
-                        n_observation_frames=self.n_observation_frames)
+                trajectory.obs.append(obs)
                 trajectory.actions.append(action)
                 trajectory.done = done
-                trajectory.obs.append(next_obs)
-                next_state = trajectory.current_state(
-                    n_observation_frames=self.n_observation_frames)
-                trajectory.append_transition(
-                    current_state, action, next_state, done, _reward)
                 step_lookup.append((trajectory_idx, step_idx))
-                current_state = next_state
             print(f'Loaded data from {trajectory_path.name}')
             trajectories.append(trajectory)
             trajectory_idx += 1
@@ -69,13 +61,20 @@ class TrajectoryStepDataset(Dataset):
 
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
-        sample = self.trajectories[trajectory_idx].transitions[step_idx]
+        sample = self.trajectories[trajectory_idx].get_item(
+            step_idx, n_observation_frames=self.n_observation_frames,
+            frame_selection_noise=self.frame_selection_noise)
+        obs, action, next_obs, done, reward = sample
+        state = ObservationSpace.obs_to_state(obs)
+        next_state = ObservationSpace.obs_to_state(next_obs)
+        sample = state, action, next_state, done, reward
         return sample
 
 
 class ReplayBuffer:
     def __init__(self, config, reward=True):
         self.n_observation_frames = config.n_observation_frames
+        self.frame_selection_noise = config.frame_selection_noise
         self.inventory_noise = config.inventory_noise
         self.trajectories = [Trajectory()]
         self.step_lookup = []
@@ -86,7 +85,13 @@ class ReplayBuffer:
 
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
-        sample = self.trajectories[trajectory_idx].transitions[step_idx]
+        sample = self.trajectories[trajectory_idx].get_item(
+            step_idx, n_observation_frames=self.n_observation_frames,
+            reward=self.reward, frame_selection_noise=self.frame_selection_noise)
+        obs, action, next_obs, done, reward = sample
+        state = ObservationSpace.obs_to_state(obs)
+        next_state = ObservationSpace.obs_to_state(next_obs)
+        sample = state, action, next_state, done, reward
         return sample
 
     def current_trajectory(self):
@@ -109,9 +114,6 @@ class ReplayBuffer:
     def increment_step(self):
         self.step_lookup.append(
             (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
-
-    def append_transition(self, *args):
-        self.current_trajectory().append_transition(*args)
 
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.step_lookup))

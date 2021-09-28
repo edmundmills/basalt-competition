@@ -25,7 +25,6 @@ class Trajectory:
         self.rewards = []
         self.done = False
         self.additional_data = OrderedDict()
-        self.transitions = []
 
     def __len__(self):
         return len(self.obs)
@@ -40,9 +39,6 @@ class Trajectory:
         else:
             next_obs = self.obs[idx + 1]
         return(self.obs[idx], self.actions[idx], next_obs, done)
-
-    def append_transition(self, current_state, action, next_state, done, reward):
-        self.transitions.append((current_state, action, next_state, done, reward))
 
     def append_obs(self, obs):
         obs['pov'] = np.ascontiguousarray(obs['pov'])
