@@ -4,8 +4,6 @@ import copy
 import numpy as np
 import torch as th
 import torch.nn.functional as F
-import torch.nn as nn
-import kornia.augmentation as aug
 
 
 class EnvironmentHelper:
@@ -246,80 +244,3 @@ class ActionSpace:
             else:
                 actions[i] = -1
         return actions
-
-
-class RandomHorizontalMirror:
-    def __init__(self):
-        pass
-
-    def mirror_action(self, action):
-        if action == 2:
-            new_action = 3
-        elif action == 3:
-            new_action = 2
-        elif action == 9:
-            new_action = 10
-        elif action == 10:
-            new_action = 9
-        else:
-            new_action = copy.copy(action)
-        return new_action
-
-    def mirror_pov(self, pov):
-        new_pov = th.flip(pov, dims=[2])
-        return new_pov
-
-    def __call__(self, sample):
-        if np.random.choice([True, False]):
-            return sample
-
-        state, action, next_state, done, reward = sample
-        pov, _items = state
-        next_pov, _next_items = next_state
-        new_state = self.mirror_pov(pov), _items
-        new_next_state = self.mirror_pov(next_pov), _next_items
-        new_action = self.mirror_action(action)
-        sample = new_state, new_action, new_next_state, done, reward
-        return sample
-
-
-class InventoryNoise:
-    def __init__(self, inventory_noise):
-        self.inventory_noise = inventory_noise
-
-    def transform(self, items):
-        item_dim = items.size()[0]
-        with th.no_grad():
-            noise = th.cat((th.randn((int(item_dim / 2))) * self.inventory_noise,
-                           th.zeros((int(item_dim / 2)))), dim=0)
-            new_items = th.clamp(items.clone() + noise, 0, 1)
-        return new_items
-
-    def __call__(self, sample):
-        state, action, next_state, done, reward = sample
-        _pov, items = state
-        _next_pov, next_items = next_state
-        new_state = _pov, self.transform(items)
-        new_next_state = _next_pov, self.transform(next_items)
-        sample = new_state, action, new_next_state, done, reward
-        return sample
-
-
-class RandomTranslate:
-    def __init__(self):
-        pass
-
-    def random_translate(self, pov):
-        transform = nn.Sequential(nn.ReplicationPad2d(4), aug.RandomCrop((64, 64)))
-        with th.no_grad():
-            new_pov = transform(pov.clone().unsqueeze(0)).squeeze()
-        return new_pov
-
-    def __call__(self, sample):
-        state, action, next_state, done, reward = sample
-        pov, _items = state
-        next_pov, _next_items = next_state
-        new_state = self.random_translate(pov), _items
-        new_next_state = self.random_translate(next_pov), _next_items
-        sample = new_state, action, new_next_state, done, reward
-        return sample

@@ -25,13 +25,6 @@ class TrajectoryStepDataset(Dataset):
         self.n_observation_frames = config.n_observation_frames
         self.frame_selection_noise = config.frame_selection_noise
         self.inventory_noise = config.inventory_noise
-        self.transforms = []
-        if config.mirror_augment:
-            self.transforms.append(RandomHorizontalMirror())
-        if config.random_translate:
-            self.transforms.append(RandomTranslate())
-        if config.inventory_noise > 0:
-            self.transforms.append(InventoryNoise(config.inventory_noise))
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
@@ -77,8 +70,6 @@ class TrajectoryStepDataset(Dataset):
         state = ObservationSpace.obs_to_state(obs)
         next_state = ObservationSpace.obs_to_state(next_obs)
         sample = state, action, next_state, done, reward
-        for transform in self.transforms:
-            sample = transform(sample)
         return sample
 
 
@@ -87,13 +78,6 @@ class ReplayBuffer:
         self.n_observation_frames = config.n_observation_frames
         self.frame_selection_noise = config.frame_selection_noise
         self.inventory_noise = config.inventory_noise
-        self.transforms = []
-        if config.mirror_augment:
-            self.transforms.append(RandomHorizontalMirror())
-        if config.random_translate:
-            self.transforms.append(RandomTranslate())
-        if config.inventory_noise > 0:
-            self.transforms.append(InventoryNoise(config.inventory_noise))
         self.trajectories = [Trajectory()]
         self.step_lookup = []
         self.reward = reward
@@ -110,8 +94,6 @@ class ReplayBuffer:
         state = ObservationSpace.obs_to_state(obs)
         next_state = ObservationSpace.obs_to_state(next_obs)
         sample = state, action, next_state, done, reward
-        for transform in self.transforms:
-            sample = transform(sample)
         return sample
 
     def current_trajectory(self):

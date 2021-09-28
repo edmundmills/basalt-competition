@@ -58,6 +58,8 @@ def get_config(args):
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
     cfg.pretrain = args.pretrain
+    if args.profile:
+        cfg.method.training_steps = 510
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     return cfg
@@ -181,7 +183,6 @@ def main():
         model, replay_buffer = training_algorithm(env)
     else:
         print('Training with profiler')
-        config['training_steps'] = 510
         profile_dir = f'./logs/{training_algorithm.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),
