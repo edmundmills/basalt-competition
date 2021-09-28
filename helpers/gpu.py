@@ -24,6 +24,20 @@ def disable_gradients(network):
         param.requires_grad = False
 
 
+def expert_batch_to_device(batch):
+    device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+    states, actions, next_states, _done, _rewards = batch
+    actions = ActionSpace.dataset_action_batch_to_actions(actions)
+    mask = actions != -1
+    actions = actions[mask]
+    actions = th.from_numpy(actions).long().to(device)
+    states = [state_component[mask] for state_component in states]
+    next_states = [state_component[mask] for state_component in next_states]
+    states, next_states = states_to_device((states, next_states), device)
+    batch = states, actions, next_states, _done, _rewards
+    return batch
+
+
 def batch_to_device(batch):
     device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
     states, actions, next_states, done, rewards = batch

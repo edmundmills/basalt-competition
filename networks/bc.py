@@ -27,12 +27,6 @@ class BC(Network):
         return action
 
     def loss(self, states, actions):
-        actions = ActionSpace.dataset_action_batch_to_actions(actions)
-        mask = actions != -1
-        actions = actions[mask]
-        actions = th.from_numpy(actions).long().to(self.device)
-        states = [state_component[mask].to(self.device)
-                  for state_component in states]
         action_probabilities = self.forward(states)
         loss = F.cross_entropy(action_probabilities, actions)
         return loss

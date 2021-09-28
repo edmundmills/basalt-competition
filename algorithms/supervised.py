@@ -1,6 +1,8 @@
 from algorithms.algorithm import Algorithm
 from helpers.environment import ObservationSpace, ActionSpace
-from helpers.gpu import states_to_device
+from helpers.data_augmentation import DataAugmentation
+
+from helpers.gpu import expert_batch_to_device
 import os
 import wandb
 
@@ -14,6 +16,7 @@ class SupervisedLearning(Algorithm):
         self.epochs = config.method.epochs
         self.lr = config.method.learning_rate
         self.batch_size = config.method.batch_size
+        self.augmentation = DataAugmentation(config)
 
     def __call__(self, model, train_dataset, test_dataset=None, _env=None):
         optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
@@ -22,8 +25,11 @@ class SupervisedLearning(Algorithm):
 
         iter_count = 0
         for epoch in range(self.epochs):
-            for _, (states, dataset_actions,
-                    _next_states, _done, _rewards) in enumerate(train_dataloader):
+            for batch in train_dataloader:
+                batch = ObservationSpace.batch_obs_to_states(batch)
+                batch = expert_batch_to_device(batch)
+                batch = self.augmentation(batch)
+                states, dataset_actions, _next_states, _done, _rewards = batch
                 loss = model.loss(states, dataset_actions)
 
                 optimizer.zero_grad()
@@ -53,9 +59,12 @@ class SupervisedLearning(Algorithm):
                                 batch_size=self.batch_size,
                                 num_workers=4,
                                 drop_last=True)
-        for obs, actions, _next_obs, _done, _reward in dataloader:
+        for batch in dataloader:
+            batch = ObservationSpace.batch_obs_to_states(batch)
+            batch = expert_batch_to_device(batch)
+            states, actions, _next_states, _done, _rewards = batch
             with th.no_grad():
-                test_loss = model.loss(obs, actions)
+                test_loss = model.loss(states, actions)
                 test_losses.append(test_loss.detach().item())
         test_loss = sum(test_losses) / len(test_losses)
         eval_metrics = {'test_loss': test_loss}
