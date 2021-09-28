@@ -67,9 +67,9 @@ class ObservationSpace:
         return ObservationSpace.environment_items[environment]
 
     def obs_to_pov(obs):
-        pov = obs['pov']
+        pov = obs['pov'].copy()
         if isinstance(pov, np.ndarray):
-            pov = th.from_numpy(pov.copy())
+            pov = th.from_numpy(pov)
         return pov.permute(2, 0, 1) / 255.0
 
     def obs_to_equipped_item(obs):

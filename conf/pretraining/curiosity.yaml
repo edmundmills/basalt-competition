@@ -1,6 +1,7 @@
 name: 'curiosity_pretraining'
 algorithm: 'curiosity_pretraining'
-drq: true
+drq: false
+normalize_reward: true  # to running average
 
 
 starting_steps: 0

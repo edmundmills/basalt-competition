@@ -14,6 +14,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from collections import deque
 import wandb
 import os
 from pathlib import Path
@@ -220,6 +221,8 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
     def __init__(self, config, actor=None, **kwargs):
         super().__init__(config, actor, pretraining=True, **kwargs)
         self.curiosity_pretraining_steps = config.pretraining.curiosity_pretraining_steps
+        self.normalize_reward = config.pretraining.normalize_reward
+        self.recent_rewards = deque(maxlen=100)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -228,7 +231,27 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
     def _reward_function(self, current_state, action, next_state, done):
         reward = self.curiosity_module.reward(current_state, action,
                                               next_state, done)
-        return reward
+        if not self.normalize_reward:
+            return reward
+        self.recent_rewards.append(reward)
+        if self.iter_count > 350 and len(self.recent_rewards) > 1 \
+                and np.std(self.recent_rewards) != 0:
+            mean = sum(self.recent_rewards) / len(self.recent_rewards)
+            std = np.std(self.recent_rewards)
+            relative_reward = (reward - mean) / std
+        else:
+            relative_reward = reward
+        relative_reward = min(max(relative_reward, -1), 1)
+        return relative_reward
+
+    def start_new_trajectory(self, env, replay_buffer):
+        if len(replay_buffer.current_trajectory()) > 0:
+            replay_buffer.new_trajectory()
+        obs = env.reset()
+        replay_buffer.current_trajectory().append_obs(obs)
+        current_state = replay_buffer.current_state()
+        self.recent_rewards = deque(maxlen=100)
+        return current_state
 
     def update_curiosity(self, batch):
         curiosity_loss, metrics = self.curiosity_module.loss(*batch)
