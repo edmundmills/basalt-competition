@@ -34,8 +34,7 @@ class SoftQNetwork(Network):
         return entropy
 
     def get_action(self, state):
-        state = [state_component.to(self.device).unsqueeze(0)
-                 for state_component in state]
+        state = [state_component.to(self.device) for state_component in state]
         with th.no_grad():
             Q = self.get_Q(state)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()

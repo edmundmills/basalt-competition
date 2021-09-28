@@ -1,7 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 
 import math
-import random
 import os
 import shutil
 from pathlib import Path
@@ -13,7 +12,6 @@ import torch as th
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
-from PIL import Image
 import cv2
 
 

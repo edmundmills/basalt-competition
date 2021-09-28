@@ -25,7 +25,6 @@ class OnlineImitation(Algorithm):
         self.starting_steps = config.method.starting_steps
         self.training_steps = config.method.training_steps
         self.batch_size = config.method.batch_size
-        self.frame_selection_noise = config.frame_selection_noise
         self.model = model
         self.expert_dataset = expert_dataset
         self.initial_replay_buffer = initial_replay_buffer

@@ -1,6 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
-from helpers.gpu import states_to_device, cat_states, add_batch_dim
+from helpers.gpu import states_to_device, cat_states
 
 import numpy as np
 import torch as th
@@ -74,8 +74,6 @@ class CuriosityModule(nn.Module):
         return features
 
     def reward(self, state, action, next_state, done):
-        state = add_batch_dim(state)
-        next_state = add_batch_dim(next_state)
         if done:
             return -1
         if ActionSpace.threw_snowball(state, action):

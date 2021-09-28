@@ -1,18 +1,15 @@
 from helpers.trajectories import Trajectory
+from helpers.environment import ObservationSpace
 
 import minerl
 
 from pathlib import Path
 import os
-from collections import deque
-import json
-import copy
 
 import torch as th
 import math
 import random
 import numpy as np
-from PIL import Image
 
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
@@ -21,8 +18,6 @@ from torch.utils.data.dataloader import default_collate
 class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
         self.n_observation_frames = config.n_observation_frames
-        self.frame_selection_noise = config.frame_selection_noise
-        self.inventory_noise = config.inventory_noise
         self.debug_dataset = debug_dataset
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
@@ -62,23 +57,15 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_item(
-            step_idx, n_observation_frames=self.n_observation_frames,
-            frame_selection_noise=self.frame_selection_noise)
-        obs, action, next_obs, done, reward = sample
-        state = ObservationSpace.obs_to_state(obs)
-        next_state = ObservationSpace.obs_to_state(next_obs)
-        sample = state, action, next_state, done, reward
+            step_idx, n_observation_frames=self.n_observation_frames)
         return sample
 
 
 class ReplayBuffer:
-    def __init__(self, config, reward=True):
+    def __init__(self, config):
         self.n_observation_frames = config.n_observation_frames
-        self.frame_selection_noise = config.frame_selection_noise
-        self.inventory_noise = config.inventory_noise
         self.trajectories = [Trajectory()]
         self.step_lookup = []
-        self.reward = reward
 
     def __len__(self):
         return len(self.step_lookup)
@@ -87,11 +74,7 @@ class ReplayBuffer:
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_item(
             step_idx, n_observation_frames=self.n_observation_frames,
-            reward=self.reward, frame_selection_noise=self.frame_selection_noise)
-        obs, action, next_obs, done, reward = sample
-        state = ObservationSpace.obs_to_state(obs)
-        next_state = ObservationSpace.obs_to_state(next_obs)
-        sample = state, action, next_state, done, reward
+            reward=True)
         return sample
 
     def current_trajectory(self):
@@ -119,40 +102,9 @@ class ReplayBuffer:
         replay_batch_size = min(batch_size, len(self.step_lookup))
         sample_indices = random.sample(range(len(self.step_lookup)), replay_batch_size)
         replay_batch = [self[idx] for idx in sample_indices]
-        return default_collate(replay_batch)
-
-    def save_gifs(self, path):
-        path = Path(path)
-        path.mkdir(exist_ok=True)
-        self._n_observation_frames = self.n_observation_frames
-        self.n_observation_frames = 1
-        gif_count = 8
-        gif_steps = 200
-        frame_skip = 1
-        frames = int(round(gif_steps / (frame_skip + 1)))
-        step_rate = 20  # steps / second
-        frame_rate = step_rate / (frame_skip + 1)
-        duration = frames / frame_rate
-        total_steps = len(self)
-        start_indices = np.array([int(round((gif_number + 1) * total_steps / gif_count))
-                                  - gif_steps
-                                  for gif_number in range(gif_count)])
-        start_indices = start_indices.clip(0, total_steps - gif_steps - 1)
-        start_indices = [int(start_idx) for start_idx in start_indices]
-        print('Gif start indices: ', start_indices)
-        image_paths = []
-        for start_idx in start_indices:
-            step_indices = [start_idx + frame * (frame_skip + 1)
-                            for frame in range(frames)]
-            images = [Image.fromarray(self[step_idx][0]['pov'].astype(np.uint8))
-                      for step_idx in step_indices]
-            image_path = path / f'steps_{start_idx}-{start_idx + gif_steps}.gif'
-            images[0].save(image_path,
-                           save_all=True, append_images=images[1:],
-                           optimize=False, duration=duration, loop=0)
-            image_paths.append(image_path)
-        self.n_observation_frames = self._n_observation_frames
-        return image_paths
+        batch = default_collate(replay_batch)
+        batch = ObservationSpace.batch_obs_to_states(batch)
+        return batch
 
     def recent_frames(self, number_of_steps):
         self._n_observation_frames = self.n_observation_frames
@@ -189,7 +141,6 @@ class MixedReplayBuffer(ReplayBuffer):
         if initial_replay_buffer is not None:
             self.trajectories = initial_replay_buffer.trajectories
             self.step_lookup = initial_replay_buffer.step_lookup
-            self.reward = initial_replay_buffer.reward
         self.expert_dataset = expert_dataset
         self.expert_dataloader = self._initialize_dataloader()
 
@@ -209,6 +160,7 @@ class MixedReplayBuffer(ReplayBuffer):
         except StopIteration:
             self.expert_dataloader = self._initialize_dataloader()
             sample = next(self.expert_dataloader)
+        sample = ObservationSpace.batch_obs_to_states(sample)
         return sample
 
     def sample(self, batch_size):

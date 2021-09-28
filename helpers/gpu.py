@@ -12,12 +12,6 @@ def states_to_device(tuple_of_states, device):
     return tuple(list_of_states)
 
 
-def add_batch_dim(state):
-    pov, items = state
-    state = pov.unsqueeze(0), items.unsqueeze(0)
-    return state
-
-
 def cat_states(tuple_of_states):
     state_lengths = [states[0].size()[0] for states in tuple_of_states]
     all_states = [th.cat(state_component, dim=0) for state_component

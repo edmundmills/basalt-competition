@@ -36,7 +36,7 @@ class SoftActorCritic(Algorithm):
         self.curiosity_pretraining_steps = 0
         # Set up replay buffer
         if initial_replay_buffer is None:
-            self.replay_buffer = ReplayBuffer(config, reward=True)
+            self.replay_buffer = ReplayBuffer(config)
         else:
             self.replay_buffer = initial_replay_buffer
         self.iter_count += initial_iter_count
