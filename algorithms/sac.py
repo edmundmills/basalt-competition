@@ -140,7 +140,8 @@ class SoftActorCritic(Algorithm):
                                            next_state, done)
 
             self.replay_buffer.current_trajectory().rewards.append(reward)
-
+            self.replay_buffer.append_transition(
+                current_state, action, next_state, done, reward)
             self.replay_buffer.increment_step()
             current_state = next_state
 

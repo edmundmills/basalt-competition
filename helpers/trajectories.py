@@ -1,4 +1,4 @@
-from helpers.environment import EnvironmentHelper, ObservationSpace, ActionSpace
+from helpers.environment import ObservationSpace, ActionSpace
 
 import math
 import random
@@ -13,7 +13,6 @@ import torch as th
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
-
 from PIL import Image
 import cv2
 
@@ -26,6 +25,7 @@ class Trajectory:
         self.rewards = []
         self.done = False
         self.additional_data = OrderedDict()
+        self.transitions = []
 
     def __len__(self):
         return len(self.obs)
@@ -41,50 +41,46 @@ class Trajectory:
             next_obs = self.obs[idx + 1]
         return(self.obs[idx], self.actions[idx], next_obs, done)
 
+    def append_transition(self, current_state, action, next_state, done, reward):
+        self.transitions.append((current_state, action, next_state, done, reward))
+
     def append_obs(self, obs):
         obs['pov'] = np.ascontiguousarray(obs['pov'])
         self.obs.append(obs)
 
-    def get_item(self, idx, n_observation_frames=1,
-                 frame_selection_noise=0, reward=False):
+    def get_item(self, idx, n_observation_frames=1, reward=False):
         obs, action, next_obs, done = self[idx]
         if n_observation_frames > 1:
-            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames,
-                                                           frame_selection_noise)
+            obs['frame_sequence'] = self.additional_frames(idx, n_observation_frames)
             next_obs['frame_sequence'] = self.additional_frames(idx + 1,
-                                                                n_observation_frames,
-                                                                frame_selection_noise)
+                                                                n_observation_frames)
         reward = self.rewards[idx] if reward else 0
         return obs, action, next_obs, done, reward
 
-    def current_obs(self, n_observation_frames=1, frame_selection_noise=0):
+    def current_obs(self, n_observation_frames=1):
         current_idx = len(self) - 1
         obs = self.obs[current_idx]
         if n_observation_frames > 1:
             obs['frame_sequence'] = self.additional_frames(current_idx,
-                                                           n_observation_frames,
-                                                           frame_selection_noise)
+                                                           n_observation_frames)
         return obs
 
     def current_state(self, **kwargs):
         pov, items = ObservationSpace.obs_to_state(self.current_obs(**kwargs))
         return pov.unsqueeze(0), items.unsqueeze(0)
 
-    def get_obs(self, idx, n_observation_frames=1, frame_selection_noise=0):
+    def get_obs(self, idx, n_observation_frames=1):
         obs = self.obs[idx]
         if n_observation_frames > 1:
             obs['frame_sequence'] = self.additional_frames(idx,
-                                                           n_observation_frames,
-                                                           frame_selection_noise)
+                                                           n_observation_frames)
         return obs
 
-    def additional_frames(self, step, n_observation_frames, frame_selection_noise):
+    def additional_frames(self, step, n_observation_frames):
         if n_observation_frames <= 1:
             return None
 
-        frame_range = n_observation_frames - 1 + frame_selection_noise
-        relative_frames = sorted(random.sample(
-            range(frame_range), n_observation_frames - 1))
+        relative_frames = range(n_observation_frames - 1)
         frame_indices = [max(0, step - 1 - frame_number)
                          for frame_number in relative_frames]
         frames = th.cat([th.from_numpy(self.obs[frame_idx]['pov'].copy())

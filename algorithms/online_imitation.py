@@ -25,7 +25,6 @@ class OnlineImitation(Algorithm):
         self.starting_steps = config.method.starting_steps
         self.training_steps = config.method.training_steps
         self.batch_size = config.method.batch_size
-        self.frame_selection_noise = config.frame_selection_noise
         self.model = model
         self.expert_dataset = expert_dataset
         self.initial_replay_buffer = initial_replay_buffer
@@ -69,8 +68,7 @@ class OnlineImitation(Algorithm):
         episode_steps = 0
 
         for step in range(self.training_steps):
-            current_state = replay_buffer.current_trajectory().current_state(
-                n_observation_frames=model.n_observation_frames)
+            current_state = replay_buffer.current_state()
             action = model.get_action(current_state)
             if ActionSpace.threw_snowball(current_state, action):
                 print(f'Threw Snowball at iteration {self.iter_count}')
@@ -89,6 +87,9 @@ class OnlineImitation(Algorithm):
             episode_steps += 1
 
             replay_buffer.append_step(action, reward, next_obs, done)
+            next_state = replay_buffer.current_state()
+            replay_buffer.append_transition(
+                current_state, action, next_state, done, reward)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 expert_batch = replay_buffer.sample_expert()

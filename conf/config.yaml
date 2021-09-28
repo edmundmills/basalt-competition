@@ -18,7 +18,6 @@ n_observation_frames: 4  # includes current pov
 alpha: 1e-2
 
 # data augmentation
-frame_selection_noise: 0  # additional number of frames to sample frames from
 inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
 mirror_augment: true

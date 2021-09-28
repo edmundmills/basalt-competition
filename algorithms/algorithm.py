@@ -47,7 +47,8 @@ class Algorithm:
 
             reward = 0
             replay_buffer.current_trajectory().rewards.append(reward)
-
+            replay_buffer.append_transition(
+                current_state, action, next_state, done, reward)
             replay_buffer.increment_step()
             current_state = next_state
 
