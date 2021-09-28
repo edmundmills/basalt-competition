@@ -164,7 +164,7 @@ class ActionSpace:
             equipped_item = obs_or_state['equipped_items']['mainhand']['type']
         else:
             _pov, items = obs_or_state
-            _inventory, equipped_item = th.chunk(items, 2, dim=1)
+            _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
             if th.all(th.eq(equipped_item, ActionSpace.one_hot_snowball())):
                 equipped_item = 'snowball'
         return action == 11 and equipped_item == 'snowball'

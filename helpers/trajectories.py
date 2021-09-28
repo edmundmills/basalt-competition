@@ -67,7 +67,7 @@ class Trajectory:
 
     def current_state(self, **kwargs):
         pov, items = ObservationSpace.obs_to_state(self.current_obs(**kwargs))
-        return pov.unsqueeze(0), items.unsqueeze(0)
+        return pov, items
 
     def get_obs(self, idx, n_observation_frames=1):
         obs = self.obs[idx]

@@ -21,8 +21,8 @@ class IQLearnLoss:
         replay_states, replay_actions, replay_next_states, \
             replay_done, _replay_rewards = replay_batch
 
-        batch_states = expert_states, expert_next_states, \
-            replay_states, replay_next_states
+        batch_states = expert_states, replay_states, \
+            expert_next_states, replay_next_states
         batch_states, state_lengths = cat_states(batch_states)
         batch_Qs = self.model.get_Q(batch_states)
         Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)

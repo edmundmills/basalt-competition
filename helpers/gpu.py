@@ -1,3 +1,5 @@
+from helpers.environment import ActionSpace
+
 import torch as th
 
 
@@ -8,6 +10,12 @@ def states_to_device(tuple_of_states, device):
     list_of_states = zip(*[th.split(state_component, state_lengths, dim=0)
                            for state_component in all_states])
     return tuple(list_of_states)
+
+
+def add_batch_dim(state):
+    pov, items = state
+    state = pov.unsqueeze(0), items.unsqueeze(0)
+    return state
 
 
 def cat_states(tuple_of_states):
@@ -26,7 +34,7 @@ def batch_to_device(batch):
     device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
     states, actions, next_states, done, rewards = batch
     states, next_states = states_to_device((states, next_states), device)
-    actions = actions.to(self.device)
+    actions = actions.to(device)
     done = th.as_tensor(done).unsqueeze(1).float().to(device)
     rewards = rewards.float().unsqueeze(1).to(device)
     batch = states, actions, next_states, done, rewards

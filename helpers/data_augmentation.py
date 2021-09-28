@@ -1,7 +1,7 @@
 import copy
 import random
 
-import np
+import numpy as np
 import torch as th
 import torch.nn as nn
 import kornia.augmentation as aug
@@ -16,7 +16,7 @@ class RandomHorizontalMirror:
         threes = action == 3
         nines = action == 9
         tens = action == 10
-        action = action + twos - threes + nines - tens
+        action = action + twos.int() - threes.int() + nines.int() - tens.int()
         return action
 
     def mirror_pov(self, pov):
@@ -43,8 +43,10 @@ class InventoryNoise:
 
     def transform(self, items):
         batch_size, item_dim = items.size()
-        noise = th.cat((th.randn((batch_size, int(item_dim / 2))) * self.inventory_noise,
-                       th.zeros((batch_size, int(item_dim / 2)))), dim=1)
+        noise = th.randn((batch_size, int(item_dim / 2)), device=items.device) \
+            * self.inventory_noise
+        zeros = th.zeros((batch_size, int(item_dim / 2)), device=items.device)
+        noise = th.cat((noise, zeros), dim=1)
         new_items = th.clamp(items + noise, 0, 1)
         return new_items
 
@@ -103,7 +105,7 @@ class PastFrameDropout:
         return sample
 
 
-class DataAgumentation:
+class DataAugmentation:
     def __init__(self, config):
         self.transforms = []
         # if config.dropout_frames > 0:

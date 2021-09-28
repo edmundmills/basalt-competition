@@ -6,6 +6,7 @@ from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
 from helpers.gpu import disable_gradients, batch_to_device, batches_to_device
+from helpers.data_augmentation import DataAugmentation
 
 import numpy as np
 import torch as th
@@ -22,6 +23,7 @@ class SoftActorCritic(Algorithm):
     def __init__(self, config, actor=None, pretraining=False,
                  initial_replay_buffer=None, initial_iter_count=0):
         super().__init__(config, pretraining=pretraining)
+        self.augmentation = DataAugmentation(config)
         method_config = config.pretraining if pretraining else config.method
         self.starting_steps = method_config.starting_steps
         self.suppress_snowball_steps = method_config.suppress_snowball_steps

@@ -4,7 +4,7 @@ from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
 from helpers.gpu import batches_to_device
-from helpers.data_augmentation import DataAgumentation
+from helpers.data_augmentation import DataAugmentation
 
 import numpy as np
 import torch as th
@@ -29,10 +29,11 @@ class OnlineImitation(Algorithm):
         self.expert_dataset = expert_dataset
         self.initial_replay_buffer = initial_replay_buffer
         self.iter_count += initial_iter_count
-        self.augmentation = DataAgumentation(config)
+        self.drq = config.method.drq
+        self.augmentation = DataAugmentation(config)
         if config.method.loss_function == 'sqil':
             self.loss_function = SqilLoss(model, config)
-        elif config.method.loss_function == 'iqlearn' and config.drq:
+        elif config.method.loss_function == 'iqlearn' and self.drq:
             self.loss_function = IQLearnLossDRQ(model, config)
         elif config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(model, config)

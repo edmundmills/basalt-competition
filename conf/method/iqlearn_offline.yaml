@@ -2,7 +2,7 @@ name: 'iqlearn_offline'
 algorithm: 'offline_imitation'  # curiosity, supervised_learning, online_imitation, sac
 loss_function: 'iqlearn'
 loss: 'value'
-drq: true
+drq: false
 
 expert_dataset: true
 batch_size: 64

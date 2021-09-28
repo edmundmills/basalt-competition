@@ -1,5 +1,3 @@
-from helpers.environment import ObservationSpace, RandomHorizontalMirror, \
-    RandomTranslate, InventoryNoise
 from helpers.trajectories import Trajectory
 
 import minerl
@@ -54,7 +52,7 @@ class TrajectoryStepDataset(Dataset):
                 next_state = trajectory.current_state(
                     n_observation_frames=self.n_observation_frames)
                 trajectory.append_transition(
-                    current_state, action, next_state, done, reward)
+                    current_state, action, next_state, done, _reward)
                 step_lookup.append((trajectory_idx, step_idx))
                 current_state = next_state
             print(f'Loaded data from {trajectory_path.name}')
@@ -124,9 +122,7 @@ class ReplayBuffer:
     def save_gifs(self, path):
         path = Path(path)
         path.mkdir(exist_ok=True)
-        self._transforms = self.transforms
         self._n_observation_frames = self.n_observation_frames
-        self.transforms = []
         self.n_observation_frames = 1
         gif_count = 8
         gif_steps = 200
@@ -153,14 +149,11 @@ class ReplayBuffer:
                            save_all=True, append_images=images[1:],
                            optimize=False, duration=duration, loop=0)
             image_paths.append(image_path)
-        self.transforms = self._transforms
         self.n_observation_frames = self._n_observation_frames
         return image_paths
 
     def recent_frames(self, number_of_steps):
-        self._transforms = self.transforms
         self._n_observation_frames = self.n_observation_frames
-        self.transforms = []
         self.n_observation_frames = 1
         total_steps = len(self)
         steps = min(number_of_steps, total_steps)
@@ -174,7 +167,6 @@ class ReplayBuffer:
                    * 255).astype(np.uint8)
                   for step_idx in step_indices]
         images = np.stack(images, 0)
-        self.transforms = self._transforms
         self.n_observation_frames = self._n_observation_frames
         return images, frame_rate
 

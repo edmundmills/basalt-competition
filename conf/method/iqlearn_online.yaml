@@ -2,7 +2,7 @@ name: 'iqlearn_online'
 algorithm: 'online_imitation'  # curiosity, supervised_learning, online_imitation, sac
 loss_function: 'iqlearn'
 loss: 'value'
-drq: true
+drq: false
 
 expert_dataset: true
 expert_sample_fraction: 0.5
