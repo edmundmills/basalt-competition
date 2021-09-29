@@ -229,18 +229,18 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                                                  lr=config.pretraining.curiosity_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
+        if self.iter_count < 200:
+            return 0
         reward = self.curiosity_module.reward(current_state, action,
                                               next_state, done)
         if not self.normalize_reward:
             return reward
         self.recent_rewards.append(reward)
-        if self.iter_count > 350 and len(self.recent_rewards) > 1 \
-                and np.std(self.recent_rewards) != 0:
+        if len(self.recent_rewards) > 1:
             mean = sum(self.recent_rewards) / len(self.recent_rewards)
-            std = np.std(self.recent_rewards)
-            relative_reward = (reward - mean) / std
+            relative_reward = reward - mean
         else:
-            relative_reward = reward
+            relative_reward = 0
         relative_reward = min(max(relative_reward, -1), 1)
         return relative_reward
 
