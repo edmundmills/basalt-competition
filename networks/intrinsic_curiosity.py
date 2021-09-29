@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 
 class CuriosityModule(nn.Module):
-    def __init__(self, n_observation_frames=1, eta=1, beta=0.2):
+    def __init__(self, n_observation_frames=1, eta=0.5, beta=0.1):
         super().__init__()
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         # scales the returned reward
@@ -27,7 +27,8 @@ class CuriosityModule(nn.Module):
                           nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
                                          affine=True, track_running_stats=True),
                           nn.Hardswish()),
-            *nn.Sequential(*mobilenet_features[1:6])
+            *nn.Sequential(*mobilenet_features[1:4]),
+            nn.AvgPool2d(2)
         )
         self.feature_dim = self._visual_features_dim(self.n_observation_frames)
         self.action_predictor = nn.Sequential(
@@ -49,6 +50,7 @@ class CuriosityModule(nn.Module):
         with th.no_grad():
             dummy_input = th.zeros((1, 3*frames, 64, 64))
             dummy_features = self.features(dummy_input)
+        print('Curiosity Module Feature Shape: ', dummy_features.size())
         return dummy_features.size()
 
     def _visual_features_dim(self, *args):

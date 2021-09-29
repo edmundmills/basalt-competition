@@ -242,7 +242,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         if len(self.recent_rewards) > 10 and np.std(self.recent_rewards) != 0:
             mean = sum(self.recent_rewards) / len(self.recent_rewards)
             std = np.std(self.recent_rewards)
-            relative_reward = (reward - mean) / std
+            relative_reward = (reward - mean) / std * self.curiosity_module.eta
         else:
             relative_reward = 0
         relative_reward = min(max(relative_reward, -1), 1)
