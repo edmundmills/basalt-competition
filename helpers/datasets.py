@@ -116,7 +116,7 @@ class ReplayBuffer:
         indices = [self.step_lookup[step_index] for step_index in step_indices]
         images = [self.trajectories[trajectory_idx].get_pov(step_idx)
                   for trajectory_idx, step_idx in indices]
-        images = [(image.numpy() * 255).astype(np.uint8)
+        images = [(image.numpy()).astype(np.uint8)
                   for image in images]
         images = np.stack(images, 0)
         return images, frame_rate

@@ -1,5 +1,6 @@
 import os
 import copy
+from collections import OrderedDict
 
 import numpy as np
 import torch as th
@@ -15,45 +16,46 @@ class EnvironmentHelper:
 
 
 class ObservationSpace:
-    environment_items = {'MineRLBasaltBuildVillageHouse-v0': {
-        "acacia_door": 64,
-        "acacia_fence": 64,
-        "cactus": 3,
-        "cobblestone": 64,
-        "dirt": 64,
-        "fence": 64,
-        "flower_pot": 3,
-        "glass": 64,
-        "ladder": 64,
-        "log#0": 64,
-        "log#1": 64,
-        "log2#0": 64,
-        "planks#0": 64,
-        "planks#1": 64,
-        "planks#4": 64,
-        "red_flower": 3,
-        "sand": 64,
-        "sandstone#0": 64,
-        "sandstone#2": 64,
-        "sandstone_stairs": 64,
-        "snowball": 1,
-        "spruce_door": 64,
-        "spruce_fence": 64,
-        "stone_axe": 1,
-        "stone_pickaxe": 1,
-        "stone_stairs": 64,
-        "torch": 64,
-        "wooden_door": 64,
-        "wooden_pressure_plate": 64
-    },
-        'MineRLBasaltCreateVillageAnimalPen-v0': {
-            'fence': 64,
-            'fence_gate': 64,
-            'snowball': 1,
-    },
-        'MineRLBasaltFindCave-v0': {'snowball': 1},
-        'MineRLBasaltMakeWaterfall-v0': {'waterbucket': 1, 'snowball': 1},
-        'MineRLTreechop-v0': {'snowball': 1},
+    environment_items = {'MineRLBasaltBuildVillageHouse-v0': OrderedDict([
+        ("acacia_door", 64),
+        ("acacia_fence", 64),
+        ("cactus", 3),
+        ("cobblestone", 64),
+        ("dirt", 64),
+        ("fence", 64),
+        ("flower_pot", 3),
+        ("glass", 64),
+        ("ladder", 64),
+        ("log#0", 64),
+        ("log#1", 64),
+        ("log2#0", 64),
+        ("planks#0", 64),
+        ("planks#1", 64),
+        ("planks#4", 64),
+        ("red_flower", 3),
+        ("sand", 64),
+        ("sandstone#0", 64),
+        ("sandstone#2", 64),
+        ("sandstone_stairs", 64),
+        ("snowball", 1),
+        ("spruce_door", 64),
+        ("spruce_fence", 64),
+        ("stone_axe", 1),
+        ("stone_pickaxe", 1),
+        ("stone_stairs", 64),
+        ("torch", 64),
+        ("wooden_door", 64),
+        ("wooden_pressure_plate", 64)
+    ]),
+        'MineRLBasaltCreateVillageAnimalPen-v0': OrderedDict([
+            ('fence', 64),
+            ('fence_gate', 64),
+            ('snowball', 1),
+        ]),
+        'MineRLBasaltFindCave-v0': OrderedDict([('snowball', 1)]),
+        'MineRLBasaltMakeWaterfall-v0': OrderedDict([('waterbucket', 1),
+                                                     ('snowball', 1)]),
+        'MineRLTreechop-v0': OrderedDict([('snowball', 1)]),
     }
 
     frame_shape = (3, 64, 64)
@@ -69,35 +71,46 @@ class ObservationSpace:
     def obs_to_pov(obs):
         pov = obs['pov'].copy()
         if isinstance(pov, np.ndarray):
-            pov = th.from_numpy(pov)
-        return pov.permute(2, 0, 1) / 255.0
+            pov = th.from_numpy(pov).to(th.uint8)
+        return pov.permute(2, 0, 1)
 
     def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
         items = ObservationSpace.items()
-        equipped = th.zeros(len(items)).long()
+        equipped = th.zeros(len(items), dtype=th.uint8)
         if equipped_item in items:
             equipped[items.index(equipped_item)] = 1
         return equipped
+
+    def normalize_state(state):
+        pov, items = state
+        pov /= 255.0
+        starting_count = th.FloatTensor(
+            list(ObservationSpace.starting_inventory().values()))
+        ones = th.ones(starting_count.size())
+        denom = th.cat((starting_count, ones), dim=0)
+        denom = th.tile(denom, (items.size()[0], 1)).to(items.device)
+        items /= denom
+        state = pov, items
+        return state
 
     def obs_to_inventory(obs):
         inventory = obs['inventory']
         first_item = list(inventory.values())[0]
         if isinstance(first_item, np.ndarray):
-            inventory = {k: th.from_numpy(v).unsqueeze(0) for k, v in inventory.items()}
+            inventory = {k: th.from_numpy(v).unsqueeze(0).to(th.uint8)
+                         for k, v in inventory.items()}
         elif isinstance(first_item, (int, np.int32)):
-            inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
-        # normalize inventory by starting inventory
-        inventory = [inventory[item_name] / starting_count
-                     for item_name, starting_count
-                     in iter(ObservationSpace.starting_inventory().items())]
+            inventory = {k: th.tensor([v], dtype=th.uint8) for k, v in inventory.items()}
+        inventory = [inventory[item_name]
+                     for item_name in iter(ObservationSpace.starting_inventory().keys())]
         inventory = th.cat(inventory, dim=0)
         return inventory
 
     def obs_to_items(obs):
         environment = os.getenv('MINERL_ENVIRONMENT')
         if environment == 'MineRLTreechop-v0':
-            items = th.zeros(2)
+            items = th.zeros(2, dtype=th.uint8)
         else:
             items = th.cat((ObservationSpace.obs_to_inventory(obs),
                             ObservationSpace.obs_to_equipped_item(obs)), dim=0)

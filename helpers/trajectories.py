@@ -100,7 +100,7 @@ class Trajectory:
         frame_rate = int(round(step_rate / (frame_skip + 1)))
         duration = frames / frame_rate
         step_indices = [frame * (frame_skip + 1) for frame in range(frames)]
-        images = [(self.get_pov(idx).numpy() * 255).astype(
+        images = [(self.get_pov(idx).numpy()).astype(
             np.uint8).transpose(1, 2, 0)[..., ::-1]
             for idx in step_indices]
         return images, frame_rate

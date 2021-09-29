@@ -1,4 +1,4 @@
-from helpers.environment import ActionSpace
+from helpers.environment import ActionSpace, ObservationSpace
 
 import torch as th
 
@@ -13,7 +13,8 @@ def states_to_device(tuple_of_states, device):
     # return tuple(list_of_states)
     states = []
     for state in tuple_of_states:
-        state = [state_component.to(device) for state_component in state]
+        state = [state_component.to(device, dtype=th.float) for state_component in state]
+        state = ObservationSpace.normalize_state(state)
         states.append(state)
     return tuple(states)
 

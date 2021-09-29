@@ -85,7 +85,7 @@ class IQLearnLoss:
             "total_loss": loss,
         })
         for k, v in iter(metrics.items()):
-            metrics[k] = v.detach().item()
+            metrics[k] = v.item()
         return loss, metrics
 
 
