@@ -34,7 +34,7 @@ def disable_gradients(network):
 def expert_batch_to_device(batch):
     device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
     states, actions, next_states, _done, _rewards = batch
-    actions = ActionSpace.dataset_action_batch_to_actions(actions)
+    actions = actions.unsqueeze(0)
     mask = actions != -1
     actions = actions[mask]
     actions = th.from_numpy(actions).long().to(device)
@@ -63,8 +63,7 @@ def batches_to_device(expert_batch, replay_batch):
     replay_states, replay_actions, replay_next_states, \
         replay_done, _replay_rewards = replay_batch
 
-    expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
-    expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
+    expert_actions = expert_actions.unsqueeze(1)
     replay_actions = replay_actions.unsqueeze(1)
     expert_done = th.as_tensor(expert_done).float().to(device)
     replay_done = th.as_tensor(replay_done).float().to(device)

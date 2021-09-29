@@ -19,8 +19,7 @@ class SqilLoss:
         (replay_obs, replay_actions, replay_next_obs,
          _replay_done, replay_rewards) = replay_batch
 
-        expert_actions = ActionSpace.dataset_action_batch_to_actions(expert_actions)
-        expert_actions = th.from_numpy(expert_actions).unsqueeze(1)
+        expert_actions = expert_actions.unsqueeze(1)
         replay_actions = replay_actions.unsqueeze(1)
 
         mask = (expert_actions != -1).squeeze()

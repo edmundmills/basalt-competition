@@ -1,5 +1,5 @@
 from helpers.trajectories import Trajectory
-from helpers.environment import ObservationSpace
+from helpers.environment import ObservationSpace, ActionSpace
 
 import minerl
 
@@ -37,12 +37,16 @@ class TrajectoryStepDataset(Dataset):
                 continue
 
             trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
-            for step_idx, (obs, action, _, _, done) \
-                    in enumerate(data.load_data(str(trajectory_path))):
+            step_idx = 0
+            for obs, action, _, _, done in data.load_data(str(trajectory_path)):
+                action = ActionSpace.dataset_action_batch_to_actions(action)[0]
+                # if (step_idx == 0 or trajectory.actions[-1] == -1) and action == -1:
+                #     continue
                 trajectory.append_obs(obs)
                 trajectory.actions.append(action)
                 trajectory.done = done
                 step_lookup.append((trajectory_idx, step_idx))
+                step_idx += 1
             print(f'Loaded data from {trajectory_path.name}')
             trajectories.append(trajectory)
             trajectory_idx += 1
