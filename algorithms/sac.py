@@ -1,6 +1,6 @@
 from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
 from algorithms.algorithm import Algorithm
-from algorithms.loss_functions.sac import SACQLoss, SACPolicyLoss
+from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, SACPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossSAC
 from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
@@ -32,6 +32,7 @@ class SoftActorCritic(Algorithm):
         self.batch_size = method_config.batch_size
         self.tau = method_config.tau
         self.double_q = method_config.double_q
+        self.drq = method_config.drq
         self.target_update_interval = 1
         self.updates_per_step = 1
         self.curiosity_pretraining_steps = 0
@@ -70,8 +71,12 @@ class SoftActorCritic(Algorithm):
         disable_gradients(self.target_q)
 
         # Loss functions
-        self._q_loss = SACQLoss(self.online_q, self.target_q,
-                                config, pretraining=pretraining)
+        if self.drq:
+            self._q_loss = SACQLossDRQ(self.online_q, self.target_q,
+                                       config, pretraining=pretraining)
+        else:
+            self._q_loss = SACQLoss(self.online_q, self.target_q,
+                                    config, pretraining=pretraining)
         self._policy_loss = SACPolicyLoss(self.actor, self.online_q,
                                           config, pretraining=pretraining)
 
@@ -87,15 +92,18 @@ class SoftActorCritic(Algorithm):
     def _updates_per_step(self, step):
         return self.updates_per_step
 
-    def update_q(self, batch):
-        q_loss, metrics = self._q_loss(*batch)
+    def update_q(self, batch, aug_batch=None):
+        if self.drq:
+            q_loss, metrics = self._q_loss(batch, aug_batch)
+        else:
+            q_loss, metrics = self._q_loss(batch)
         self.q_optimizer.zero_grad(set_to_none=True)
         q_loss.backward()
         self.q_optimizer.step()
         return metrics
 
     def update_policy(self, batch):
-        policy_loss, metrics = self._policy_loss(*batch)
+        policy_loss, metrics = self._policy_loss(batch)
         self.policy_optimizer.zero_grad(set_to_none=True)
         policy_loss.backward()
         self.policy_optimizer.step()
@@ -119,7 +127,6 @@ class SoftActorCritic(Algorithm):
             else:
                 action = ActionSpace.random_action()
             self.replay_buffer.current_trajectory().actions.append(action)
-
             if step == 0 and self.suppress_snowball_steps > 0:
                 print(('Suppressing throwing snowball for'
                        f' {min(self.training_steps, self.suppress_snowball_steps)}'))
@@ -141,7 +148,6 @@ class SoftActorCritic(Algorithm):
 
             reward = self._reward_function(current_state, action,
                                            next_state, done)
-
             self.replay_buffer.current_trajectory().rewards.append(reward)
 
             self.replay_buffer.increment_step()
@@ -205,10 +211,12 @@ class SoftActorCritic(Algorithm):
     def train_one_batch(self, batch):
         # load batch onto gpu
         batch = batch_to_device(batch)
-        batch = self.augmentation(batch)
-
-        policy_metrics = self.update_policy(batch)
-        q_metrics = self.update_q(batch)
+        aug_batch = self.augmentation(batch)
+        if self.drq:
+            q_metrics = self.update_q(batch, aug_batch)
+        else:
+            q_metrics = self.update_q(aug_batch)
+        policy_metrics = self.update_policy(aug_batch)
         metrics = {**policy_metrics, **q_metrics}
         return metrics
 
@@ -229,8 +237,6 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                                                  lr=config.pretraining.curiosity_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
-        if self.iter_count < 200:
-            return 0
         reward = self.curiosity_module.reward(current_state, action,
                                               next_state, done)
         if not self.normalize_reward:
@@ -254,7 +260,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         return current_state
 
     def update_curiosity(self, batch):
-        curiosity_loss, metrics = self.curiosity_module.loss(*batch)
+        curiosity_loss, metrics = self.curiosity_module.loss(batch)
         self.curiosity_optimizer.zero_grad(set_to_none=True)
         curiosity_loss.backward()
         self.curiosity_optimizer.step()
@@ -262,15 +268,17 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
 
     def train_one_batch(self, batch, curiosity_only=False):
         batch = batch_to_device(batch)
-        batch = self.augmentation(batch)
-
+        aug_batch = self.augmentation(batch)
         if not curiosity_only:
-            policy_metrics = self.update_policy(batch)
-            q_metrics = self.update_q(batch)
+            if self.drq:
+                q_metrics = self.update_q(batch, aug_batch)
+            else:
+                q_metrics = self.update_q(aug_batch)
+            policy_metrics = self.update_policy(aug_batch)
         else:
             policy_metrics = {}
             q_metrics = {}
-        curiosity_metrics = self.update_curiosity(batch)
+        curiosity_metrics = self.update_curiosity(aug_batch)
 
         metrics = {**policy_metrics, **q_metrics, **curiosity_metrics}
         return metrics

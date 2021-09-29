@@ -92,7 +92,8 @@ class CuriosityModule(nn.Module):
         reward = min(max(reward, -1), 1)
         return reward
 
-    def loss(self, states, actions, next_states, _done, _rewards):
+    def loss(self, batch):
+        states, actions, next_states, _done, _rewards = batch
         # loss for predicted action
         states, next_states = states_to_device((states, next_states), self.device)
         predicted_actions = self.predict_action(states, next_states)

@@ -1,6 +1,6 @@
 name: 'curiosity_pretraining'
 algorithm: 'curiosity_pretraining'
-drq: false
+drq: true
 normalize_reward: false  # to running average
 
 
