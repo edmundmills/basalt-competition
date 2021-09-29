@@ -1,5 +1,5 @@
 from helpers.datasets import TrajectoryStepDataset
-from networks.termination_critic import TerminationCritic
+# from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from algorithms.online_imitation import OnlineImitation
@@ -106,29 +106,29 @@ def main():
             config=config,
         )
 
-    # Train termination critic - probably not currently working. possibly could be useful
-    # if we're stuggling to get the agent to do this successfully
-    if args.termination_critic:
-        critic = TerminationCritic()
-        if args.train_critic:
-            critic_config = dict(algorithm='termination_critic',
-                                 epochs=5,
-                                 learning_rate=1e-4,
-                                 batch_size=32,
-                                 environment=environment)
-
-            expert_dataset.n_observation_frames = 1
-            critic.train(expert_dataset, critic_config)
-            expert_dataset.n_observation_frames = config['n_observation_frames']
-        else:
-            for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-                if ('termination_critic' in saved_agent_path.name
-                        and environment in saved_agent_path.name):
-                    print(f'Loading {saved_agent_path.name} as termination critic')
-                    critic.load_parameters(saved_agent_path)
-                    break
-    else:
-        critic = None
+    # # Train termination critic - not currently working. possibly could be useful
+    # # if we're stuggling to get the agent to do this successfully
+    # if args.termination_critic:
+    #     critic = TerminationCritic()
+    #     if args.train_critic:
+    #         critic_config = dict(algorithm='termination_critic',
+    #                              epochs=5,
+    #                              learning_rate=1e-4,
+    #                              batch_size=32,
+    #                              environment=environment)
+    #
+    #         expert_dataset.n_observation_frames = 1
+    #         critic.train(expert_dataset, critic_config)
+    #         expert_dataset.n_observation_frames = config['n_observation_frames']
+    #     else:
+    #         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+    #             if ('termination_critic' in saved_agent_path.name
+    #                     and environment in saved_agent_path.name):
+    #                 print(f'Loading {saved_agent_path.name} as termination critic')
+    #                 critic.load_parameters(saved_agent_path)
+    #                 break
+    # else:
+    #     critic = None
 
     # Start Virual Display
     if args.virtual_display:
