@@ -38,14 +38,15 @@ class Algorithm:
             suppressed_snowball = ActionSpace.threw_snowball(current_state, action)
             if suppressed_snowball:
                 obs, _, done, _ = env.step(-1)
+                reward = -1
             else:
                 obs, _, done, _ = env.step(action)
+                reward = 0
 
             replay_buffer.current_trajectory().append_obs(obs)
             replay_buffer.current_trajectory().done = done
             next_state = replay_buffer.current_state()
 
-            reward = 0
             replay_buffer.current_trajectory().rewards.append(reward)
 
             replay_buffer.increment_step()

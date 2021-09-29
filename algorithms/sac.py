@@ -116,16 +116,16 @@ class SoftActorCritic(Algorithm):
     def __call__(self, env, profiler=None):
         self.generate_random_trajectories(self.replay_buffer, env, self.starting_steps)
 
+        if self.curiosity_pretraining_steps > 0:
+            self._train_curiosity_module()
+
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
         current_state = self.start_new_trajectory(env, self.replay_buffer)
 
         for step in range(self.training_steps):
             # take action, update replay buffer
-            if step >= self.curiosity_pretraining_steps:
-                action = self.actor.get_action(current_state)
-            else:
-                action = ActionSpace.random_action()
+            action = self.actor.get_action(current_state)
             self.replay_buffer.current_trajectory().actions.append(action)
             if step == 0 and self.suppress_snowball_steps > 0:
                 print(('Suppressing throwing snowball for'
@@ -159,10 +159,7 @@ class SoftActorCritic(Algorithm):
                 step_metrics = None
                 for i in range(updates_per_step):
                     batch = self.replay_buffer.sample(batch_size=self.batch_size)
-                    if step < self.curiosity_pretraining_steps:
-                        metrics = self.train_one_batch(batch, curiosity_only=True)
-                    else:
-                        metrics = self.train_one_batch(batch)
+                    metrics = self.train_one_batch(batch)
 
                     # collect and log metrics:
                     if step_metrics is None:
@@ -230,7 +227,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         super().__init__(config, actor, pretraining=True, **kwargs)
         self.curiosity_pretraining_steps = config.pretraining.curiosity_pretraining_steps
         self.normalize_reward = config.pretraining.normalize_reward
-        self.recent_rewards = deque(maxlen=100)
+        self.recent_rewards = deque(maxlen=200)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -242,22 +239,14 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         if not self.normalize_reward:
             return reward
         self.recent_rewards.append(reward)
-        if len(self.recent_rewards) > 1:
+        if len(self.recent_rewards) > 10 and np.std(self.recent_rewards) != 0:
             mean = sum(self.recent_rewards) / len(self.recent_rewards)
-            relative_reward = reward - mean
+            std = np.std(self.recent_rewards)
+            relative_reward = (reward - mean) / std
         else:
             relative_reward = 0
         relative_reward = min(max(relative_reward, -1), 1)
         return relative_reward
-
-    def start_new_trajectory(self, env, replay_buffer):
-        if len(replay_buffer.current_trajectory()) > 0:
-            replay_buffer.new_trajectory()
-        obs = env.reset()
-        replay_buffer.current_trajectory().append_obs(obs)
-        current_state = replay_buffer.current_state()
-        self.recent_rewards = deque(maxlen=100)
-        return current_state
 
     def update_curiosity(self, batch):
         curiosity_loss, metrics = self.curiosity_module.loss(batch)
