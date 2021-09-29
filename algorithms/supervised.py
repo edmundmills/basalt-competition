@@ -26,11 +26,10 @@ class SupervisedLearning(Algorithm):
         iter_count = 0
         for epoch in range(self.epochs):
             for batch in train_dataloader:
-                batch = ObservationSpace.batch_obs_to_states(batch)
                 batch = expert_batch_to_device(batch)
                 batch = self.augmentation(batch)
-                states, dataset_actions, _next_states, _done, _rewards = batch
-                loss = model.loss(states, dataset_actions)
+                states, actions, _next_states, _done, _rewards = batch
+                loss = model.loss(states, actions)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -60,7 +59,6 @@ class SupervisedLearning(Algorithm):
                                 num_workers=4,
                                 drop_last=True)
         for batch in dataloader:
-            batch = ObservationSpace.batch_obs_to_states(batch)
             batch = expert_batch_to_device(batch)
             states, actions, _next_states, _done, _rewards = batch
             with th.no_grad():

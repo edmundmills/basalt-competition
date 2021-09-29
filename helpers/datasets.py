@@ -40,8 +40,6 @@ class TrajectoryStepDataset(Dataset):
             step_idx = 0
             for obs, action, _, _, done in data.load_data(str(trajectory_path)):
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
-                # if (step_idx == 0 or trajectory.actions[-1] == -1) and action == -1:
-                #     continue
                 trajectory.append_obs(obs)
                 trajectory.actions.append(action)
                 trajectory.done = done
