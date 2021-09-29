@@ -3,6 +3,8 @@ from algorithms.loss_functions.iqlearn import IQLearnLoss
 from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
+from helpers.gpu import batches_to_device
+from helpers.data_augmentation import DataAugmentation
 
 import numpy as np
 import torch as th
@@ -19,24 +21,27 @@ class OnlineImitation(Algorithm):
                  initial_replay_buffer=None, initial_iter_count=0):
         super().__init__(config)
         self.termination_critic = termination_critic
-        self.lr = config['learning_rate']
-        self.starting_steps = config['starting_steps']
-        self.training_steps = config['training_steps']
-        self.batch_size = config['batch_size']
+        self.lr = config.method.learning_rate
+        self.starting_steps = config.method.starting_steps
+        self.training_steps = config.method.training_steps
+        self.batch_size = config.method.batch_size
         self.model = model
         self.expert_dataset = expert_dataset
         self.initial_replay_buffer = initial_replay_buffer
         self.iter_count += initial_iter_count
+        self.drq = config.method.drq
+        self.augmentation = DataAugmentation(config)
+        if config.method.loss_function == 'sqil':
+            self.loss_function = SqilLoss(model, config)
+        elif config.method.loss_function == 'iqlearn' and self.drq:
+            self.loss_function = IQLearnLossDRQ(model, config)
+        elif config.method.loss_function == 'iqlearn':
+            self.loss_function = IQLearnLoss(model, config)
 
     def __call__(self, env, profiler=None):
         model = self.model
         expert_dataset = self.expert_dataset
         initial_replay_buffer = self.initial_replay_buffer
-
-        if self.config['loss_function'] == 'sqil':
-            self.loss_function = SqilLoss(model, self.config)
-        elif self.config['loss_function'] == 'iqlearn':
-            self.loss_function = IQLearnLoss(model, self.config)
 
         optimizer = th.optim.Adam(model.parameters(),
                                   lr=self.lr)
@@ -44,11 +49,11 @@ class OnlineImitation(Algorithm):
         if initial_replay_buffer is not None:
             print((f'Using initial replay buffer'
                    f' with {len(initial_replay_buffer)} steps'))
-        replay_buffer = MixedReplayBuffer(expert_dataset=expert_dataset,
-                                          batch_size=self.batch_size,
-                                          expert_sample_fraction=0.5,
-                                          n_observation_frames=model.n_observation_frames,
-                                          initial_replay_buffer=initial_replay_buffer)
+        replay_buffer = MixedReplayBuffer(
+            expert_dataset=expert_dataset,
+            config=self.config,
+            batch_size=self.batch_size,
+            initial_replay_buffer=initial_replay_buffer)
 
         if self.starting_steps > 0 and initial_replay_buffer is None:
             self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
@@ -64,8 +69,7 @@ class OnlineImitation(Algorithm):
         episode_steps = 0
 
         for step in range(self.training_steps):
-            current_state = replay_buffer.current_trajectory().current_state(
-                n_observation_frames=model.n_observation_frames)
+            current_state = replay_buffer.current_state()
             action = model.get_action(current_state)
             if ActionSpace.threw_snowball(current_state, action):
                 print(f'Threw Snowball at iteration {self.iter_count}')
@@ -86,8 +90,16 @@ class OnlineImitation(Algorithm):
             replay_buffer.append_step(action, reward, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
-                loss, metrics = self.loss_function(replay_buffer.sample_expert(),
-                                                   replay_buffer.sample_replay())
+                expert_batch = replay_buffer.sample_expert()
+                replay_batch = replay_buffer.sample_replay()
+                expert_batch, replay_batch = batches_to_device(expert_batch, replay_batch)
+                aug_expert_batch = self.augmentation(expert_batch)
+                aug_replay_batch = self.augmentation(replay_batch)
+                if self.drq:
+                    loss, metrics = self.loss_function(expert_batch, replay_batch,
+                                                       aug_expert_batch, aug_replay_batch)
+                else:
+                    loss, metrics = self.loss_function(aug_expert_batch, aug_replay_batch)
 
                 optimizer.zero_grad()
                 loss.backward()

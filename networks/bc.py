@@ -19,21 +19,16 @@ class BC(Network):
         return probabilities
 
     def get_action(self, state):
-        state = [state_component.to(self.device) for state_component in state]
+        states = [state_component.unsqueeze(0) for state_component in state]
+        states, = states_to_device([states], self.device)
         with th.no_grad():
-            Q = self.get_Q(state)
+            Q = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
-    def loss(self, obs, actions):
-        states = ObservationSpace.obs_to_state(obs)
-        actions = ActionSpace.dataset_action_batch_to_actions(actions)
-        mask = actions != -1
-        actions = actions[mask]
-        actions = th.from_numpy(actions).long().to(self.device)
-        states = [state_component[mask].to(self.device)
-                  for state_component in states]
+    def loss(self, states, actions):
         action_probabilities = self.forward(states)
+        actions = actions.squeeze()
         loss = F.cross_entropy(action_probabilities, actions)
         return loss

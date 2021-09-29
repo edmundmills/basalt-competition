@@ -1,11 +1,8 @@
-
+name: 'curiosity_pretraining'
 algorithm: 'curiosity_pretraining'
-checkpoint_frequency: 500
+drq: false
+normalize_reward: false  # to running average
 
-env: ${..env}
-n_observation_frames: 3
-alpha: 1e-1
-wandb: ???
 
 starting_steps: 0
 curiosity_pretraining_steps: 2000
@@ -17,8 +14,8 @@ discount_factor: 0.99
 curiosity_lr: 1e-3
 q_lr: 3e-4
 policy_lr: 1e-4
+
 tau: .05
 double_q: false
 
-
-seed: 0
+expert_dataset: false

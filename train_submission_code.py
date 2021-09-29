@@ -1,5 +1,5 @@
 from helpers.datasets import TrajectoryStepDataset
-from networks.termination_critic import TerminationCritic
+# from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from algorithms.online_imitation import OnlineImitation
@@ -57,8 +57,9 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
-    cfg.pretraining.wandb = args.wandb
     cfg.pretrain = args.pretrain
+    if args.profile:
+        cfg.method.training_steps = 510
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     return cfg
@@ -105,29 +106,29 @@ def main():
             config=config,
         )
 
-    # Train termination critic - probably not currently working. possibly could be useful
-    # if we're stuggling to get the agent to do this successfully
-    if args.termination_critic:
-        critic = TerminationCritic()
-        if args.train_critic:
-            critic_config = dict(algorithm='termination_critic',
-                                 epochs=5,
-                                 learning_rate=1e-4,
-                                 batch_size=32,
-                                 environment=environment)
-
-            expert_dataset.n_observation_frames = 1
-            critic.train(expert_dataset, critic_config)
-            expert_dataset.n_observation_frames = config['n_observation_frames']
-        else:
-            for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-                if ('termination_critic' in saved_agent_path.name
-                        and environment in saved_agent_path.name):
-                    print(f'Loading {saved_agent_path.name} as termination critic')
-                    critic.load_parameters(saved_agent_path)
-                    break
-    else:
-        critic = None
+    # # Train termination critic - not currently working. possibly could be useful
+    # # if we're stuggling to get the agent to do this successfully
+    # if args.termination_critic:
+    #     critic = TerminationCritic()
+    #     if args.train_critic:
+    #         critic_config = dict(algorithm='termination_critic',
+    #                              epochs=5,
+    #                              learning_rate=1e-4,
+    #                              batch_size=32,
+    #                              environment=environment)
+    #
+    #         expert_dataset.n_observation_frames = 1
+    #         critic.train(expert_dataset, critic_config)
+    #         expert_dataset.n_observation_frames = config['n_observation_frames']
+    #     else:
+    #         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+    #             if ('termination_critic' in saved_agent_path.name
+    #                     and environment in saved_agent_path.name):
+    #                 print(f'Loading {saved_agent_path.name} as termination critic')
+    #                 critic.load_parameters(saved_agent_path)
+    #                 break
+    # else:
+    #     critic = None
 
     # Start Virual Display
     if args.virtual_display:
@@ -135,7 +136,7 @@ def main():
         display.start()
 
     # Start env
-    if config.algorithm != 'supervised_learning':
+    if config.method.algorithm != 'supervised_learning':
         if args.debug_env:
             print('Starting Debug Env')
         else:
@@ -145,39 +146,36 @@ def main():
         env = None
 
     if config.pretrain:
-        pretraining_algorithm = IntrinsicCuriosityTraining(config.pretraining)
+        print('Starting Pretraining')
+        pretraining_algorithm = IntrinsicCuriosityTraining(config)
         pretrained_model, pretrainining_replay = pretraining_algorithm(env)
         pretraining_iter_count = pretraining_algorithm.iter_count
+        print('Pretraining Completed')
     else:
+        print('No Pretraining')
         pretrained_model = None
         pretrainining_replay = None
         pretraining_iter_count = 0
 
-    algorithm = config.algorithm
-    loss_function = config.loss_function
-
     # initialize dataset, model, algorithm
-    if algorithm in ['online_imitation', 'supervised_learning'] \
-            or (algorithm == 'sac' and loss_function == 'iqlearn'):
-        expert_dataset = TrajectoryStepDataset(
-            debug_dataset=args.debug_env,
-            n_observation_frames=config.n_observation_frames)
+    if config.method.expert_dataset:
+        expert_dataset = TrajectoryStepDataset(config, debug_dataset=args.debug_env)
 
     if pretrained_model is not None:
         model = pretrained_model
-    elif algorithm in ['online_imitation', 'supervised_learning']:
+    elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
         model = SoftQNetwork(alpha=config.alpha,
                              n_observation_frames=config.n_observation_frames)
 
-    if algorithm == 'sac' and loss_function == 'iqlearn':
+    if config.method.name == 'iqlearn_sac':
         training_algorithm = IQLearnSAC(expert_dataset, config,
                                         initial_replay_buffer=pretrainining_replay,
                                         initial_iter_count=pretraining_iter_count)
-    elif algorithm == 'online_imitation':
+    elif config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config,
                                              initial_replay_buffer=pretrainining_replay,
                                              initial_iter_count=pretraining_iter_count)
-    elif algorithm == 'supervised_learning':
+    elif config.method.algorithm == 'supervised_learning':
         training_algorithm = SupervisedLearning(expert_dataset, model, config)
 
     # run algorithm
@@ -185,7 +183,6 @@ def main():
         model, replay_buffer = training_algorithm(env)
     else:
         print('Training with profiler')
-        config['training_steps'] = 510
         profile_dir = f'./logs/{training_algorithm.name}/'
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
                      on_trace_ready=th.profiler.tensorboard_trace_handler(profile_dir),

@@ -10,14 +10,15 @@ import numpy as np
 
 
 class Algorithm:
-    def __init__(self, config):
+    def __init__(self, config, pretraining=False):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.config = config
         self.wandb = config.wandb
-        self.algorithm_name = config.algorithm
+        method_config = config.pretraining if pretraining else config.method
+        self.algorithm_name = method_config.name
         self.environment = config.env.name
         self.timestamps = []
-        self.update_frequency = 50
+        self.update_frequency = 100
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
         save_path = Path('train') / self.name

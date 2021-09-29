@@ -1,7 +1,8 @@
 from algorithms.algorithm import Algorithm
-from helpers.datasets import TestDataset
 from helpers.environment import ObservationSpace, ActionSpace
-from helpers.gpu import states_to_device
+from helpers.data_augmentation import DataAugmentation
+
+from helpers.gpu import expert_batch_to_device
 import os
 import wandb
 
@@ -12,22 +13,23 @@ from torch.utils.data import DataLoader
 class SupervisedLearning(Algorithm):
     def __init__(self, config):
         super().__init__(config)
-        self.epochs = config.epochs
-        self.lr = config.learning_rate
-        self.batch_size = config.batch_size
+        self.epochs = config.method.epochs
+        self.lr = config.method.learning_rate
+        self.batch_size = config.method.batch_size
+        self.augmentation = DataAugmentation(config)
 
     def __call__(self, model, train_dataset, test_dataset=None, _env=None):
         optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size,
                                       shuffle=True, num_workers=4)
-        if test_dataset is not None:
-            test_dataset = TestDataset(test_dataset)
 
         iter_count = 0
         for epoch in range(self.epochs):
-            for _, (dataset_obs, dataset_actions,
-                    _next_obs, _done) in enumerate(train_dataloader):
-                loss = model.loss(dataset_obs, dataset_actions)
+            for batch in train_dataloader:
+                batch = expert_batch_to_device(batch)
+                batch = self.augmentation(batch)
+                states, actions, _next_states, _done, _rewards = batch
+                loss = model.loss(states, actions)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -41,8 +43,7 @@ class SupervisedLearning(Algorithm):
 
             print(f'Epoch #{epoch + 1} completed')
             if test_dataset is not None and self.wandb:
-                test_batch = test_dataset.sample()
-                eval_metrics = self.eval(model, test_batch)
+                eval_metrics = self.eval(model, test_dataset)
                 print('Metrics: ', eval_metrics)
                 wandb.log(eval_metrics)
 
@@ -50,9 +51,19 @@ class SupervisedLearning(Algorithm):
         model.save(os.path.join('train', f'{self.name}.pth'))
         return model, None
 
-    def eval(self, model, batch):
-        obs, actions, _next_obs, _done = batch
-        with th.no_grad():
-            test_loss = model.loss(obs, actions)
-        eval_metrics = {'test_loss': test_loss.detach().item()}
+    def eval(self, model, test_dataset):
+        test_losses = []
+        dataloader = DataLoader(test_dataset,
+                                shuffle=False,
+                                batch_size=self.batch_size,
+                                num_workers=4,
+                                drop_last=True)
+        for batch in dataloader:
+            batch = expert_batch_to_device(batch)
+            states, actions, _next_states, _done, _rewards = batch
+            with th.no_grad():
+                test_loss = model.loss(states, actions)
+                test_losses.append(test_loss.detach().item())
+        test_loss = sum(test_losses) / len(test_losses)
+        eval_metrics = {'test_loss': test_loss}
         return eval_metrics

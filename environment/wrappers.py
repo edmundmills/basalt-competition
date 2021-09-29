@@ -62,7 +62,7 @@ class ActionShaping(gym.ActionWrapper):
 
         self.actions = []
         for actions in self._actions:
-            act = self.env.action_space.noop()
+            act = self.env.action_space.no_op()
             for a, v in actions:
                 act[a] = v
             self.actions.append(act)

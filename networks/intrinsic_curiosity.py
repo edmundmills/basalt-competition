@@ -78,7 +78,9 @@ class CuriosityModule(nn.Module):
             return -1
         if ActionSpace.threw_snowball(state, action):
             return -1
-        states = states_to_device((state, next_state), self.device)
+        states = [state_component.unsqueeze(0) for state_component in state]
+        next_states = [state_component.unsqueeze(0) for state_component in next_state]
+        states = states_to_device((states, next_states), self.device)
         action = th.tensor([action], device=self.device, dtype=th.int64).reshape(-1)
         states, _ = cat_states(states)
         with th.no_grad():
@@ -87,22 +89,8 @@ class CuriosityModule(nn.Module):
             predicted_next_features = self.predict_next_features(current_features, action)
             reward = self.eta * F.mse_loss(next_features,
                                            predicted_next_features).item()
+        reward = min(max(reward, -1), 1)
         return reward
-
-    def bulk_rewards(self, state, actions, next_state, done):
-        states, _ = cat_states((state, next_state))
-        with th.no_grad():
-            features = self.get_features(states)
-            current_features, next_features = th.chunk(features, 2, dim=0)
-            predicted_next_features = self.predict_next_features(current_features,
-                                                                 actions)
-            reward = self.eta * F.mse_loss(next_features,
-                                           predicted_next_features, reduction='none')
-            reward = th.mean(reward, dim=1, keepdim=True)
-        threw_snowball = ActionSpace.threw_snowball_tensor(state, actions, self.device)
-        reward = reward * (1 - threw_snowball) - threw_snowball
-        reward = reward * self.eta
-        return reward.squeeze().tolist()
 
     def loss(self, states, actions, next_states, _done, _rewards):
         # loss for predicted action

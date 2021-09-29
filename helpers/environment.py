@@ -1,5 +1,6 @@
 import os
 import copy
+from collections import OrderedDict
 
 import numpy as np
 import torch as th
@@ -15,45 +16,46 @@ class EnvironmentHelper:
 
 
 class ObservationSpace:
-    environment_items = {'MineRLBasaltBuildVillageHouse-v0': {
-        "acacia_door": 64,
-        "acacia_fence": 64,
-        "cactus": 3,
-        "cobblestone": 64,
-        "dirt": 64,
-        "fence": 64,
-        "flower_pot": 3,
-        "glass": 64,
-        "ladder": 64,
-        "log#0": 64,
-        "log#1": 64,
-        "log2#0": 64,
-        "planks#0": 64,
-        "planks#1": 64,
-        "planks#4": 64,
-        "red_flower": 3,
-        "sand": 64,
-        "sandstone#0": 64,
-        "sandstone#2": 64,
-        "sandstone_stairs": 64,
-        "snowball": 1,
-        "spruce_door": 64,
-        "spruce_fence": 64,
-        "stone_axe": 1,
-        "stone_pickaxe": 1,
-        "stone_stairs": 64,
-        "torch": 64,
-        "wooden_door": 64,
-        "wooden_pressure_plate": 64
-    },
-        'MineRLBasaltCreateVillageAnimalPen-v0': {
-            'fence': 64,
-            'fence_gate': 64,
-            'snowball': 1,
-    },
-        'MineRLBasaltFindCave-v0': {'snowball': 1},
-        'MineRLBasaltMakeWaterfall-v0': {'waterbucket': 1, 'snowball': 1},
-        'MineRLTreechop-v0': {'snowball': 1},
+    environment_items = {'MineRLBasaltBuildVillageHouse-v0': OrderedDict([
+        ("acacia_door", 64),
+        ("acacia_fence", 64),
+        ("cactus", 3),
+        ("cobblestone", 64),
+        ("dirt", 64),
+        ("fence", 64),
+        ("flower_pot", 3),
+        ("glass", 64),
+        ("ladder", 64),
+        ("log#0", 64),
+        ("log#1", 64),
+        ("log2#0", 64),
+        ("planks#0", 64),
+        ("planks#1", 64),
+        ("planks#4", 64),
+        ("red_flower", 3),
+        ("sand", 64),
+        ("sandstone#0", 64),
+        ("sandstone#2", 64),
+        ("sandstone_stairs", 64),
+        ("snowball", 1),
+        ("spruce_door", 64),
+        ("spruce_fence", 64),
+        ("stone_axe", 1),
+        ("stone_pickaxe", 1),
+        ("stone_stairs", 64),
+        ("torch", 64),
+        ("wooden_door", 64),
+        ("wooden_pressure_plate", 64)
+    ]),
+        'MineRLBasaltCreateVillageAnimalPen-v0': OrderedDict([
+            ('fence', 64),
+            ('fence_gate', 64),
+            ('snowball', 1),
+        ]),
+        'MineRLBasaltFindCave-v0': OrderedDict([('snowball', 1)]),
+        'MineRLBasaltMakeWaterfall-v0': OrderedDict([('waterbucket', 1),
+                                                     ('snowball', 1)]),
+        'MineRLTreechop-v0': OrderedDict([('snowball', 1)]),
     }
 
     frame_shape = (3, 64, 64)
@@ -67,63 +69,52 @@ class ObservationSpace:
         return ObservationSpace.environment_items[environment]
 
     def obs_to_pov(obs):
-        obs = obs['pov']
-        if isinstance(obs, np.ndarray):
-            obs = th.from_numpy(obs.copy())
-        if len(obs.size()) == 3:
-            obs = obs.unsqueeze(0)
-        return obs.permute(0, 3, 1, 2) / 255.0
-
-    def obs_to_frame_sequence(obs):
-        if 'frame_sequence' not in obs.keys():
-            return None
-        frame_sequence = obs['frame_sequence']
-        if frame_sequence is None or frame_sequence.data[0] is None:
-            return None
-        if len(frame_sequence.size()) == 3:
-            frame_sequence = frame_sequence.unsqueeze(0)
-        return frame_sequence.permute(0, 3, 1, 2) / 255.0
+        pov = obs['pov'].copy()
+        if isinstance(pov, np.ndarray):
+            pov = th.from_numpy(pov).to(th.uint8)
+        return pov.permute(2, 0, 1)
 
     def obs_to_equipped_item(obs):
         equipped_item = obs['equipped_items']['mainhand']['type']
-        if isinstance(equipped_item, str):
-            equipped_item = [equipped_item]
         items = ObservationSpace.items()
-        equipped = th.zeros((len(equipped_item), len(items))).long()
-        # room for optimization:
-        for idx, item in enumerate(equipped_item):
-            if item not in items:
-                continue
-            equipped[idx, items.index(item)] = 1
+        equipped = th.zeros(len(items), dtype=th.uint8)
+        if equipped_item in items:
+            equipped[items.index(equipped_item)] = 1
         return equipped
+
+    def normalize_state(state):
+        pov, items = state
+        pov /= 255.0
+        starting_count = th.FloatTensor(
+            list(ObservationSpace.starting_inventory().values()))
+        ones = th.ones(starting_count.size())
+        denom = th.cat((starting_count, ones), dim=0)
+        denom = th.tile(denom, (items.size()[0], 1)).to(items.device)
+        items /= denom
+        state = pov, items
+        return state
 
     def obs_to_inventory(obs):
         inventory = obs['inventory']
         first_item = list(inventory.values())[0]
         if isinstance(first_item, np.ndarray):
-            inventory = {k: th.from_numpy(v).unsqueeze(0) for k, v in inventory.items()}
+            inventory = {k: th.from_numpy(v).unsqueeze(0).to(th.uint8)
+                         for k, v in inventory.items()}
         elif isinstance(first_item, (int, np.int32)):
-            inventory = {k: th.LongTensor([v]) for k, v in inventory.items()}
-        # normalize inventory by starting inventory
-        inventory = [inventory[item_name].unsqueeze(1) / starting_count
-                     for item_name, starting_count
-                     in iter(ObservationSpace.starting_inventory().items())]
-        inventory = th.cat(inventory, dim=1)
+            inventory = {k: th.tensor([v], dtype=th.uint8) for k, v in inventory.items()}
+        inventory = [inventory[item_name]
+                     for item_name in iter(ObservationSpace.starting_inventory().keys())]
+        inventory = th.cat(inventory, dim=0)
         return inventory
 
-    def obs_to_state(obs):
-        pov = ObservationSpace.obs_to_pov(obs)
-        frame_sequence = ObservationSpace.obs_to_frame_sequence(obs)
-        if frame_sequence is not None:
-            pov = th.cat((pov, frame_sequence), dim=1)
+    def obs_to_items(obs):
         environment = os.getenv('MINERL_ENVIRONMENT')
         if environment == 'MineRLTreechop-v0':
-            items = th.zeros((pov.size()[0], 2))
+            items = th.zeros(2, dtype=th.uint8)
         else:
             items = th.cat((ObservationSpace.obs_to_inventory(obs),
-                            ObservationSpace.obs_to_equipped_item(obs)), dim=1)
-        state = (pov, items)
-        return state
+                            ObservationSpace.obs_to_equipped_item(obs)), dim=0)
+        return items
 
 
 class ActionSpace:
@@ -173,7 +164,7 @@ class ActionSpace:
             equipped_item = obs_or_state['equipped_items']['mainhand']['type']
         else:
             _pov, items = obs_or_state
-            _inventory, equipped_item = th.chunk(items, 2, dim=1)
+            _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
             if th.all(th.eq(equipped_item, ActionSpace.one_hot_snowball())):
                 equipped_item = 'snowball'
         return action == 11 and equipped_item == 'snowball'
@@ -253,40 +244,3 @@ class ActionSpace:
             else:
                 actions[i] = -1
         return actions
-
-
-class MirrorAugment():
-    def __init__(self):
-        return
-
-    def __call__(self, sample):
-        if np.random.choice([True, False]):
-            return sample
-        if len(sample) == 5:
-            obs, action, next_obs, done, reward = sample
-        else:
-            obs, action, next_obs, done = sample
-        new_action = self.mirror_action(action)
-        new_obs = obs.copy()
-        new_next_obs = next_obs.copy()
-        new_obs['pov'] = np.ascontiguousarray(np.flip(new_obs['pov'].copy(), axis=1))
-        new_next_obs['pov'] = np.ascontiguousarray(
-            np.flip(new_next_obs['pov'].copy(), axis=1))
-        if len(sample) == 5:
-            sample = new_obs, new_action, new_next_obs, done, reward
-        else:
-            sample = new_obs, new_action, new_next_obs, done
-        return sample
-
-    def mirror_action(self, action):
-        if action == 2:
-            new_action = 3
-        elif action == 3:
-            new_action = 2
-        elif action == 9:
-            new_action = 10
-        elif action == 10:
-            new_action = 9
-        else:
-            new_action = copy.copy(action)
-        return new_action
