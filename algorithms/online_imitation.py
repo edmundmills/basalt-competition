@@ -1,5 +1,5 @@
 from algorithms.algorithm import Algorithm
-from algorithms.loss_functions.iqlearn import IQLearnLoss
+from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
