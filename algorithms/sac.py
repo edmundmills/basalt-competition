@@ -1,11 +1,12 @@
 from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
 from algorithms.algorithm import Algorithm
-from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, SACPolicyLoss
-from algorithms.loss_functions.iqlearn import IQLearnLossSAC
+from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
+    SACPolicyLoss, CuriousIQPolicyLoss
+from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
-from helpers.gpu import disable_gradients, batch_to_device, batches_to_device
+from helpers.gpu import disable_gradients, batch_to_device, expert_batch_to_device
 from helpers.data_augmentation import DataAugmentation
 
 import numpy as np
@@ -223,15 +224,16 @@ class SoftActorCritic(Algorithm):
 
 
 class IntrinsicCuriosityTraining(SoftActorCritic):
-    def __init__(self, config, actor=None, **kwargs):
-        super().__init__(config, actor, pretraining=True, **kwargs)
-        self.curiosity_pretraining_steps = config.pretraining.curiosity_pretraining_steps
-        self.normalize_reward = config.pretraining.normalize_reward
+    def __init__(self, config, pretraining=True, actor=None):
+        super().__init__(config, actor, pretraining)
+        method_config = config.pretraining if pretraining else config.method
+        self.curiosity_pretraining_steps = method_config.curiosity_pretraining_steps
+        self.normalize_reward = method_config.normalize_reward
         self.recent_rewards = deque(maxlen=200)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
-                                                 lr=config.pretraining.curiosity_lr)
+                                                 lr=method_config.curiosity_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
         reward = self.curiosity_module.reward(current_state, action,
@@ -289,8 +291,8 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
 
 
 class IQLearnSAC(SoftActorCritic):
-    def __init__(self, expert_dataset, config, actor=None, **kwargs):
-        super().__init__(config, actor, **kwargs)
+    def __init__(self, expert_dataset, config, actor=None, pretraining=True, **kwargs):
+        super().__init__(config, actor, pretraining=pretraining, **kwargs)
 
         self.replay_buffer = MixedReplayBuffer(
             expert_dataset=expert_dataset,
@@ -317,4 +319,57 @@ class IQLearnSAC(SoftActorCritic):
         policy_metrics = self.update_policy(batch_for_policy)
 
         metrics = {**policy_metrics, **q_metrics}
+        return metrics
+
+
+class CuriousIQ(IntrinsicCuriosityTraining):
+    def __init__(self, expert_dataset, config, actor=None, pretraining=False):
+        super().__init__(config, actor=actor, pretraining=pretraining)
+        self.iqlearn_q = SoftQNetwork(
+            n_observation_frames=config.n_observation_frames,
+            alpha=config.alpha).to(self.device)
+        if self.drq:
+            self._iqlearn_loss = IQLearnLossDRQ(self.iqlearn_q, config)
+        else:
+            self._iqlearn_loss = IQLearnLoss(self.iqlearn_q, config)
+        self.iqlearn_optimizer = th.optim.Adam(self.iqlearn_q.parameters(),
+                                               lr=config.method.iqlearn_lr)
+        self._policy_loss = CuriousIQPolicyLoss(self.actor, self.online_q, self.iqlearn_q,
+                                                config)
+        self.replay_buffer = MixedReplayBuffer(
+            expert_dataset=expert_dataset,
+            config=config,
+            batch_size=config.method.batch_size)
+
+    def update_iqlearn(self, expert_batch, replay_batch,
+                       expert_batch_aug=None, replay_batch_aug=None):
+        loss, metrics = self._iqlearn_loss(expert_batch, replay_batch,
+                                           expert_batch_aug, replay_batch_aug)
+        self.iqlearn_optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        self.iqlearn_optimizer.step()
+        return metrics
+
+    def train_one_batch(self, batch, curiosity_only=False):
+        expert_batch, replay_batch = batch
+        expert_batch = expert_batch_to_device(expert_batch)
+        replay_batch = batch_to_device(replay_batch)
+        expert_batch_aug = self.augmentation(expert_batch)
+        replay_batch_aug = self.augmentation(replay_batch)
+        if not curiosity_only:
+            if self.drq:
+                q_metrics = self.update_q(replay_batch, replay_batch_aug)
+                iqlearn_metrics = self.update_iqlearn(expert_batch, replay_batch,
+                                                      expert_batch_aug, replay_batch_aug)
+            else:
+                q_metrics = self.update_q(replay_batch_aug)
+                iqlearn_metrics = self.update_iqlearn(expert_batch_aug, replay_batch_aug)
+            policy_metrics = self.update_policy(replay_batch_aug)
+        else:
+            q_metrics = {}
+            iqlearn_metrics = {}
+            policy_metrics = {}
+        curiosity_metrics = self.update_curiosity(replay_batch_aug)
+
+        metrics = {**policy_metrics, **q_metrics, **curiosity_metrics, **iqlearn_metrics}
         return metrics

@@ -97,3 +97,35 @@ class SACPolicyLoss:
                    'policy_Q': expected_Q_policy.detach().mean().item(),
                    'entropy': entropies.detach().mean().item()}
         return loss, metrics
+
+
+class CuriousIQPolicyLoss:
+    def __init__(self, policy, online_q, iqlearn_q, config):
+        self.online_q = online_q
+        self.iqlearn_q = iqlearn_q
+        self.policy = policy
+        self.discount_factor = config.method.discount_factor
+        self.curiosity_fraction = 0.5
+
+    def __call__(self, batch):
+        states, _actions, _next_states, _done, _rewards = batch
+        actor_Qs = self.policy.get_Q(states)
+        entropies = self.policy.entropy(actor_Qs)
+        action_probabilities = self.policy.action_probabilities(actor_Qs)
+
+        curiosity_Qs = self.online_q.get_Q(states)
+        iqlearn_Qs = self.iqlearn_q.get_Q(states)
+        Qs = curiosity_Qs * self.curiosity_fraction + \
+            iqlearn_Qs * (1 - self.curiosity_fraction)
+        # this is elementwise multiplication to get expectation of Q for following policy
+        Q_policy = th.sum(Qs * action_probabilities, dim=1, keepdim=True)
+        # entropy has negative sign: -logpi.
+        # whole term is negative since we want to maximize Q and entropy
+        loss = -th.mean(Q_policy + self.policy.alpha * entropies)
+        metrics = {'policy_loss': loss.detach().item(),
+                   'curiosity_Q': curiosity_Qs.detach().mean().item(),
+                   'iqlearn_Q': iqlearn_Qs.detach().mean().item(),
+                   'average_Q': Qs.detach().mean().item(),
+                   'policy_Q': Q_policy.detach().mean().item(),
+                   'entropy': entropies.detach().mean().item()}
+        return loss, metrics

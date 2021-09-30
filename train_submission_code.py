@@ -3,7 +3,8 @@ from helpers.datasets import TrajectoryStepDataset
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from algorithms.online_imitation import OnlineImitation
-from algorithms.sac import SoftActorCritic, IQLearnSAC, IntrinsicCuriosityTraining
+from algorithms.sac import SoftActorCritic, IQLearnSAC, IntrinsicCuriosityTraining, \
+    CuriousIQ
 
 import torch as th
 import numpy as np
@@ -145,7 +146,7 @@ def main():
     else:
         env = None
 
-    if config.pretrain:
+    if config.pretrain and config.method.name != 'curious_IQ':
         print('Starting Pretraining')
         pretraining_algorithm = IntrinsicCuriosityTraining(config)
         pretrained_model, pretrainining_replay = pretraining_algorithm(env)
@@ -171,6 +172,8 @@ def main():
         training_algorithm = IQLearnSAC(expert_dataset, config,
                                         initial_replay_buffer=pretrainining_replay,
                                         initial_iter_count=pretraining_iter_count)
+    elif config.method.name == 'curious_IQ':
+        training_algorithm = CuriousIQ(expert_dataset, config)
     elif config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config,
                                              initial_replay_buffer=pretrainining_replay,
