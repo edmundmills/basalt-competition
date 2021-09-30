@@ -5,6 +5,7 @@ from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
 from helpers.gpu import batches_to_device
 from helpers.data_augmentation import DataAugmentation
+from helpers.trajectories import TrajectoryGenerator
 
 import numpy as np
 import torch as th
@@ -17,12 +18,11 @@ import os
 
 
 class OnlineImitation(Algorithm):
-    def __init__(self, expert_dataset, model, config, termination_critic=None,
+    def __init__(self, expert_dataset, model, config,
                  initial_replay_buffer=None, initial_iter_count=0):
         super().__init__(config)
-        self.termination_critic = termination_critic
         self.lr = config.method.learning_rate
-        self.starting_steps = config.method.starting_steps
+        self.suppress_snowball_steps = config.method.suppress_snowball_steps
         self.training_steps = config.method.training_steps
         self.batch_size = config.method.batch_size
         self.model = model
@@ -55,10 +55,7 @@ class OnlineImitation(Algorithm):
             batch_size=self.batch_size,
             initial_replay_buffer=initial_replay_buffer)
 
-        if self.starting_steps > 0 and initial_replay_buffer is None:
-            self.generate_random_trajectories(replay_buffer, env, self.starting_steps)
-
-        self.start_new_trajectory(env, replay_buffer)
+        TrajectoryGenerator.new_trajectory(env, replay_buffer)
 
         print((f'{self.algorithm_name}: Starting training'
                f' for {self.training_steps} steps (iteration {self.iter_count})'))
@@ -71,23 +68,23 @@ class OnlineImitation(Algorithm):
         for step in range(self.training_steps):
             current_state = replay_buffer.current_state()
             action = model.get_action(current_state)
-            if ActionSpace.threw_snowball(current_state, action):
-                print(f'Threw Snowball at iteration {self.iter_count}')
-                if self.termination_critic is not None:
-                    reward = self.termination_critic.termination_reward(current_state)
-                    print(f'Termination reward: {reward:.2f}')
-                    if self.wandb:
-                        wandb.log({'termination_reward': reward}, step=self.iter_count)
-                else:
-                    reward = 0
+            if step == 0 and self.suppress_snowball_steps > 0:
+                print(('Suppressing throwing snowball for'
+                       f' {min(self.training_steps, self.suppress_snowball_steps)}'
+                       ' steps'))
+            elif step == self.suppress_snowball_steps and step != 0:
+                print('No longer suppressing snowball')
+            suppressed_snowball = step < self.suppress_snowball_steps \
+                and ActionSpace.threw_snowball(current_state, action)
+            if suppressed_snowball:
+                next_obs, r, done, _ = env.step(-1)
             else:
-                reward = 0
+                next_obs, r, done, _ = env.step(action)
 
-            next_obs, r, done, _ = env.step(action)
             episode_reward += r
             episode_steps += 1
 
-            replay_buffer.append_step(action, reward, next_obs, done)
+            replay_buffer.append_step(action, r, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 expert_batch = replay_buffer.sample_expert()
@@ -114,9 +111,16 @@ class OnlineImitation(Algorithm):
                 self.save_checkpoint(replay_buffer=replay_buffer,
                                      models_with_names=[(model, 'model')])
 
-            if done:
+            if done or suppressed_snowball:
                 print(f'Trajectory completed at iteration {self.iter_count}')
-                self.start_new_trajectory(env, replay_buffer)
+                if suppressed_snowball:
+                    print('Suppressed Snowball')
+                    reset_env = False
+                else:
+                    reset_env = True
+                TrajectoryGenerator.new_trajectory(env, replay_buffer,
+                                                   reset_env=reset_env,
+                                                   current_obs=next_obs)
 
                 rewards_window.append(episode_reward)
                 steps_window.append(episode_steps)

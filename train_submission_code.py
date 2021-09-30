@@ -2,8 +2,11 @@ from helpers.datasets import TrajectoryStepDataset
 # from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
+from helpers.trajectories import TrajectoryGenerator
+from helpers.datasets import ReplayBuffer
 from algorithms.online_imitation import OnlineImitation
-from algorithms.sac import SoftActorCritic, IQLearnSAC, IntrinsicCuriosityTraining
+from algorithms.sac import SoftActorCritic, IntrinsicCuriosityTraining, \
+    CuriousIQ
 
 import torch as th
 import numpy as np
@@ -106,30 +109,6 @@ def main():
             config=config,
         )
 
-    # # Train termination critic - not currently working. possibly could be useful
-    # # if we're stuggling to get the agent to do this successfully
-    # if args.termination_critic:
-    #     critic = TerminationCritic()
-    #     if args.train_critic:
-    #         critic_config = dict(algorithm='termination_critic',
-    #                              epochs=5,
-    #                              learning_rate=1e-4,
-    #                              batch_size=32,
-    #                              environment=environment)
-    #
-    #         expert_dataset.n_observation_frames = 1
-    #         critic.train(expert_dataset, critic_config)
-    #         expert_dataset.n_observation_frames = config['n_observation_frames']
-    #     else:
-    #         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-    #             if ('termination_critic' in saved_agent_path.name
-    #                     and environment in saved_agent_path.name):
-    #                 print(f'Loading {saved_agent_path.name} as termination critic')
-    #                 critic.load_parameters(saved_agent_path)
-    #                 break
-    # else:
-    #     critic = None
-
     # Start Virual Display
     if args.virtual_display:
         display = Display(visible=0, size=(400, 300))
@@ -145,17 +124,23 @@ def main():
     else:
         env = None
 
-    if config.pretrain:
+    replay_buffer = ReplayBuffer(config)
+    iter_count = 0
+    if config.method.starting_steps > 0:
+        replay_buffer = TrajectoryGenerator(
+            env, replay_buffer).random_trajectories(config.method.starting_steps)
+        iter_count += config.method.starting_steps
+
+    if config.pretrain and config.method.name != 'curious_IQ':
         print('Starting Pretraining')
-        pretraining_algorithm = IntrinsicCuriosityTraining(config)
-        pretrained_model, pretrainining_replay = pretraining_algorithm(env)
-        pretraining_iter_count = pretraining_algorithm.iter_count
+        pretraining_algorithm = IntrinsicCuriosityTraining(
+            config, initial_replay_buffer=replay_buffer, initial_iter_count=iter_count)
+        pretrained_model, replay_buffer = pretraining_algorithm(env)
+        iter_count = pretraining_algorithm.iter_count
         print('Pretraining Completed')
     else:
         print('No Pretraining')
         pretrained_model = None
-        pretrainining_replay = None
-        pretraining_iter_count = 0
 
     # initialize dataset, model, algorithm
     if config.method.expert_dataset:
@@ -169,12 +154,16 @@ def main():
 
     if config.method.name == 'iqlearn_sac':
         training_algorithm = IQLearnSAC(expert_dataset, config,
-                                        initial_replay_buffer=pretrainining_replay,
-                                        initial_iter_count=pretraining_iter_count)
+                                        initial_replay_buffer=replay_buffer,
+                                        initial_iter_count=iter_count)
+    elif config.method.name == 'curious_IQ':
+        training_algorithm = CuriousIQ(expert_dataset, config,
+                                       initial_replay_buffer=replay_buffer,
+                                       initial_iter_count=iter_count)
     elif config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config,
-                                             initial_replay_buffer=pretrainining_replay,
-                                             initial_iter_count=pretraining_iter_count)
+                                             initial_replay_buffer=replay_buffer,
+                                             initial_iter_count=iter_count)
     elif config.method.algorithm == 'supervised_learning':
         training_algorithm = SupervisedLearning(expert_dataset, model, config)
 
