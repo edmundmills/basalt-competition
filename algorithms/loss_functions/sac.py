@@ -62,9 +62,7 @@ class SACQLossDRQ:
         loss += F.mse_loss(Q_s_a_aug, target_Qs)
 
         metrics = {'q_loss': loss.detach().item(),
-                   'average_target_Q': target_Qs.mean().item(),
-                   'target_Q_noaug': target_Qs_noaug.mean().item(),
-                   'target_Q_aug': target_Qs_aug.mean().item()}
+                   'average_target_Q': target_Qs.mean().item()}
         return loss, metrics
 
 
@@ -113,19 +111,23 @@ class CuriousIQPolicyLoss:
         entropies = self.policy.entropy(actor_Qs)
         action_probabilities = self.policy.action_probabilities(actor_Qs)
 
-        curiosity_Qs = self.online_q.get_Q(states)
-        iqlearn_Qs = self.iqlearn_q.get_Q(states)
-        Qs = curiosity_Qs * self.curiosity_fraction + \
-            iqlearn_Qs * (1 - self.curiosity_fraction)
+        with th.no_grad():
+            curiosity_Qs = self.online_q.get_Q(states)
+            iqlearn_Qs = self.iqlearn_q.get_Q(states)
         # this is elementwise multiplication to get expectation of Q for following policy
-        Q_policy = th.sum(Qs * action_probabilities, dim=1, keepdim=True)
+        curiosity_Q_policy = th.sum(curiosity_Qs * action_probabilities,
+                                    dim=1, keepdim=True)
+        iqlearn_Q_policy = th.sum(iqlearn_Qs * action_probabilities, dim=1, keepdim=True)
         # entropy has negative sign: -logpi.
         # whole term is negative since we want to maximize Q and entropy
-        loss = -th.mean(Q_policy + self.policy.alpha * entropies)
+        loss = self.curiosity_fraction * -th.mean(curiosity_Q_policy
+                                                  + self.policy.alpha * entropies) \
+            + (1 - self.curiosity_fraction) * -th.mean(iqlearn_Q_policy
+                                                       + self.policy.alpha * entropies)
         metrics = {'policy_loss': loss.detach().item(),
                    'curiosity_Q': curiosity_Qs.detach().mean().item(),
                    'iqlearn_Q': iqlearn_Qs.detach().mean().item(),
-                   'average_Q': Qs.detach().mean().item(),
-                   'policy_Q': Q_policy.detach().mean().item(),
+                   'policy_Q_iqlearn': iqlearn_Q_policy.detach().mean().item(),
+                   'policy_Q_curiosity': curiosity_Q_policy.detach().mean().item(),
                    'entropy': entropies.detach().mean().item()}
         return loss, metrics
