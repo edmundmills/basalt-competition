@@ -110,22 +110,76 @@ class Trajectory:
 
 
 class TrajectoryGenerator:
-    def __init__(self, env, model):
+    def __init__(self, env, replay_buffer=None):
         self.env = env
-        self.model = model
+        self.replay_buffer = replay_buffer
 
-    def generate(self, max_episode_length=100000):
+    def generate(self, model, max_episode_length=100000):
         trajectory = Trajectory(n_observation_frames=self.model.n_observation_frames)
         obs = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs)
             state = trajectory.current_state()
-            action = self.model.get_action(state)
+            action = model.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
         return trajectory
+
+    def new_trajectory(env, replay_buffer, reset_env=True, current_obs=None):
+        if len(replay_buffer.current_trajectory()) > 0:
+            replay_buffer.new_trajectory()
+        if reset_env:
+            obs = env.reset()
+        else:
+            obs = current_obs
+        replay_buffer.current_trajectory().append_obs(obs)
+        current_state = replay_buffer.current_state()
+        return current_state
+
+    def start_new_trajectory(self, **kwargs):
+        current_state = TrajectoryGenerator.new_trajectory(self.env, self.replay_buffer,
+                                                           **kwargs)
+        return current_state
+
+    def random_trajectories(self, steps):
+        print(f'Generating random trajectories for {steps} steps')
+
+        current_state = self.start_new_trajectory()
+
+        # generate random trajectories
+        for step in range(steps):
+            action = ActionSpace.random_action()
+            self.replay_buffer.current_trajectory().actions.append(action)
+
+            suppressed_snowball = ActionSpace.threw_snowball(current_state, action)
+            if suppressed_snowball:
+                obs, _, done, _ = self.env.step(-1)
+                reward = -1
+            else:
+                obs, _, done, _ = self.env.step(action)
+                reward = 0
+
+            self.replay_buffer.current_trajectory().append_obs(obs)
+            self.replay_buffer.current_trajectory().done = done
+            next_state = self.replay_buffer.current_state()
+
+            self.replay_buffer.current_trajectory().rewards.append(reward)
+
+            self.replay_buffer.increment_step()
+            current_state = next_state
+
+            if done or (step % 1000 == 0 and step != steps):
+                print(f'Random trajectory completed at step {step}')
+                current_state = self.start_new_trajectory()
+            elif suppressed_snowball:
+                current_state = self.start_new_trajectory(reset_env=False,
+                                                          current_obs=obs)
+
+        trajectory_count = len(self.replay_buffer.trajectories)
+        print(f'Finished generating {trajectory_count} random trajectories')
+        return self.replay_buffer
 
 
 class TrajectoryViewer:

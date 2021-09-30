@@ -25,6 +25,7 @@ class TrajectoryStepDataset(Dataset):
         self.environment = os.getenv('MINERL_ENVIRONMENT')
         self.environment_path = self.data_root / self.environment
         self.trajectories, self.step_lookup = self._load_data()
+        print(f'Expert dataset initialized with {len(self)} steps')
 
     def _load_data(self):
         data = minerl.data.make(self.environment)
@@ -51,7 +52,7 @@ class TrajectoryStepDataset(Dataset):
                 trajectory.actions.append(action)
                 step_lookup.append((trajectory_idx, step_idx))
                 step_idx += 1
-            print(f'Loaded data from {trajectory_path.name}')
+            print(f'Loaded data from {trajectory_path.name} ({step_idx} steps)')
             trajectories.append(trajectory)
             trajectory_idx += 1
             if self.debug_dataset and trajectory_idx >= 2:

@@ -26,53 +26,6 @@ class Algorithm:
         self.save_path = save_path
         self.iter_count = 1
 
-    def generate_random_trajectories(self, replay_buffer, env, steps):
-        print(f'Generating random trajectories for {steps} steps')
-        current_state = self.start_new_trajectory(env, replay_buffer)
-
-        # generate random trajectories
-        for step in range(steps):
-            action = ActionSpace.random_action()
-            replay_buffer.current_trajectory().actions.append(action)
-
-            suppressed_snowball = ActionSpace.threw_snowball(current_state, action)
-            if suppressed_snowball:
-                obs, _, done, _ = env.step(-1)
-                reward = -1
-            else:
-                obs, _, done, _ = env.step(action)
-                reward = 0
-
-            replay_buffer.current_trajectory().append_obs(obs)
-            replay_buffer.current_trajectory().done = done
-            next_state = replay_buffer.current_state()
-
-            replay_buffer.current_trajectory().rewards.append(reward)
-
-            replay_buffer.increment_step()
-            current_state = next_state
-
-            if done or (self.iter_count % 1000 == 0 and self.iter_count != steps):
-                print(f'Random trajectory completed at step {self.iter_count}')
-                current_state = self.start_new_trajectory(env, replay_buffer)
-            elif suppressed_snowball:
-                replay_buffer.current_trajectory().done = True
-                replay_buffer.new_trajectory()
-                replay_buffer.current_trajectory().append_obs(obs)
-                current_state = replay_buffer.current_state()
-
-            self.log_step()
-        print(
-            f'Finished generating {len(replay_buffer.trajectories)} random trajectories')
-
-    def start_new_trajectory(self, env, replay_buffer):
-        if len(replay_buffer.current_trajectory()) > 0:
-            replay_buffer.new_trajectory()
-        obs = env.reset()
-        replay_buffer.current_trajectory().append_obs(obs)
-        current_state = replay_buffer.current_state()
-        return current_state
-
     def log_step(self):
         self.iter_count += 1
         self.timestamps.append(time.time())
