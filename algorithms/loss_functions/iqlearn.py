@@ -37,9 +37,7 @@ class IQLearnLoss:
 
         # keep track of v0
         v0 = V_expert.mean()
-        v0_aug = V_expert_aug.mean()
         metrics['v0'] = v0
-        metrics['v0_aug'] = v0_aug
 
         def distance_function(x):
             return x - 1/4 * x**2
@@ -129,6 +127,8 @@ class IQLearnLossDRQ(IQLearnLoss):
         # keep track of v0
         v0 = V_expert.mean()
         metrics['v0'] = v0
+        v0_aug = V_expert_aug.mean()
+        metrics['v0_aug'] = v0_aug
 
         def distance_function(x):
             return x - 1/4 * x**2
