@@ -334,7 +334,7 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             self.iqlearn_target_q = SoftQNetwork(
                 n_observation_frames=config.n_observation_frames,
                 alpha=config.alpha).to(self.device)
-            self.iqlearn_target_q.load_state_dict(self.online_q.state_dict())
+            self.iqlearn_target_q.load_state_dict(self.iqlearn_q.state_dict())
             disable_gradients(self.iqlearn_target_q)
             print('IQLearn Target Network Initialized')
         else:
@@ -360,8 +360,8 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
         if self.iqlearn_target_q is None:
             return
-        for target, online in zip(self.iqlearn_q.parameters(),
-                                  self.iqlearn_target_q.parameters()):
+        for target, online in zip(self.iqlearn_target_q.parameters(),
+                                  self.iqlearn_q.parameters()):
             target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
 
     def update_iqlearn(self, expert_batch, replay_batch,
