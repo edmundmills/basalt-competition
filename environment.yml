@@ -25,3 +25,4 @@ dependencies:
     - pyvirtualdisplay
     - hydra-core
     - kornia
+    - flatten-dict

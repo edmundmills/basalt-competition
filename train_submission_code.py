@@ -16,6 +16,7 @@ from pyvirtualdisplay import Display
 import hydra
 from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf
+from flatten_dict import flatten
 import wandb
 from pathlib import Path
 import argparse
@@ -99,7 +100,8 @@ def main():
             project=config.project_name,
             entity="basalt",
             notes="test",
-            config=config,
+            config=flatten(OmegaConf.to_container(config, resolve=True),
+                           reducer='dot'),
         )
 
     # Start Virual Display
