@@ -6,9 +6,10 @@ import torch.nn.functional as F
 
 
 class IQLearnLoss:
-    def __init__(self, model, config):
+    def __init__(self, model, config, target_q=None):
         self.config = config
         self.model = model
+        self.target_q = target_q
         self.actions = ActionSpace.actions()
         self.alpha = config.alpha
         self.discount_factor = config.method.discount_factor
@@ -21,17 +22,34 @@ class IQLearnLoss:
         replay_states, replay_actions, replay_next_states, \
             replay_done, _replay_rewards = replay_batch
 
-        batch_states = expert_states, replay_states, \
-            expert_next_states, replay_next_states
-        batch_states, state_lengths = cat_states(batch_states)
-        batch_Qs = self.model.get_Q(batch_states)
-        Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)
+        if self.target_q is None:
+            batch_states = expert_states, replay_states, \
+                expert_next_states, replay_next_states
+            batch_states, state_lengths = cat_states(batch_states)
+            batch_Qs = self.model.get_Q(batch_states)
+            Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)
 
-        predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
+            predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
 
-        batch_Vs = self.model.get_V(batch_Qs)
-        V_expert, V_replay, V_next_expert, V_next_replay = th.split(
-            batch_Vs, state_lengths, dim=0)
+            batch_Vs = self.model.get_V(batch_Qs)
+            V_expert, V_replay, V_next_expert, V_next_replay = th.split(
+                batch_Vs, state_lengths, dim=0)
+        else:
+            current_states, current_state_lengths = cat_states((expert_states,
+                                                                replay_states))
+            current_Qs = self.model.get_Q(current_states)
+            current_Vs = self.model.get_V(current_Qs)
+            current_Qs_expert, _ = th.split(current_Qs, current_state_lengths, dim=0)
+            predicted_Q_expert = th.gather(current_Qs_expert, dim=1, index=expert_actions)
+
+            next_states, next_state_lengths = cat_states((expert_next_states,
+                                                          replay_next_states))
+            with th.no_grad():
+                next_Qs = self.target_q.get_Q(next_states)
+                next_Vs = self.target_q.get_V(next_Qs)
+
+            V_expert, V_replay = th.split(current_Vs, current_state_lengths, dim=0)
+            V_next_expert, V_next_replay = th.split(next_Vs, next_state_lengths, dim=0)
 
         metrics = {}
 
@@ -91,8 +109,8 @@ class IQLearnLoss:
 
 
 class IQLearnLossDRQ(IQLearnLoss):
-    def __init__(self, model, config):
-        super().__init__(model, config)
+    def __init__(self, model, config, target_q=None):
+        super().__init__(model, config, target_q=target_q)
 
     def __call__(self, expert_batch, replay_batch, aug_exp_batch, aug_rep_batch):
         expert_states, expert_actions, expert_next_states, \
@@ -104,23 +122,48 @@ class IQLearnLossDRQ(IQLearnLoss):
         replay_states_aug, replay_actions_aug, replay_next_states_aug, \
             _replay_done_aug, _replay_rewards = replay_batch
 
-        batch_states = expert_states, replay_states, \
-            expert_next_states, replay_next_states, \
-            expert_states_aug, replay_states_aug, \
-            expert_next_states_aug, replay_next_states_aug
+        if self.target_q is None:
+            batch_states = expert_states, replay_states, \
+                expert_next_states, replay_next_states, \
+                expert_states_aug, replay_states_aug, \
+                expert_next_states_aug, replay_next_states_aug
 
-        batch_states, state_lengths = cat_states(batch_states)
-        batch_Qs = self.model.get_Q(batch_states)
-        Q_expert, _, _, _, Q_expert_aug, _, _, _ = th.split(batch_Qs,
-                                                            state_lengths, dim=0)
+            batch_states, state_lengths = cat_states(batch_states)
+            batch_Qs = self.model.get_Q(batch_states)
+            Q_expert, _, _, _, Q_expert_aug, _, _, _ = th.split(batch_Qs,
+                                                                state_lengths, dim=0)
 
-        predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
-        predicted_Q_expert_aug = th.gather(Q_expert_aug, 1, expert_actions_aug)
+            predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
+            predicted_Q_expert_aug = th.gather(Q_expert_aug, 1, expert_actions_aug)
 
-        batch_Vs = self.model.get_V(batch_Qs)
-        V_expert, V_replay, V_next_expert, V_next_replay, \
-            V_expert_aug, V_replay_aug, V_next_expert_aug, V_next_replay_aug = th.split(
-                batch_Vs, state_lengths, dim=0)
+            batch_Vs = self.model.get_V(batch_Qs)
+            V_expert, V_replay, V_next_expert, V_next_replay, V_expert_aug, \
+                V_replay_aug, V_next_expert_aug, V_next_replay_aug = th.split(
+                    batch_Vs, state_lengths, dim=0)
+        else:
+            current_states, current_state_lengths = cat_states((expert_states,
+                                                                replay_states,
+                                                                expert_states_aug,
+                                                                replay_states_aug))
+            current_Qs = self.model.get_Q(current_states)
+            current_Vs = self.model.get_V(current_Qs)
+            Q_expert, _, Q_expert_aug, _ = th.split(current_Qs,
+                                                    current_state_lengths, dim=0)
+            predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
+            predicted_Q_expert_aug = th.gather(Q_expert_aug, 1, expert_actions_aug)
+
+            next_states, next_state_lengths = cat_states((expert_next_states,
+                                                          replay_next_states,
+                                                          expert_next_states_aug,
+                                                          replay_next_states_aug))
+            with th.no_grad():
+                next_Qs = self.target_q.get_Q(next_states)
+                next_Vs = self.target_q.get_V(next_Qs)
+
+            V_expert, V_replay, V_expert_aug, V_replay_aug = th.split(
+                current_Vs, current_state_lengths, dim=0)
+            V_next_expert, V_next_replay, V_next_expert_aug, V_next_replay_aug = th.split(
+                next_Vs, next_state_lengths, dim=0)
 
         metrics = {}
 
@@ -180,41 +223,8 @@ class IQLearnLossDRQ(IQLearnLoss):
             metrics['value_policy_loss'] = value_loss
 
         metrics.update({
-            "total_loss": loss,
+            "iqlearn_loss_total": loss,
         })
         for k, v in iter(metrics.items()):
             metrics[k] = v.item()
-        return loss, metrics
-
-
-class IQLearnLossSAC(IQLearnLoss):
-    def __init__(self, model, config, target_q):
-        super().__init__(model, config)
-        self.target_q = target_q
-        self.online_q = self.model
-
-    def __call__(self, expert_states, expert_actions, expert_next_states, expert_done,
-                 replay_states, _replay_actions, replay_next_states, replay_done):
-        current_states, current_state_lengths = cat_states((expert_states, replay_states))
-        current_Qs = self.online_q.get_Q(current_states)
-        current_Vs = self.online_q.get_V(current_Qs)
-        current_Qs_expert, _ = th.split(current_Qs, current_state_lengths, dim=0)
-        Q_s_a_expert = th.gather(current_Qs_expert, dim=1, index=expert_actions)
-
-        next_states, next_state_lengths = cat_states((expert_next_states,
-                                                      replay_next_states))
-        with th.no_grad():
-            next_Qs = self.target_q.get_Q(next_states)
-            next_Vs = self.target_q.get_V(next_Qs)
-            V_next_expert, _ = th.split(next_Vs, next_state_lengths, dim=0)
-
-        def distance_function(x):
-            return x - 1/4 * x**2
-
-        loss = -(th.mean(distance_function(Q_s_a_expert -
-                                           self.discount_factor * V_next_expert)) -
-                 th.mean(current_Vs - self.discount_factor * next_Vs))
-
-        metrics = {'q_loss': loss.detach().item(),
-                   'average_target_Q': next_Qs.detach().mean().item()}
         return loss, metrics

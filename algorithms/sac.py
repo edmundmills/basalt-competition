@@ -300,7 +300,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
 #             config=config,
 #             batch_size=config.method.batch_size)
 #
-#         self._q_loss = IQLearnLossSAC(self.online_q, config, target_q=self.target_q)
+#         self._q_loss = IQLearnLoss(self.online_q, config, target_q=self.target_q)
 #
 #     def train_one_batch(self, batch):
 #         expert_batch, replay_batch = batch
@@ -330,10 +330,21 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         self.iqlearn_q = SoftQNetwork(
             n_observation_frames=config.n_observation_frames,
             alpha=config.alpha).to(self.device)
-        if self.drq:
-            self._iqlearn_loss = IQLearnLossDRQ(self.iqlearn_q, config)
+        if config.method.target_q:
+            self.iqlearn_target_q = SoftQNetwork(
+                n_observation_frames=config.n_observation_frames,
+                alpha=config.alpha).to(self.device)
+            self.iqlearn_target_q.load_state_dict(self.online_q.state_dict())
+            disable_gradients(self.iqlearn_target_q)
+            print('IQLearn Target Network Initialized')
         else:
-            self._iqlearn_loss = IQLearnLoss(self.iqlearn_q, config)
+            self.iqlearn_target_q = None
+        if self.drq:
+            self._iqlearn_loss = IQLearnLossDRQ(self.iqlearn_q, config,
+                                                target_q=self.iqlearn_target_q)
+        else:
+            self._iqlearn_loss = IQLearnLoss(self.iqlearn_q, config,
+                                             target_q=self.iqlearn_target_q)
         self.iqlearn_optimizer = th.optim.Adam(self.iqlearn_q.parameters(),
                                                lr=config.method.iqlearn_lr)
         self._policy_loss = CuriousIQPolicyLoss(self.actor, self.online_q, self.iqlearn_q,
@@ -343,6 +354,15 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             config=config,
             batch_size=config.method.batch_size,
             initial_replay_buffer=self.replay_buffer)
+
+    def _soft_update_target(self):
+        for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
+            target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
+        if self.iqlearn_target_q is None:
+            return
+        for target, online in zip(self.iqlearn_q.parameters(),
+                                  self.iqlearn_target_q.parameters()):
+            target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
 
     def update_iqlearn(self, expert_batch, replay_batch,
                        expert_batch_aug=None, replay_batch_aug=None):
