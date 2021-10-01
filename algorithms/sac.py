@@ -44,7 +44,6 @@ class SoftActorCritic(Algorithm):
             self.replay_buffer = initial_replay_buffer
             print((f'Using initial replay buffer'
                    f' with {len(initial_replay_buffer)} steps'))
-
         self.iter_count += initial_iter_count
 
         # Set up networks - actor
@@ -106,8 +105,8 @@ class SoftActorCritic(Algorithm):
         self.q_optimizer.step()
         return metrics
 
-    def update_policy(self, batch):
-        policy_loss, metrics = self._policy_loss(batch)
+    def update_policy(self, step, batch):
+        policy_loss, metrics = self._policy_loss(step, batch)
         self.policy_optimizer.zero_grad(set_to_none=True)
         policy_loss.backward()
         self.policy_optimizer.step()
@@ -161,7 +160,7 @@ class SoftActorCritic(Algorithm):
                 step_metrics = None
                 for i in range(updates_per_step):
                     batch = self.replay_buffer.sample(batch_size=self.batch_size)
-                    metrics = self.train_one_batch(batch)
+                    metrics = self.train_one_batch(step, batch)
 
                     # collect and log metrics:
                     if step_metrics is None:
@@ -208,7 +207,7 @@ class SoftActorCritic(Algorithm):
         print(f'{self.algorithm_name}: Training complete')
         return self.actor, self.replay_buffer
 
-    def train_one_batch(self, batch):
+    def train_one_batch(self, step, batch):
         # load batch onto gpu
         batch = batch_to_device(batch)
         aug_batch = self.augmentation(batch)
@@ -216,7 +215,7 @@ class SoftActorCritic(Algorithm):
             q_metrics = self.update_q(batch, aug_batch)
         else:
             q_metrics = self.update_q(aug_batch)
-        policy_metrics = self.update_policy(aug_batch)
+        policy_metrics = self.update_policy(step, aug_batch)
         metrics = {**policy_metrics, **q_metrics}
         return metrics
 
@@ -259,7 +258,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         self.curiosity_optimizer.step()
         return metrics
 
-    def train_one_batch(self, batch, curiosity_only=False):
+    def train_one_batch(self, step, batch, curiosity_only=False):
         batch = batch_to_device(batch)
         aug_batch = self.augmentation(batch)
         if not curiosity_only:
@@ -267,7 +266,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                 q_metrics = self.update_q(batch, aug_batch)
             else:
                 q_metrics = self.update_q(aug_batch)
-            policy_metrics = self.update_policy(aug_batch)
+            policy_metrics = self.update_policy(step, aug_batch)
         else:
             policy_metrics = {}
             q_metrics = {}
@@ -281,7 +280,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
               f' {self.curiosity_pretraining_steps} steps'))
         for step in range(self.curiosity_pretraining_steps):
             batch = self.replay_buffer.sample(batch_size=self.batch_size)
-            metrics = self.train_one_batch(batch, curiosity_only=True)
+            metrics = self.train_one_batch(step, batch, curiosity_only=True)
             self.log_step()
             if self.wandb:
                 wandb.log(
@@ -354,7 +353,7 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         self.iqlearn_optimizer.step()
         return metrics
 
-    def train_one_batch(self, batch, curiosity_only=False):
+    def train_one_batch(self, step, batch, curiosity_only=False):
         expert_batch, replay_batch = batch
         expert_batch = expert_batch_to_device(expert_batch)
         replay_batch = batch_to_device(replay_batch)
@@ -368,12 +367,16 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             else:
                 q_metrics = self.update_q(replay_batch_aug)
                 iqlearn_metrics = self.update_iqlearn(expert_batch_aug, replay_batch_aug)
-            policy_metrics = self.update_policy(replay_batch_aug)
+            policy_metrics = self.update_policy(step, replay_batch_aug)
         else:
             q_metrics = {}
             iqlearn_metrics = {}
             policy_metrics = {}
-        curiosity_metrics = self.update_curiosity(replay_batch_aug)
+        if step < self.config.method.curiosity_only_steps \
+                + self.config.method.curiosity_fade_out_steps:
+            curiosity_metrics = self.update_curiosity(replay_batch_aug)
+        else:
+            curiosity_metrics = {}
 
         metrics = {**policy_metrics, **q_metrics, **curiosity_metrics, **iqlearn_metrics}
         return metrics

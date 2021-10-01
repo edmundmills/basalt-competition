@@ -39,6 +39,8 @@ class Algorithm:
     def iteration_rate(self):
         iterations = min(self.update_frequency, len(self.timestamps) - 1)
         duration = self.timestamps[-1] - self.timestamps[-iterations]
+        if duration == 0:
+            return 0
         rate = iterations / duration
         return rate
 

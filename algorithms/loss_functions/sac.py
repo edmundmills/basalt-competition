@@ -103,31 +103,60 @@ class CuriousIQPolicyLoss:
         self.iqlearn_q = iqlearn_q
         self.policy = policy
         self.discount_factor = config.method.discount_factor
-        self.curiosity_fraction = 0.5
+        self.curiosity_only_steps = config.method.curiosity_only_steps
+        self.curiosity_fade_out_steps = config.method.curiosity_only_steps
 
-    def __call__(self, batch):
+    def __call__(self, step, batch):
+        steps_in_fade = step - self.curiosity_only_steps
+        if steps_in_fade == self.curiosity_fade_out_steps:
+            print('Updating actor with iqlearn only')
+        elif steps_in_fade == 0:
+            print('Updating actor with curiosity and iqlearn')
+        elif step == 0:
+            print('Updating actor with curiosity only')
+        if steps_in_fade >= 0 and steps_in_fade <= self.curiosity_fade_out_steps \
+                and self.curiosity_fade_out_steps != 0:
+            curiosity_fraction = (self.curiosity_fade_out_steps - steps_in_fade) \
+                / self.curiosity_fade_out_steps
+        else:
+            curiosity_fraction = None
+
         states, _actions, _next_states, _done, _rewards = batch
         actor_Qs = self.policy.get_Q(states)
         entropies = self.policy.entropy(actor_Qs)
         action_probabilities = self.policy.action_probabilities(actor_Qs)
 
-        with th.no_grad():
-            curiosity_Qs = self.online_q.get_Q(states)
-            iqlearn_Qs = self.iqlearn_q.get_Q(states)
-        # this is elementwise multiplication to get expectation of Q for following policy
-        curiosity_Q_policy = th.sum(curiosity_Qs * action_probabilities,
-                                    dim=1, keepdim=True)
-        iqlearn_Q_policy = th.sum(iqlearn_Qs * action_probabilities, dim=1, keepdim=True)
-        # entropy has negative sign: -logpi.
-        # whole term is negative since we want to maximize Q and entropy
-        loss = self.curiosity_fraction * -th.mean(curiosity_Q_policy
-                                                  + self.policy.alpha * entropies) \
-            + (1 - self.curiosity_fraction) * -th.mean(iqlearn_Q_policy
-                                                       + self.policy.alpha * entropies)
-        metrics = {'policy_loss': loss.detach().item(),
-                   'curiosity_Q': curiosity_Qs.detach().mean().item(),
-                   'iqlearn_Q': iqlearn_Qs.detach().mean().item(),
-                   'policy_Q_iqlearn': iqlearn_Q_policy.detach().mean().item(),
-                   'policy_Q_curiosity': curiosity_Q_policy.detach().mean().item(),
-                   'entropy': entropies.detach().mean().item()}
+        metrics = {}
+
+        if steps_in_fade <= self.curiosity_fade_out_steps:
+            with th.no_grad():
+                curiosity_Qs = self.online_q.get_Q(states)
+            # this is elementwise multiplication to get expectation of Q for policy
+            curiosity_Q_policy = th.sum(curiosity_Qs * action_probabilities,
+                                        dim=1, keepdim=True)
+            # entropy has negative sign: -logpi.
+            # whole term is negative since we want to maximize Q and entropy
+            curiosity_loss = -th.mean(curiosity_Q_policy + self.policy.alpha * entropies)
+            metrics['curiosity_Q'] = curiosity_Qs.detach().mean().item()
+            metrics['policy_Q_curiosity'] = curiosity_Q_policy.detach().mean().item()
+            curiosity_fraction = curiosity_fraction or 1
+        else:
+            curiosity_loss = 0
+            curiosity_fraction = 0
+        if steps_in_fade >= 0:
+            with th.no_grad():
+                iqlearn_Qs = self.iqlearn_q.get_Q(states)
+            iqlearn_Q_policy = th.sum(iqlearn_Qs * action_probabilities,
+                                      dim=1, keepdim=True)
+            policy_loss = -th.mean(iqlearn_Q_policy + self.policy.alpha * entropies)
+            metrics['iqlearn_Q'] = iqlearn_Qs.detach().mean().item()
+            metrics['policy_Q_iqlearn'] = iqlearn_Q_policy.detach().mean().item()
+        else:
+            policy_loss = 0
+
+        loss = curiosity_fraction * curiosity_loss \
+            + (1 - curiosity_fraction) * policy_loss
+        metrics['policy_loss'] = loss.detach().item()
+        metrics['entropy'] = entropies.detach().mean().item()
+        metrics['curiosity_fraction'] = curiosity_fraction
         return loss, metrics
