@@ -1,13 +1,12 @@
 defaults:
   - method: iqlearn_online
   - env: cave
-  - pretraining: curiosity
+  - pretraining: none
   - _self_
 
 exp_name: ''
 project_name: ${env.name}
 device: ???  # to be specified later
-pretrain: ???
 env: ???
 method: ???
 wandb: ???

@@ -60,7 +60,6 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
-    cfg.pretrain = args.pretrain
     if args.profile:
         cfg.method.training_steps = 510
     cfg.hydra_base_dir = os.getcwd()
@@ -74,12 +73,6 @@ def main():
     This should produce and save same files you upload during your submission.
     """
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--termination-critic', dest='termination_critic',
-                           action='store_true', default=False)
-    argparser.add_argument('--train-critic-false', dest='train_critic',
-                           action='store_true', default=True)
-    argparser.add_argument('--pretrain', dest='pretrain',
-                           action='store_true', default=False)
     argparser.add_argument('--debug-env', dest='debug_env',
                            action='store_true', default=False)
     argparser.add_argument('--profile', dest='profile',
@@ -131,7 +124,7 @@ def main():
             env, replay_buffer).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
 
-    if config.pretrain and config.method.name != 'curious_IQ':
+    if config.pretraining.name == 'curiosity_pretraining':
         print('Starting Pretraining')
         pretraining_algorithm = IntrinsicCuriosityTraining(
             config, initial_replay_buffer=replay_buffer, initial_iter_count=iter_count)
