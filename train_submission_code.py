@@ -147,11 +147,7 @@ def main():
         model = SoftQNetwork(alpha=config.alpha,
                              n_observation_frames=config.n_observation_frames)
 
-    if config.method.name == 'iqlearn_sac':
-        training_algorithm = IQLearnSAC(expert_dataset, config,
-                                        initial_replay_buffer=replay_buffer,
-                                        initial_iter_count=iter_count)
-    elif config.method.name == 'curious_IQ':
+    if config.method.algorithm == 'curious_IQ':
         training_algorithm = CuriousIQ(expert_dataset, config,
                                        initial_replay_buffer=replay_buffer,
                                        initial_iter_count=iter_count)
