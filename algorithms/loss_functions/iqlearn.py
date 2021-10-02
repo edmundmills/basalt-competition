@@ -39,8 +39,10 @@ class IQLearnLoss:
                                                                 replay_states))
             current_Qs = self.model.get_Q(current_states)
             current_Vs = self.model.get_V(current_Qs)
-            current_Qs_expert, _ = th.split(current_Qs, current_state_lengths, dim=0)
+            current_Qs_expert, current_Qs_replay = th.split(
+                current_Qs, current_state_lengths, dim=0)
             predicted_Q_expert = th.gather(current_Qs_expert, dim=1, index=expert_actions)
+            predicted_Q_replay = th.gather(current_Qs_replay, dim=1, index=replay_actions)
 
             next_states, next_state_lengths = cat_states((expert_next_states,
                                                           replay_next_states))
@@ -61,8 +63,12 @@ class IQLearnLoss:
             return x - 1/4 * x**2
 
         loss_expert = -th.mean(distance_function(
-            predicted_Q_expert - (1 - expert_done) * self.discount_factor * V_next_expert)
+            predicted_Q_expert - (1-expert_done) * self.discount_factor * V_next_expert)
         )
+        if self.target_q is not None:
+            loss_expert += -th.mean(-1/4*(predicted_Q_replay - (1-replay_done)
+                                          * self.discount_factor * V_next_replay)**2)
+
         loss = loss_expert
         metrics['softq_loss'] = loss_expert
 
@@ -147,10 +153,12 @@ class IQLearnLossDRQ(IQLearnLoss):
                                                                 replay_states_aug))
             current_Qs = self.model.get_Q(current_states)
             current_Vs = self.model.get_V(current_Qs)
-            Q_expert, _, Q_expert_aug, _ = th.split(current_Qs,
-                                                    current_state_lengths, dim=0)
+            Q_expert, Q_replay, Q_expert_aug, Q_replay_aug = th.split(
+                current_Qs, current_state_lengths, dim=0)
             predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
             predicted_Q_expert_aug = th.gather(Q_expert_aug, 1, expert_actions_aug)
+            predicted_Q_replay = th.gather(Q_replay, 1, replay_actions)
+            predicted_Q_replay_aug = th.gather(Q_replay_aug, 1, replay_actions_aug)
 
             next_states, next_state_lengths = cat_states((expert_next_states,
                                                           replay_next_states,
@@ -186,6 +194,10 @@ class IQLearnLossDRQ(IQLearnLoss):
 
         loss_expert = -th.mean(distance_function(predicted_Q_expert - target_Q_exp))
         loss_expert += -th.mean(distance_function(predicted_Q_expert_aug - target_Q_exp))
+        if self.target_q is not None:
+            loss_expert += -th.mean(-1/4*(predicted_Q_replay - target_Q_rep)**2)
+            loss_expert += -th.mean(-1/4*(predicted_Q_replay_aug - target_Q_rep)**2)
+
         loss = loss_expert
         metrics['softq_loss'] = loss_expert
 

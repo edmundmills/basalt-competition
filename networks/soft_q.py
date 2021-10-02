@@ -17,7 +17,7 @@ class SoftQNetwork(Network):
 
     def get_Q_s_a(self, states, actions):
         Qs = self.get_Q(states)
-        Q_s_a = th.gather(Qs, dim=1, index=actions.unsqueeze(1))
+        Q_s_a = th.gather(Qs, dim=1, index=actions.reshape(-1, 1))
         return Q_s_a
 
     def get_V(self, Qs):

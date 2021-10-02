@@ -7,7 +7,8 @@ from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
 from helpers.trajectories import TrajectoryGenerator
-from helpers.gpu import disable_gradients, batch_to_device, expert_batch_to_device
+from helpers.gpu import disable_gradients, batch_to_device, expert_batch_to_device, \
+    cat_batches
 from helpers.data_augmentation import DataAugmentation
 
 import numpy as np
@@ -379,6 +380,8 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         replay_batch = batch_to_device(replay_batch)
         expert_batch_aug = self.augmentation(expert_batch)
         replay_batch_aug = self.augmentation(replay_batch)
+        combined_batch = cat_batches((expert_batch, replay_batch,
+                                     expert_batch_aug, replay_batch_aug))
         if not curiosity_only:
             if self.drq:
                 q_metrics = self.update_q(replay_batch, replay_batch_aug)
@@ -387,14 +390,14 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             else:
                 q_metrics = self.update_q(replay_batch_aug)
                 iqlearn_metrics = self.update_iqlearn(expert_batch_aug, replay_batch_aug)
-            policy_metrics = self.update_policy(step, replay_batch_aug)
+            policy_metrics = self.update_policy(step, combined_batch)
         else:
             q_metrics = {}
             iqlearn_metrics = {}
             policy_metrics = {}
         if step < self.config.method.curiosity_only_steps \
                 + self.config.method.curiosity_fade_out_steps:
-            curiosity_metrics = self.update_curiosity(replay_batch_aug)
+            curiosity_metrics = self.update_curiosity(combined_batch)
         else:
             curiosity_metrics = {}
 
