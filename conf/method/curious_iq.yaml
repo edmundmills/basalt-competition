@@ -4,6 +4,7 @@ loss_function: 'iqlearn'
 loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
+curiosity_reward: true
 normalize_reward: true  # for curiosity rewards
 
 

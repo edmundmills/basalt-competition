@@ -97,6 +97,7 @@ class CuriosityModule(nn.Module):
     def loss(self, batch):
         states, actions, next_states, _done, _rewards = batch
         # loss for predicted action
+        actions = actions.reshape(-1)
         states, next_states = states_to_device((states, next_states), self.device)
         predicted_actions = self.predict_action(states, next_states)
         action_loss = F.cross_entropy(predicted_actions, actions)

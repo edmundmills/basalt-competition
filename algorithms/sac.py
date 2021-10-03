@@ -289,45 +289,11 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                      'average_its_per_s': self.iteration_rate()},
                     step=self.iter_count)
 
-# not currently set up
-
-
-# class IQLearnSAC(SoftActorCritic):
-#     def __init__(self, expert_dataset, config, actor=None, pretraining=True, **kwargs):
-#         super().__init__(config, actor, pretraining=pretraining, **kwargs)
-#
-#         self.replay_buffer = MixedReplayBuffer(
-#             expert_dataset=expert_dataset,
-#             config=config,
-#             batch_size=config.method.batch_size)
-#
-#         self._q_loss = IQLearnLoss(self.online_q, config, target_q=self.target_q)
-#
-#     def train_one_batch(self, batch):
-#         expert_batch, replay_batch = batch
-#         expert_batch, replay_batch = batches_to_device(expert_batch, replay_batch)
-#
-#         expert_batch = self.augmentation(expert_batch)
-#         replay_batch = self.augmentation(replay_batch)
-#
-#         expert_states, replay_states, \
-#            expert_next_states, replay_next_states = all_states
-#
-#         batch_for_q = expert_states, expert_actions, expert_next_states, expert_done, \
-#             replay_states, _replay_actions, replay_next_states, replay_done
-#         q_metrics = self.update_q(batch_for_q)
-#
-#         batch_for_policy = [th.cat(state_component, dim=0) for state_component in
-#                             zip(expert_states, replay_states)], None, None, None, None
-#         policy_metrics = self.update_policy(batch_for_policy)
-#
-#         metrics = {**policy_metrics, **q_metrics}
-#         return metrics
-
 
 class CuriousIQ(IntrinsicCuriosityTraining):
     def __init__(self, expert_dataset, config, **kwargs):
         super().__init__(config, pretraining=False, **kwargs)
+        self.curiosity_reward = config.method.curiosity_reward
         self.iqlearn_q = SoftQNetwork(
             n_observation_frames=config.n_observation_frames,
             alpha=config.alpha).to(self.device)
@@ -357,8 +323,10 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             initial_replay_buffer=self.replay_buffer)
 
     def _soft_update_target(self):
-        for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
-            target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
+        if self.curiosity_reward:
+            for target, online in zip(
+                    self.target_q.parameters(), self.online_q.parameters()):
+                target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
         if self.iqlearn_target_q is None:
             return
         for target, online in zip(self.iqlearn_target_q.parameters(),
@@ -395,7 +363,7 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             q_metrics = {}
             iqlearn_metrics = {}
             policy_metrics = {}
-        if step < self.config.method.curiosity_only_steps \
+        if self.curiosity_reward and step < self.config.method.curiosity_only_steps \
                 + self.config.method.curiosity_fade_out_steps:
             curiosity_metrics = self.update_curiosity(combined_batch)
         else:
@@ -403,3 +371,10 @@ class CuriousIQ(IntrinsicCuriosityTraining):
 
         metrics = {**policy_metrics, **q_metrics, **curiosity_metrics, **iqlearn_metrics}
         return metrics
+
+    def _reward_function(self, current_state, action, next_state, done):
+        if self.curiosity_reward:
+            reward = super()._reward_function(current_state, action, next_state, done)
+        else:
+            reward = 0
+        return reward
