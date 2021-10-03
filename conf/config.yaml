@@ -13,6 +13,7 @@ wandb: ???
 
 # model attributes
 cnn_layers: 17  # max is 17
+linear_layer_size: 1024
 n_observation_frames: 6  # includes current pov
 alpha: 1e-2
 

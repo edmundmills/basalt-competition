@@ -7,10 +7,11 @@ from torch import nn
 
 
 class Network(nn.Module):
-    def __init__(self, n_observation_frames=1, cnn_layers=17):
+    def __init__(self, config):
         super().__init__()
-        self.n_observation_frames = n_observation_frames
-        self.cnn_layers = cnn_layers
+        self.n_observation_frames = config.n_observation_frames
+        self.cnn_layers = config.cnn_layers
+        self.linear_layer_size = config.linear_layer_size
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.item_dim = 2 * len(ObservationSpace.items())
@@ -36,11 +37,14 @@ class Network(nn.Module):
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Flatten(),
-            nn.Linear(self.linear_input_dim, 1024),
+            nn.Linear(self.linear_input_dim, self.linear_layer_size),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(1024, self.output_dim)
+            nn.Linear(self.linear_layer_size, self.output_dim)
         )
+        model_parameters = filter(lambda p: p.requires_grad, self.parameters())
+        params = sum([np.prod(p.size()) for p in model_parameters])
+        print('Number of model params: ', params)
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.to(self.device)
 
@@ -55,6 +59,7 @@ class Network(nn.Module):
         with th.no_grad():
             dummy_input = th.zeros((1, 3*self.n_observation_frames, 64, 64))
             output = self.cnn(dummy_input)
+        print('Base network visual feature shape: ', output.size())
         return output.size()
 
     def _visual_features_dim(self):

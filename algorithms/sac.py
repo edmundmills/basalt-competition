@@ -51,25 +51,15 @@ class SoftActorCritic(Algorithm):
         if actor is not None:
             self.actor = actor.to(self.device)
         else:
-            self.actor = SoftQNetwork(
-                n_observation_frames=config.n_observation_frames,
-                alpha=config.alpha).to(self.device)
+            self.actor = SoftQNetwork(config).to(self.device)
 
         # Set up networks - critic
         if self.double_q:
-            self.online_q = TwinnedSoftQNetwork(
-                n_observation_frames=config.n_observation_frames,
-                alpha=config.alpha).to(self.device)
-            self.target_q = TwinnedSoftQNetwork(
-                n_observation_frames=config.n_observation_frames,
-                alpha=config.alpha).to(self.device)
+            self.online_q = TwinnedSoftQNetwork(config).to(self.device)
+            self.target_q = TwinnedSoftQNetwork(config).to(self.device)
         else:
-            self.online_q = SoftQNetwork(
-                n_observation_frames=config.n_observation_frames,
-                alpha=config.alpha).to(self.device)
-            self.target_q = SoftQNetwork(
-                n_observation_frames=config.n_observation_frames,
-                alpha=config.alpha).to(self.device)
+            self.online_q = SoftQNetwork(config).to(self.device)
+            self.target_q = SoftQNetwork(config).to(self.device)
 
         self.target_q.load_state_dict(self.online_q.state_dict())
         disable_gradients(self.target_q)
@@ -296,13 +286,9 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         self.curiosity_reward = config.method.curiosity_reward
         self.online_curiosity_training = config.method.online_curiosity_training
         self.initial_curiosity_fraction = config.method.initial_curiosity_fraction
-        self.iqlearn_q = SoftQNetwork(
-            n_observation_frames=config.n_observation_frames,
-            alpha=config.alpha).to(self.device)
+        self.iqlearn_q = SoftQNetwork(config).to(self.device)
         if config.method.target_q:
-            self.iqlearn_target_q = SoftQNetwork(
-                n_observation_frames=config.n_observation_frames,
-                alpha=config.alpha).to(self.device)
+            self.iqlearn_target_q = SoftQNetwork(config).to(self.device)
             self.iqlearn_target_q.load_state_dict(self.iqlearn_q.state_dict())
             disable_gradients(self.iqlearn_target_q)
             print('IQLearn Target Network Initialized')

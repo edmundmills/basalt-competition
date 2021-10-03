@@ -144,8 +144,7 @@ def main():
     if pretrained_model is not None:
         model = pretrained_model
     elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
-        model = SoftQNetwork(alpha=config.alpha,
-                             n_observation_frames=config.n_observation_frames)
+        model = SoftQNetwork(config)
 
     if config.method.algorithm == 'curious_IQ':
         training_algorithm = CuriousIQ(expert_dataset, config,

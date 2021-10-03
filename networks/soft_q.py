@@ -8,9 +8,9 @@ import numpy as np
 
 
 class SoftQNetwork(Network):
-    def __init__(self, alpha, **kwargs):
-        super().__init__(**kwargs)
-        self.alpha = alpha
+    def __init__(self, config):
+        super().__init__(config)
+        self.alpha = config.alpha
 
     def get_Q(self, state):
         return self.forward(state)
@@ -45,11 +45,11 @@ class SoftQNetwork(Network):
 
 
 class TwinnedSoftQNetwork(nn.Module):
-    def __init__(self, alpha, **kwargs):
+    def __init__(self, config):
         super().__init__()
-        self.alpha = alpha
-        self._q_network_1 = SoftQNetwork(alpha, **kwargs)
-        self._q_network_2 = SoftQNetwork(alpha, **kwargs)
+        self.alpha = config.alpha
+        self._q_network_1 = SoftQNetwork(config)
+        self._q_network_2 = SoftQNetwork(config)
 
     def get_Q(self, state):
         return self._q_network_1.get_Q(state), self._q_network_2.get_Q(state)
