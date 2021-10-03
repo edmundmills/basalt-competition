@@ -33,6 +33,7 @@ class SoftActorCritic(Algorithm):
         self.training_steps = method_config.training_steps
         self.batch_size = method_config.batch_size
         self.tau = method_config.tau
+        self.entropy_lr = method_config.entropy_lr
         self.double_q = method_config.double_q
         self.drq = method_config.drq
         self.target_update_interval = 1
@@ -74,11 +75,27 @@ class SoftActorCritic(Algorithm):
         self._policy_loss = SACPolicyLoss(self.actor, self.online_q,
                                           config, pretraining=pretraining)
 
+        self.entropy_adjustment = method_config.entropy_adjustment
+        if self.entropy_adjustment:
+            self.initialize_alpha_optimization()
+
         # Optimizers
         self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
                                               lr=method_config.policy_lr)
         self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
                                          lr=method_config.q_lr)
+
+    def update_model_alphas(self):
+        alpha = self._policy_loss.log_alpha.detach().exp()
+        self.online_q.alpha = alpha
+        self.target_q.alpha = alpha
+        self.actor.alpha = alpha
+
+    def initialize_alpha_optimization(self):
+        self._policy_loss.target_entropy = -len(ActionSpace.actions())
+        self._policy_loss.log_alpha = th.zeros(1, device=self.device, requires_grad=True)
+        self.alpha_optimizer = th.optim.Adam([self._policy_loss.log_alpha],
+                                             lr=self.entropy_lr)
 
     def _reward_function(self, current_state, action, next_state, done):
         return 0
@@ -97,10 +114,16 @@ class SoftActorCritic(Algorithm):
         return metrics
 
     def update_policy(self, step, batch):
-        policy_loss, metrics = self._policy_loss(step, batch)
+        policy_loss, alpha_loss, metrics = self._policy_loss(step, batch)
         self.policy_optimizer.zero_grad(set_to_none=True)
         policy_loss.backward()
         self.policy_optimizer.step()
+        if self.entropy_adjustment:
+            self.alpha_optimizer.zero_grad(set_to_none=True)
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
+            self.update_model_alphas()
+            metrics['alpha'] = self.actor.alpha
         return metrics
 
     def _soft_update_target(self):
@@ -303,11 +326,22 @@ class CuriousIQ(IntrinsicCuriosityTraining):
                                                lr=config.method.iqlearn_lr)
         self._policy_loss = CuriousIQPolicyLoss(self.actor, self.online_q, self.iqlearn_q,
                                                 config)
+        if self.entropy_adjustment:
+            self.initialize_alpha_optimization()
+
         self.replay_buffer = MixedReplayBuffer(
             expert_dataset=expert_dataset,
             config=config,
             batch_size=config.method.batch_size,
             initial_replay_buffer=self.replay_buffer)
+
+    def update_model_alphas(self):
+        alpha = self._policy_loss.log_alpha.detach().exp().item()
+        self.online_q.alpha = alpha
+        self.target_q.alpha = alpha
+        self.actor.alpha = alpha
+        self.iqlearn_q.alpha = alpha
+        self.iqlearn_target_q.alpha = alpha
 
     def _soft_update_target(self):
         if self.curiosity_reward:

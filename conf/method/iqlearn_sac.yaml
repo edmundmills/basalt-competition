@@ -4,6 +4,7 @@ loss_function: 'iqlearn'
 loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
+entropy_adjustment: true
 
 
 starting_steps: 5000
@@ -27,6 +28,7 @@ curiosity_lr: 0
 q_lr: 0
 iqlearn_lr: 3e-4
 policy_lr: 1e-4
+entropy_lr: 1e-3
 
 tau: .05
 

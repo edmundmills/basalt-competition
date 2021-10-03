@@ -11,7 +11,6 @@ class IQLearnLoss:
         self.model = model
         self.target_q = target_q
         self.actions = ActionSpace.actions()
-        self.alpha = config.alpha
         self.discount_factor = config.method.discount_factor
         self.drq = config.method.drq
         self.n_observation_frames = config.n_observation_frames

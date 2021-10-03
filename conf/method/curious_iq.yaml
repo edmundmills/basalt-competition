@@ -7,7 +7,7 @@ target_q: true  # for iqlearn q function
 curiosity_reward: true
 online_curiosity_training: true
 normalize_reward: true  # for curiosity rewards
-
+entropy_adjustment: true
 
 starting_steps: 10000
 curiosity_pretraining_steps: 15000  # training on the random data
@@ -25,6 +25,7 @@ curiosity_lr: 1e-3
 q_lr: 3e-4
 iqlearn_lr: 3e-4
 policy_lr: 1e-4
+entropy_lr: 1e-3
 
 tau: .05
 
