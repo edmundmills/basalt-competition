@@ -5,8 +5,8 @@ loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
 curiosity_reward: true
-online_curiosity_training: false
-normalize_reward: false  # for curiosity rewards
+online_curiosity_training: true
+normalize_reward: true  # for curiosity rewards
 
 
 starting_steps: 10000

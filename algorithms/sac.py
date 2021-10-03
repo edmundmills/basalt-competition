@@ -221,7 +221,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         method_config = config.pretraining if pretraining else config.method
         self.curiosity_pretraining_steps = method_config.curiosity_pretraining_steps
         self.normalize_reward = method_config.normalize_reward
-        self.recent_rewards = deque(maxlen=1000)
+        self.running_avg_loss = deque(maxlen=100)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -232,14 +232,12 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                                               next_state, done)
         if not self.normalize_reward:
             return reward
-        self.recent_rewards.append(reward)
-        if len(self.recent_rewards) > 10 and np.std(self.recent_rewards) != 0:
-            mean = sum(self.recent_rewards) / len(self.recent_rewards)
-            std = np.std(self.recent_rewards)
-            relative_reward = (reward - mean) / std * self.curiosity_module.eta
+        if len(self.running_avg_loss) > 10:
+            mean = sum(self.running_avg_loss) / len(self.running_avg_loss)
+            relative_reward = reward / mean * self.curiosity_module.eta
         else:
             relative_reward = 0
-        relative_reward = min(max(relative_reward, -1), 1)
+        # relative_reward = min(max(relative_reward, -1), 1)
         return relative_reward
 
     def update_curiosity(self, batch):
@@ -247,6 +245,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         self.curiosity_optimizer.zero_grad(set_to_none=True)
         curiosity_loss.backward()
         self.curiosity_optimizer.step()
+        self.running_avg_loss.append(metrics['curiosity_loss_total'])
         return metrics
 
     def train_one_batch(self, step, batch, curiosity_only=False):
