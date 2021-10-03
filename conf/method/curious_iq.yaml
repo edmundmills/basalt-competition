@@ -5,15 +5,17 @@ loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
 curiosity_reward: true
-normalize_reward: true  # for curiosity rewards
+online_curiosity_training: false
+normalize_reward: false  # for curiosity rewards
 
 
-starting_steps: 5000
-curiosity_pretraining_steps: 10000  # training on the random data
+starting_steps: 10000
+curiosity_pretraining_steps: 15000  # training on the random data
 suppress_snowball_steps: 2000
-curiosity_only_steps: 5000
-curiosity_fade_out_steps: 10000
-training_steps: 30000
+curiosity_only_steps: 20000
+initial_curiosity_fraction: 0.5
+curiosity_fade_out_steps: 20000
+training_steps: 50000
 
 batch_size: 256
 expert_sample_fraction: 0.5

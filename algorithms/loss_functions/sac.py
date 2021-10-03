@@ -103,8 +103,9 @@ class CuriousIQPolicyLoss:
         self.iqlearn_q = iqlearn_q
         self.policy = policy
         self.discount_factor = config.method.discount_factor
+        self.initial_curiosity_fraction = config.method.initial_curiosity_fraction
         self.curiosity_only_steps = config.method.curiosity_only_steps
-        self.curiosity_fade_out_steps = config.method.curiosity_only_steps
+        self.curiosity_fade_out_steps = config.method.curiosity_fade_out_steps
 
     def __call__(self, step, batch):
         steps_in_fade = step - self.curiosity_only_steps
@@ -112,12 +113,10 @@ class CuriousIQPolicyLoss:
             print('Updating actor with iqlearn only')
         elif steps_in_fade == 0:
             print('Updating actor with curiosity and iqlearn')
-        elif step == 0:
-            print('Updating actor with curiosity only')
         if steps_in_fade >= 0 and steps_in_fade <= self.curiosity_fade_out_steps \
                 and self.curiosity_fade_out_steps != 0:
             curiosity_fraction = (self.curiosity_fade_out_steps - steps_in_fade) \
-                / self.curiosity_fade_out_steps
+                / self.curiosity_fade_out_steps * self.initial_curiosity_fraction
         else:
             curiosity_fraction = None
 
@@ -128,7 +127,7 @@ class CuriousIQPolicyLoss:
 
         metrics = {}
 
-        if steps_in_fade <= self.curiosity_fade_out_steps:
+        if steps_in_fade < self.curiosity_fade_out_steps:
             with th.no_grad():
                 curiosity_Qs = self.online_q.get_Q(states)
             # this is elementwise multiplication to get expectation of Q for policy
@@ -139,20 +138,18 @@ class CuriousIQPolicyLoss:
             curiosity_loss = -th.mean(curiosity_Q_policy + self.policy.alpha * entropies)
             metrics['curiosity_Q'] = curiosity_Qs.detach().mean().item()
             metrics['policy_Q_curiosity'] = curiosity_Q_policy.detach().mean().item()
-            curiosity_fraction = curiosity_fraction or 1
+            curiosity_fraction = curiosity_fraction or self.initial_curiosity_fraction
         else:
             curiosity_loss = 0
             curiosity_fraction = 0
-        if steps_in_fade >= 0:
-            with th.no_grad():
-                iqlearn_Qs = self.iqlearn_q.get_Q(states)
-            iqlearn_Q_policy = th.sum(iqlearn_Qs * action_probabilities,
-                                      dim=1, keepdim=True)
-            policy_loss = -th.mean(iqlearn_Q_policy + self.policy.alpha * entropies)
-            metrics['iqlearn_Q'] = iqlearn_Qs.detach().mean().item()
-            metrics['policy_Q_iqlearn'] = iqlearn_Q_policy.detach().mean().item()
-        else:
-            policy_loss = 0
+
+        with th.no_grad():
+            iqlearn_Qs = self.iqlearn_q.get_Q(states)
+        iqlearn_Q_policy = th.sum(iqlearn_Qs * action_probabilities,
+                                  dim=1, keepdim=True)
+        policy_loss = -th.mean(iqlearn_Q_policy + self.policy.alpha * entropies)
+        metrics['iqlearn_Q'] = iqlearn_Qs.detach().mean().item()
+        metrics['policy_Q_iqlearn'] = iqlearn_Q_policy.detach().mean().item()
 
         loss = curiosity_fraction * curiosity_loss \
             + (1 - curiosity_fraction) * policy_loss

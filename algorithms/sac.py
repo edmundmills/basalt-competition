@@ -231,7 +231,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         method_config = config.pretraining if pretraining else config.method
         self.curiosity_pretraining_steps = method_config.curiosity_pretraining_steps
         self.normalize_reward = method_config.normalize_reward
-        self.recent_rewards = deque(maxlen=200)
+        self.recent_rewards = deque(maxlen=1000)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -294,6 +294,8 @@ class CuriousIQ(IntrinsicCuriosityTraining):
     def __init__(self, expert_dataset, config, **kwargs):
         super().__init__(config, pretraining=False, **kwargs)
         self.curiosity_reward = config.method.curiosity_reward
+        self.online_curiosity_training = config.method.online_curiosity_training
+        self.initial_curiosity_fraction = config.method.initial_curiosity_fraction
         self.iqlearn_q = SoftQNetwork(
             n_observation_frames=config.n_observation_frames,
             alpha=config.alpha).to(self.device)
@@ -363,8 +365,10 @@ class CuriousIQ(IntrinsicCuriosityTraining):
             q_metrics = {}
             iqlearn_metrics = {}
             policy_metrics = {}
-        if self.curiosity_reward and step < self.config.method.curiosity_only_steps \
-                + self.config.method.curiosity_fade_out_steps:
+        if curiosity_only or \
+                (self.curiosity_reward and self.online_curiosity_training and
+                 step < (self.config.method.curiosity_only_steps
+                         + self.config.method.curiosity_fade_out_steps)):
             curiosity_metrics = self.update_curiosity(combined_batch)
         else:
             curiosity_metrics = {}

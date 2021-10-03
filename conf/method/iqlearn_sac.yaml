@@ -11,6 +11,8 @@ suppress_snowball_steps: 2000
 training_steps: 30000
 
 curiosity_reward: false
+online_curiosity_training: false
+initial_curiosity_fraction: 0
 curiosity_pretraining_steps: 0  # training on the random data
 curiosity_only_steps: 0
 curiosity_fade_out_steps: 0
