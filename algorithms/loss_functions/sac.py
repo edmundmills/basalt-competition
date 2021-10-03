@@ -90,9 +90,11 @@ class SACPolicyLoss:
                        * action_probabilities, dim=1, keepdim=True).mean()
         alpha_loss = th.sum((-self.log_alpha * (self.target_entropy - entropies.detach()))
                             * action_probabilities.detach(), dim=1, keepdim=True).mean()
+        entropy = th.sum(action_probabilities.detach() * entropies.detach(),
+                         dim=1, keepdim=True).mean()
         metrics = {'policy_loss': loss.detach().item(),
                    'alpha_loss': alpha_loss.detach.item(),
-                   'entropy': entropies.detach().mean().item()}
+                   'entropy': entropy.item()}
         return loss, alpha_loss, metrics
 
 
@@ -146,9 +148,11 @@ class CuriousIQPolicyLoss:
 
         alpha_loss = th.sum((-self.log_alpha * (self.target_entropy - entropies.detach()))
                             * action_probabilities.detach(), dim=1, keepdim=True).mean()
+        entropy = th.sum(action_probabilities.detach() * entropies.detach(),
+                         dim=1, keepdim=True).mean()
 
         metrics['alpha_loss'] = alpha_loss.detach().item()
         metrics['policy_loss'] = loss.detach().item()
-        metrics['entropy'] = entropies.detach().mean().item()
+        metrics['entropy'] = entropy.detach().item()
         metrics['curiosity_fraction'] = curiosity_fraction
         return loss, alpha_loss, metrics
