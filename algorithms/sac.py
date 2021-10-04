@@ -76,6 +76,7 @@ class SoftActorCritic(Algorithm):
                                           config, pretraining=pretraining)
 
         self.entropy_adjustment = method_config.entropy_adjustment
+        self.target_entropy_ratio = method_config.target_entropy_ratio
         if self.entropy_adjustment:
             self.initialize_alpha_optimization()
 
@@ -92,7 +93,9 @@ class SoftActorCritic(Algorithm):
         self.actor.alpha = alpha
 
     def initialize_alpha_optimization(self):
-        self._policy_loss.target_entropy = -len(ActionSpace.actions())
+        self._policy_loss.target_entropy = \
+            -np.log(1.0 / len(ActionSpace.actions())) * self.target_entropy_ratio
+        print('Target entropy: ', self._policy_loss.target_entropy)
         self._policy_loss.log_alpha = th.zeros(1, device=self.device, requires_grad=True)
         self.alpha_optimizer = th.optim.Adam([self._policy_loss.log_alpha],
                                              lr=self.entropy_lr)

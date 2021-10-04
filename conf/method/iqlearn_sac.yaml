@@ -5,6 +5,7 @@ loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
 entropy_adjustment: true
+target_entropy_ratio: 0.1
 
 
 starting_steps: 5000

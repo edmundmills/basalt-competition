@@ -8,6 +8,7 @@ curiosity_reward: true
 online_curiosity_training: true
 normalize_reward: true  # for curiosity rewards
 entropy_adjustment: true
+target_entropy_ratio: 0.1
 
 starting_steps: 10000
 curiosity_pretraining_steps: 15000  # training on the random data
