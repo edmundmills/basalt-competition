@@ -50,6 +50,7 @@ class TrajectoryStepDataset(Dataset):
                     continue
                 trajectory.append_obs(obs)
                 trajectory.actions.append(action)
+                trajectory.rewards.append(0)
                 step_lookup.append((trajectory_idx, step_idx))
                 step_idx += 1
             print(f'Loaded data from {trajectory_path.name} ({step_idx} steps)')
@@ -112,6 +113,12 @@ class ReplayBuffer:
         batch = default_collate(replay_batch)
         return batch
 
+    def update_rewards(self, rewards):
+        assert(len(rewards) == len(self))
+        for idx, (trajectory_idx, step_idx) in enumerate(self.step_lookup):
+            self.trajectories[trajectory_idx].rewards[step_idx] = rewards[idx]
+        print(f'{len(rewards)} replay steps labeled with rewards')
+
     def recent_frames(self, number_of_steps):
         total_steps = len(self)
         steps = min(number_of_steps, total_steps)
@@ -170,3 +177,14 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def sample(self, batch_size):
         return self.sample_expert(), self.sample_replay()
+
+    def update_rewards(self, replay_rewards, expert_rewards):
+        super().update_rewards(replay_rewards)
+        rewards_idx = 0
+        for _, (trajectory_idx, step_idx) in enumerate(self.expert_dataset.step_lookup):
+            if self.expert_dataset.trajectories[trajectory_idx].actions[step_idx] == -1:
+                continue
+            self.expert_dataset.trajectories[trajectory_idx].rewards[step_idx] = \
+                expert_rewards[rewards_idx]
+            rewards_idx += 1
+        print(f'{len(expert_rewards)} expert steps labeled with rewards')

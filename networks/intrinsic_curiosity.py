@@ -94,6 +94,24 @@ class CuriosityModule(nn.Module):
         reward = min(max(reward, -1), 1)
         return reward
 
+    def bulk_rewards(self, batch, expert=False):
+        state, actions, next_state, done, reward = batch
+        actions = actions.reshape(-1)
+        states, _ = cat_states((state, next_state))
+        with th.no_grad():
+            features = self.get_features(states)
+            current_features, next_features = th.chunk(features, 2, dim=0)
+            predicted_next_features = self.predict_next_features(current_features,
+                                                                 actions)
+            reward = F.mse_loss(next_features, predicted_next_features, reduction='none')
+            reward = th.mean(reward, dim=1, keepdim=True)
+        threw_snowball = ActionSpace.threw_snowball_tensor(state, actions, self.device)
+        if expert:
+            reward = reward * (1 - threw_snowball) + threw_snowball
+        else:
+            reward = reward * (1 - threw_snowball) - threw_snowball
+        return reward.squeeze().tolist()
+
     def loss(self, batch):
         states, actions, next_states, _done, _rewards = batch
         # loss for predicted action

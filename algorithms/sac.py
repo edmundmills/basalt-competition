@@ -136,6 +136,7 @@ class SoftActorCritic(Algorithm):
     def __call__(self, env, profiler=None):
         if self.curiosity_pretraining_steps > 0:
             self._train_curiosity_module()
+            self._assign_rewards_to_replay_buffer()
 
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
@@ -247,7 +248,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         method_config = config.pretraining if pretraining else config.method
         self.curiosity_pretraining_steps = method_config.curiosity_pretraining_steps
         self.normalize_reward = method_config.normalize_reward
-        self.running_avg_loss = deque(maxlen=100)
+        self.running_avg_loss = deque(maxlen=250)
         self.curiosity_module = CuriosityModule(
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
@@ -259,11 +260,11 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         if not self.normalize_reward:
             return reward
         if len(self.running_avg_loss) > 10:
-            mean = sum(self.running_avg_loss) / len(self.running_avg_loss)
-            relative_reward = reward / mean * self.curiosity_module.eta
+            relative_reward = (reward - self.reward_mean) / self.reward_std \
+                * self.curiosity_module.eta
         else:
             relative_reward = 0
-        # relative_reward = min(max(relative_reward, -1), 1)
+        relative_reward = min(max(relative_reward, -1), 1)
         return relative_reward
 
     def update_curiosity(self, batch):
@@ -303,6 +304,41 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                     {**metrics,
                      'average_its_per_s': self.iteration_rate()},
                     step=self.iter_count)
+
+    def _assign_rewards_to_replay_buffer(self):
+        print('Calculating rewards for initial steps...')
+        avg_loss = sum(self.running_avg_loss) / len(self.running_avg_loss)
+        replay_dataloader = DataLoader(self.replay_buffer, shuffle=False,
+                                       batch_size=self.batch_size, num_workers=4)
+        replay_rewards = []
+        for replay_batch in replay_dataloader:
+            replay_batch = batch_to_device(replay_batch)
+            rewards = self.curiosity_module.bulk_rewards(replay_batch, expert=False)
+            if isinstance(rewards, (int, float)):
+                rewards = [rewards]
+            replay_rewards.extend(rewards)
+
+        expert_dataloader = DataLoader(self.replay_buffer.expert_dataset, shuffle=False,
+                                       batch_size=self.batch_size, num_workers=4)
+        expert_rewards = []
+        for expert_batch in expert_dataloader:
+            expert_batch = expert_batch_to_device(expert_batch)
+            rewards = self.curiosity_module.bulk_rewards(expert_batch, expert=True)
+            if isinstance(rewards, (int, float)):
+                rewards = [rewards]
+            expert_rewards.extend(rewards)
+
+        all_rewards = np.array(replay_rewards + expert_rewards)
+        self.reward_mean = all_rewards.mean()
+        self.reward_std = all_rewards.std()
+        replay_rewards = [max(min((reward - self.reward_mean)/self.reward_std/avg_loss
+                                  * self.curiosity_module.eta, 1), -1)
+                          for reward in replay_rewards]
+        expert_rewards = [max(min((reward - self.reward_mean)/self.reward_std/avg_loss
+                                  * self.curiosity_module.eta, 1), -1)
+                          for reward in expert_rewards]
+
+        self.replay_buffer.update_rewards(replay_rewards, expert_rewards)
 
 
 class CuriousIQ(IntrinsicCuriosityTraining):
