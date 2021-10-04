@@ -1,10 +1,13 @@
-from networks import SoftQNetwork
+from networks.soft_q import SoftQNetwork
 from helpers.environment import ObservationSpace, ActionSpace
 from environment.wrappers import ActionShaping
 from helpers.trajectories import TrajectoryGenerator
 
 import os
 import gym
+from hydra import compose, initialize
+from omegaconf import DictConfig, OmegaConf
+from pathlib import Path
 
 
 class EpisodeDone(Exception):
@@ -51,9 +54,22 @@ class MineRLAgent():
         THIS METHOD IS ONLY CALLED ONCE AT THE BEGINNING OF THE EVALUATION.
         DO NOT LOAD YOUR MODEL ANYWHERE ELSE.
         """
-        self.model = SoftQNetwork(alpha=.001, n_observation_frames=3)
-        saved_model_path = Path('train') / 'model.pth'
-        self.model.load_parameters(saved_model_path)
+        with initialize(config_path='conf'):
+            cfg = compose('config.yaml')
+
+        cfg.device = "cpu"
+        cfg.wandb = False
+        cfg.hydra_base_dir = os.getcwd()
+        print(OmegaConf.to_yaml(cfg))
+        environment = cfg.env.name
+        os.environ['MINERL_ENVIRONMENT'] = environment
+
+        self.model = SoftQNetwork(cfg)
+        for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
+            if saved_agent_path.suffix == '.pth':
+                print(f'Loading {saved_agent_path.name} as agent')
+                self.model.load_parameters(saved_agent_path)
+                break
 
     def run_agent_on_episode(self, single_episode_env: Episode):
         """This method runs your agent on a SINGLE episode.
@@ -69,5 +85,5 @@ class MineRLAgent():
         """
         # An implementation of a random agent
         # YOUR CODE GOES HERE
-        generator = TrajectoryGenerator(single_episode_env, self.model)
-        trajectory = generator.generate()
+        generator = TrajectoryGenerator(single_episode_env)
+        trajectory = generator.generate(self.model)

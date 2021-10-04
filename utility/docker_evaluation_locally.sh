@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script run your submission inside a docker image, this is identical in termrs of 
+# This script run your submission inside a docker image, this is identical in termrs of
 # how your code will be executed on AIcrowd platform, with the exception of some
 # environment variables removed (which do not work outside AICrowd platform)
 
@@ -25,7 +25,7 @@ ARGS="${@}"
 
 # Expected Env variables : in environ.sh
 if [[ " $@ " =~ " --nvidia " ]]; then
-    sudo nvidia-docker run \
+    nvidia-docker run \
     --net=host \
     --user 0 \
     -v $(PWD)/data:/home/aicrowd/data \
@@ -35,7 +35,7 @@ if [[ " $@ " =~ " --nvidia " ]]; then
     /bin/bash -c "echo \"Staring docker evaluation...\"; xvfb-run -a ./utility/evaluation_locally.sh ${ARGS}"
 else
     echo "NOTE: To run your submission with nvidia drivers locally, use \"--nvidia\" with this script"
-    sudo docker run \
+    docker run \
     --net=host \
     -v $(PWD)/data:/home/aicrowd/data \
     -v $(PWD)/performance:/home/aicrowd/performance \

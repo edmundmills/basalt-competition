@@ -9,9 +9,10 @@ from collections import OrderedDict, deque
 import numpy as np
 import torch as th
 
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib.widgets import Slider
+
+# import matplotlib.pyplot as plt
+# import matplotlib.animation as animation
+# from matplotlib.widgets import Slider
 import cv2
 
 
@@ -115,7 +116,7 @@ class TrajectoryGenerator:
         self.replay_buffer = replay_buffer
 
     def generate(self, model, max_episode_length=100000):
-        trajectory = Trajectory(n_observation_frames=self.model.n_observation_frames)
+        trajectory = Trajectory(n_observation_frames=model.n_observation_frames)
         obs = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
@@ -125,6 +126,7 @@ class TrajectoryGenerator:
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
+        print('Finished generating trajectory')
         return trajectory
 
     def new_trajectory(env, replay_buffer, reset_env=True, current_obs=None):

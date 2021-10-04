@@ -1,4 +1,6 @@
 train/
+data/
+data
 eval/
 training_runs/
 logs/
