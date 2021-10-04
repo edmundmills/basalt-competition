@@ -77,9 +77,9 @@ class CuriosityModule(nn.Module):
 
     def reward(self, state, action, next_state, done):
         if done:
-            return -1
+            return 0
         if ActionSpace.threw_snowball(state, action):
-            return -1
+            return 0
         states = [state_component.unsqueeze(0) for state_component in state]
         next_states = [state_component.unsqueeze(0) for state_component in next_state]
         states = states_to_device((states, next_states), self.device)

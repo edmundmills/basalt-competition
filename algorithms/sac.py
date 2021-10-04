@@ -349,13 +349,21 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                 rewards = [rewards]
             expert_rewards.extend(rewards)
 
-        all_rewards = np.array(replay_rewards + expert_rewards)
-        self.reward_mean = all_rewards.mean()
+        all_rewards = np.array([reward for reward in replay_rewards + expert_rewards
+                                if reward != 1 and reward != 0])
+        replay_reward_curiosity = np.array([reward for reward in replay_rewards
+                                            if reward != 1 and reward != 0])
+        expert_reward_curiosity = np.array([reward for reward in expert_rewards
+                                            if reward != 1 and reward != 0])
+        self.reward_mean = np.median(all_rewards)
         self.reward_std = all_rewards.std()
-        replay_rewards = [max(min((reward - self.reward_mean)/self.reward_std/avg_loss
+
+        replay_rewards = [max(min((reward - np.median(replay_reward_curiosity))
+                                  / replay_reward_curiosity.std()
                                   * self.curiosity_module.eta, 1), -1)
                           for reward in replay_rewards]
-        expert_rewards = [max(min((reward - self.reward_mean)/self.reward_std/avg_loss
+        expert_rewards = [max(min((reward - np.median(expert_reward_curiosity))
+                                  / expert_reward_curiosity.std()
                                   * self.curiosity_module.eta, 1), -1)
                           for reward in expert_rewards]
         if self.wandb:
