@@ -142,6 +142,12 @@ class SoftActorCritic(Algorithm):
                f' for {self.training_steps}'))
         current_state = TrajectoryGenerator.new_trajectory(env, self.replay_buffer)
 
+        rewards_window = deque(maxlen=10)  # last N rewards
+        steps_window = deque(maxlen=10)  # last N episode steps
+
+        episode_reward = 0
+        episode_steps = 0
+
         for step in range(self.training_steps):
             # take action, update replay buffer
             action = self.actor.get_action(current_state)
@@ -154,9 +160,9 @@ class SoftActorCritic(Algorithm):
             suppressed_snowball = step < self.suppress_snowball_steps \
                 and ActionSpace.threw_snowball(current_state, action)
             if suppressed_snowball:
-                obs, _, done, _ = env.step(-1)
+                obs, r, done, _ = env.step(-1)
             else:
-                obs, _, done, _ = env.step(action)
+                obs, r, done, _ = env.step(action)
 
             self.replay_buffer.current_trajectory().append_obs(obs)
             self.replay_buffer.current_trajectory().done = done
@@ -170,6 +176,9 @@ class SoftActorCritic(Algorithm):
             self.replay_buffer.current_trajectory().rewards.append(reward)
 
             self.replay_buffer.increment_step()
+            episode_reward += r
+            episode_steps += 1
+
             current_state = next_state
 
             # train models
@@ -207,15 +216,27 @@ class SoftActorCritic(Algorithm):
                                      models_with_names=[(self.actor, 'actor'),
                                                         (self.online_q, 'critic')])
 
-            if done:
+            if done or suppressed_snowball:
                 print(f'Trajectory completed at iteration {self.iter_count}')
-                current_state = TrajectoryGenerator.new_trajectory(env,
-                                                                   self.replay_buffer)
-            elif suppressed_snowball:
-                current_state = TrajectoryGenerator.new_trajectory(env,
-                                                                   self.replay_buffer,
-                                                                   reset_env=False,
-                                                                   current_obs=obs)
+                if suppressed_snowball:
+                    print('Suppressed Snowball')
+                    reset_env = False
+                else:
+                    reset_env = True
+                TrajectoryGenerator.new_trajectory(env, self.replay_buffer,
+                                                   reset_env=reset_env,
+                                                   current_obs=obs)
+
+                rewards_window.append(episode_reward)
+                steps_window.append(episode_steps)
+                if self.wandb:
+                    wandb.log({'Rewards/train_reward': np.mean(rewards_window)},
+                              step=self.iter_count)
+                    wandb.log({'Timesteps/train': np.mean(steps_window)},
+                              step=self.iter_count)
+
+                episode_reward = 0
+                episode_steps = 0
 
             self.log_step()
 
