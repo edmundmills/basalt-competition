@@ -358,7 +358,12 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         expert_rewards = [max(min((reward - self.reward_mean)/self.reward_std/avg_loss
                                   * self.curiosity_module.eta, 1), -1)
                           for reward in expert_rewards]
-
+        if self.wandb:
+            wandb.log({'CuriosityRewards/all_rewards': all_rewards}, step=self.iter_count)
+            wandb.log({'CuriosityRewards/replay_rewards': np.array(replay_rewards)},
+                      step=self.iter_count)
+            wandb.log({'CuriosityRewards/expert_rewards': np.array(expert_rewards)},
+                      step=self.iter_count)
         self.replay_buffer.update_rewards(replay_rewards, expert_rewards)
 
 
