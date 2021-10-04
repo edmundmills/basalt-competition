@@ -33,6 +33,7 @@ ARGS="${@}"
 if [[ " $@ " =~ " --nvidia " ]]; then
     nvidia-docker run \
     --net=host \
+    --ipc=host \
     --user 0 \
     -e WANDB_API_KEY=${WANDB_API_KEY} \
     -v /scr-ssd/divgarg/datasets/minerl:/home/aicrowd/data \

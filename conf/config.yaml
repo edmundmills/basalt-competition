@@ -1,5 +1,5 @@
 defaults:
-  - method: iqlearn_online
+  - method: curious_iq
   - env: cave
   - pretraining: none
   - _self_
