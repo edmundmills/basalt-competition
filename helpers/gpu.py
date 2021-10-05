@@ -34,11 +34,10 @@ class GPULoader:
         self.item_normalization = th.cat((starting_count, ones), dim=1).to(self.device)
 
     def normalize_state(self, state):
-        pov, items = state
-        pov /= 255.0
-        items /= self.item_normalization
-        state = pov, items
-        return state
+        state = list(state)
+        state[0] /= 255.0
+        state[1] /= self.item_normalization
+        return tuple(state)
 
     def states_to_device(self, tuple_of_states):
         # # this is slower, but may be better for larger batch sizes?

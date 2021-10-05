@@ -28,12 +28,12 @@ class RandomHorizontalMirror:
             return sample
 
         state, action, next_state, done, reward = sample
-        pov, _items = state
-        next_pov, _next_items = next_state
-        new_state = self.mirror_pov(pov), _items
-        new_next_state = self.mirror_pov(next_pov), _next_items
+        state = list(state)
+        next_state = list(next_state)
+        state[0] = self.mirror_pov(state[0])
+        next_state[0] = self.mirror_pov(next_state[0])
         new_action = self.mirror_action(action)
-        sample = new_state, new_action, new_next_state, done, reward
+        sample = tuple(state), action, tuple(next_state), done, reward
         return sample
 
 
@@ -52,11 +52,11 @@ class InventoryNoise:
 
     def __call__(self, sample):
         state, action, next_state, done, reward = sample
-        _pov, items = state
-        _next_pov, next_items = next_state
-        new_state = _pov, self.transform(items)
-        new_next_state = _next_pov, self.transform(next_items)
-        sample = new_state, action, new_next_state, done, reward
+        state = list(state)
+        next_state = list(next_state)
+        state[1] = self.transform(state[1])
+        next_state[1] = self.transform(next_state[1])
+        sample = tuple(state), action, tuple(next_state), done, reward
         return sample
 
 
@@ -108,14 +108,11 @@ class RandomTranslate:
 
     def __call__(self, sample):
         state, action, next_state, done, reward = sample
-        pov, _items = state
-        next_pov, _next_items = next_state
-        new_state = self.random_translate(pov), _items
-        new_next_state = self.random_translate(next_pov), _next_items
-        sample = new_state, action, new_next_state, done, reward
-        return sample
-
-
+        state = list(state)
+        next_state = list(next_state)
+        state[0] = self.random_translate(state[0])
+        next_state[0] = self.random_translate(next_state[0])
+        sample = tuple(state), action, tuple(next_state), done, reward
         return sample
 
 

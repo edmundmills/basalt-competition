@@ -67,11 +67,10 @@ class Trajectory:
         done = 1 if is_last_step and self.done else 0
         actions = self.actions[last_step_idx + 1 - segment_length, last_step_idx + 1]
         states = self.states[last_step_idx + 1 - segment_length, last_step_idx + 2]
-        pov, items = zip(*states)
-        pov = th.stack(pov)
-        items = th.stack(items)
-        segment = pov, items, actions, done
-        return segment
+        states = [th.stack(state_component) for state_component in zip(*states)]
+        _next_states = ([], [], [])
+        _rewards = []
+        return states, actions, _next_states, done, _rewards
 
     def save(self, path):
         path.mkdir(exist_ok=True)
