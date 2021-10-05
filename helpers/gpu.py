@@ -59,11 +59,6 @@ class GPULoader:
 
     def expert_batch_to_device(self, batch):
         states, actions, next_states, done, rewards = batch
-        mask = actions != -1
-        actions = actions[mask]
-        states = [state_component[mask] for state_component in states]
-        next_states = [state_component[mask] for state_component in next_states]
-        done = done[mask]
         states, next_states = self.states_to_device((states, next_states))
         actions = actions.unsqueeze(1).to(self.device)
         done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
@@ -86,21 +81,15 @@ class GPULoader:
         replay_states, replay_actions, replay_next_states, \
             replay_done, replay_rewards = replay_batch
 
-        expert_actions = expert_actions.unsqueeze(1)
-
-        mask = (expert_actions != -1).squeeze()
-        expert_actions = expert_actions[mask].to(self.device)
+        expert_actions = expert_actions.unsqueeze(1).to(self.device)
         replay_actions = replay_actions.unsqueeze(1).to(self.device)
-        expert_states = [state_component[mask] for state_component in expert_states]
-        expert_next_states = [state_component[mask]
-                              for state_component in expert_next_states]
 
         expert_states, replay_states, expert_next_states, replay_next_states = \
             self.states_to_device((expert_states, replay_states,
                                    expert_next_states, replay_next_states))
 
-        expert_done = th.as_tensor(expert_done[mask]).float().to(self.device).unsqueeze(1)
-        replay_done = th.as_tensor(replay_done).float().to(self.device).unsqueeze(1)
+        expert_done = th.as_tensor(expert_done).float().unsqueeze(1).to(self.device)
+        replay_done = th.as_tensor(replay_done).float().unsqueeze(1).to(self.device)
         replay_rewards = replay_rewards.float().unsqueeze(1).to(self.device)
 
         expert_batch = expert_states, expert_actions, expert_next_states, \

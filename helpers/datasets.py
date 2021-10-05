@@ -40,13 +40,10 @@ class TrajectoryStepDataset(Dataset):
 
             trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
             step_idx = 0
-            noops = deque([True, True], maxlen=2)
             for obs, action, _, _, done in data.load_data(str(trajectory_path)):
                 trajectory.done = done
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
-                noops.append(action == -1)
-                # skip adding states that are not part of a non-no-op transition
-                if noops[0] and noops[1]:
+                if action == -1:
                     continue
                 trajectory.append_obs(obs)
                 trajectory.actions.append(action)
