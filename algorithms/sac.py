@@ -7,8 +7,7 @@ from networks.intrinsic_curiosity import CuriosityModule
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import ReplayBuffer, MixedReplayBuffer
 from helpers.trajectories import TrajectoryGenerator
-from helpers.gpu import disable_gradients, batch_to_device, expert_batch_to_device, \
-    cat_batches
+from helpers.gpu import disable_gradients, cat_batches
 from helpers.data_augmentation import DataAugmentation
 
 import numpy as np
@@ -248,7 +247,7 @@ class SoftActorCritic(Algorithm):
 
     def train_one_batch(self, step, batch):
         # load batch onto gpu
-        batch = batch_to_device(batch)
+        batch = self.actor.gpu_loader.batch_to_device(batch)
         aug_batch = self.augmentation(batch)
         if self.drq:
             q_metrics = self.update_q(batch, aug_batch)
@@ -297,7 +296,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         return metrics
 
     def train_one_batch(self, step, batch, curiosity_only=False):
-        batch = batch_to_device(batch)
+        batch = self.actor.gpu_loader.batch_to_device(batch)
         aug_batch = self.augmentation(batch)
         if not curiosity_only:
             if self.drq:
@@ -333,7 +332,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                                        batch_size=self.batch_size, num_workers=4)
         replay_rewards = []
         for replay_batch in replay_dataloader:
-            replay_batch = batch_to_device(replay_batch)
+            replay_batch = self.actor.gpu_loader.batch_to_device(replay_batch)
             rewards = self.curiosity_module.bulk_rewards(replay_batch, expert=False)
             if isinstance(rewards, (int, float)):
                 rewards = [rewards]
@@ -343,7 +342,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
                                        batch_size=self.batch_size, num_workers=4)
         expert_rewards = []
         for expert_batch in expert_dataloader:
-            expert_batch = expert_batch_to_device(expert_batch)
+            expert_batch = self.actor.gpu_loader.expert_batch_to_device(expert_batch)
             rewards = self.curiosity_module.bulk_rewards(expert_batch, expert=True)
             if isinstance(rewards, (int, float)):
                 rewards = [rewards]
@@ -438,8 +437,8 @@ class CuriousIQ(IntrinsicCuriosityTraining):
 
     def train_one_batch(self, step, batch, curiosity_only=False):
         expert_batch, replay_batch = batch
-        expert_batch = expert_batch_to_device(expert_batch)
-        replay_batch = batch_to_device(replay_batch)
+        expert_batch = self.actor.gpu_loader.expert_batch_to_device(expert_batch)
+        replay_batch = self.actor.gpu_loader.batch_to_device(replay_batch)
         expert_batch_aug = self.augmentation(expert_batch)
         replay_batch_aug = self.augmentation(replay_batch)
         combined_batch = cat_batches((expert_batch, replay_batch,

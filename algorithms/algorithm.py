@@ -12,6 +12,7 @@ import numpy as np
 class Algorithm:
     def __init__(self, config, pretraining=False):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        th.backends.cudnn.benchmark = True
         self.config = config
         self.wandb = config.wandb
         method_config = config.pretraining if pretraining else config.method
@@ -37,7 +38,7 @@ class Algorithm:
                    f' {self.iteration_rate():.2f} it/s'))
 
     def iteration_rate(self):
-        if len(self.timestamps) < self.update_frequency:
+        if len(self.timestamps) < self.update_frequency - 1:
             return 0
         iterations = min(self.update_frequency, len(self.timestamps) - 1)
         duration = self.timestamps[-1] - self.timestamps[-iterations]

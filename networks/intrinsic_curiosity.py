@@ -1,6 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
-from helpers.gpu import states_to_device, cat_states
+from helpers.gpu import GPULoader, cat_states
 
 import numpy as np
 import torch as th
@@ -45,6 +45,7 @@ class CuriosityModule(nn.Module):
             nn.ReLU(),
             nn.Linear(256, self.feature_dim)
         )
+        self.gpu_loader = GPULoader()
 
     def _visual_features_shape(self, frames):
         with th.no_grad():
@@ -82,7 +83,7 @@ class CuriosityModule(nn.Module):
             return 0
         states = [state_component.unsqueeze(0) for state_component in state]
         next_states = [state_component.unsqueeze(0) for state_component in next_state]
-        states = states_to_device((states, next_states), self.device)
+        states = self.gpu_loader.states_to_device((states, next_states))
         action = th.tensor([action], device=self.device, dtype=th.int64).reshape(-1)
         states, _ = cat_states(states)
         with th.no_grad():
@@ -116,7 +117,7 @@ class CuriosityModule(nn.Module):
         states, actions, next_states, _done, _rewards = batch
         # loss for predicted action
         actions = actions.reshape(-1)
-        states, next_states = states_to_device((states, next_states), self.device)
+        states, next_states = self.gpu_loader.states_to_device((states, next_states))
         predicted_actions = self.predict_action(states, next_states)
         action_loss = F.cross_entropy(predicted_actions, actions)
 

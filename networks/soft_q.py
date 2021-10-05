@@ -1,5 +1,4 @@
 from networks.base_network import Network
-from helpers.gpu import states_to_device
 
 import torch as th
 from torch import nn
@@ -34,7 +33,7 @@ class SoftQNetwork(Network):
 
     def get_action(self, state):
         states = [state_component.unsqueeze(0) for state_component in state]
-        states, = states_to_device([states], self.device)
+        states, = self.gpu_loader.states_to_device([states])
         with th.no_grad():
             Q = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
