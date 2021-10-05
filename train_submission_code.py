@@ -139,7 +139,12 @@ def main():
 
     # initialize dataset, model, algorithm
     if config.method.expert_dataset:
-        expert_dataset = TrajectoryStepDataset(config, debug_dataset=args.debug_env)
+        if config.lstm_layers == 0:
+            expert_dataset = TrajectoryStepDataset(config,
+                                                   debug_dataset=args.debug_env)
+        else:
+            expert_dataset = TrajectorySegmentDataset(config,
+                                                      debug_dataset=args.debug_env)
 
     if pretrained_model is not None:
         model = pretrained_model
