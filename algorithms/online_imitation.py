@@ -3,7 +3,6 @@ from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from algorithms.loss_functions.sqil import SqilLoss
 from helpers.environment import ObservationSpace, ActionSpace
 from helpers.datasets import MixedReplayBuffer
-from helpers.gpu import batches_to_device
 from helpers.data_augmentation import DataAugmentation
 from helpers.trajectories import TrajectoryGenerator
 
@@ -89,7 +88,8 @@ class OnlineImitation(Algorithm):
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 expert_batch = replay_buffer.sample_expert()
                 replay_batch = replay_buffer.sample_replay()
-                expert_batch, replay_batch = batches_to_device(expert_batch, replay_batch)
+                expert_batch, replay_batch = model.gpu_loader.batches_to_device(
+                    expert_batch, replay_batch)
                 aug_expert_batch = self.augmentation(expert_batch)
                 aug_replay_batch = self.augmentation(replay_batch)
                 if self.drq:

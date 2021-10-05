@@ -82,18 +82,6 @@ class ObservationSpace:
             equipped[items.index(equipped_item)] = 1
         return equipped
 
-    def normalize_state(state):
-        pov, items = state
-        pov /= 255.0
-        starting_count = th.FloatTensor(
-            list(ObservationSpace.starting_inventory().values()))
-        ones = th.ones(starting_count.size())
-        denom = th.cat((starting_count, ones), dim=0)
-        denom = th.tile(denom, (items.size()[0], 1)).to(items.device)
-        items /= denom
-        state = pov, items
-        return state
-
     def obs_to_inventory(obs):
         inventory = obs['inventory']
         first_item = list(inventory.values())[0]

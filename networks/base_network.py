@@ -1,5 +1,6 @@
 from helpers.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from helpers.gpu import GPULoader
 
 import numpy as np
 import torch as th
@@ -47,6 +48,7 @@ class Network(nn.Module):
         print('Number of model params: ', params)
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.to(self.device)
+        self.gpu_loader = GPULoader()
 
     def forward(self, state):
         pov, items = state
