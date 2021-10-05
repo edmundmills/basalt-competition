@@ -31,4 +31,4 @@ entropy_lr: 1e-3
 tau: .05
 
 expert_dataset: true
-double_q: false
+# double_q: false

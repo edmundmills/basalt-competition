@@ -102,9 +102,6 @@ class SoftActorCritic(Algorithm):
     def _reward_function(self, current_state, action, next_state, done):
         return 0
 
-    def _updates_per_step(self, step):
-        return self.updates_per_step
-
     def update_q(self, batch, aug_batch=None):
         if self.drq:
             q_loss, metrics = self._q_loss(batch, aug_batch)
@@ -132,11 +129,17 @@ class SoftActorCritic(Algorithm):
         for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
             target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
 
-    def __call__(self, env, profiler=None):
-        if self.curiosity_pretraining_steps > 0:
-            self._train_curiosity_module()
-            self._assign_rewards_to_replay_buffer()
+    def suppressed_snowball(self, current_state, action):
+        if step == 0 and self.suppress_snowball_steps > 0:
+            print(('Suppressing throwing snowball for'
+                   f' {min(self.training_steps, self.suppress_snowball_steps)}'))
+        elif step == self.suppress_snowball_steps and step != 0:
+            print('No longer suppressing snowball')
+        suppressed_snowball = step < self.suppress_snowball_steps \
+            and ActionSpace.threw_snowball(current_state, action)
+        return suppressed_snowball
 
+    def __call__(self, env, profiler=None):
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
 
@@ -153,14 +156,7 @@ class SoftActorCritic(Algorithm):
             # take action, update replay buffer
             action, hidden = self.actor.get_action(current_state)
             self.replay_buffer.current_trajectory().actions.append(action)
-            if step == 0 and self.suppress_snowball_steps > 0:
-                print(('Suppressing throwing snowball for'
-                       f' {min(self.training_steps, self.suppress_snowball_steps)}'))
-            elif step == self.suppress_snowball_steps and step != 0:
-                print('No longer suppressing snowball')
-            suppressed_snowball = step < self.suppress_snowball_steps \
-                and ActionSpace.threw_snowball(current_state, action)
-            if suppressed_snowball:
+            if self.suppressed_snowball(step, current_state, action):
                 obs, r, done, _ = env.step(-1)
             else:
                 obs, r, done, _ = env.step(action)
@@ -184,9 +180,8 @@ class SoftActorCritic(Algorithm):
 
             # train models
             if len(self.replay_buffer) > self.batch_size:
-                updates_per_step = self._updates_per_step(step)
                 step_metrics = None
-                for i in range(updates_per_step):
+                for i in range(self.updates_per_step):
                     batch = self.replay_buffer.sample(batch_size=self.batch_size)
                     metrics = self.train_one_batch(step, batch)
 
@@ -210,12 +205,10 @@ class SoftActorCritic(Algorithm):
                 if step % self.target_update_interval:
                     self._soft_update_target()
 
-            # save checkpoints, currently just saves actor and gifs
+            # save checkpoints, currently just saves gifs
             if self.checkpoint_frequency \
                     and self.iter_count % self.checkpoint_frequency == 0:
-                self.save_checkpoint(replay_buffer=self.replay_buffer,
-                                     models_with_names=[(self.actor, 'actor'),
-                                                        (self.online_q, 'critic')])
+                self.save_checkpoint(replay_buffer=self.replay_buffer)
 
             if done or suppressed_snowball:
                 print(f'Trajectory completed at iteration {self.iter_count}')
@@ -260,10 +253,6 @@ class SoftActorCritic(Algorithm):
         metrics = {**policy_metrics, **q_metrics}
         return metrics
 
-    def save(self, save_path):
-        Path(save_path).mkdir(exist_ok=True)
-        self.actor.save(os.path.join(save_path, 'actor.pth'))
-
 
 class IntrinsicCuriosityTraining(SoftActorCritic):
     def __init__(self, config, actor=None, pretraining=True, **kwargs):
@@ -276,6 +265,12 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
             n_observation_frames=config.n_observation_frames).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
                                                  lr=method_config.curiosity_lr)
+
+    def __call__(self, env, profiler=None):
+        if self.curiosity_pretraining_steps > 0:
+            self._train_curiosity_module()
+            self._assign_rewards_to_replay_buffer()
+        super().__call__(env, profiler)
 
     def _reward_function(self, current_state, action, next_state, done):
         reward = self.curiosity_module.reward(current_state, action,
