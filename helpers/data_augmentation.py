@@ -116,37 +116,12 @@ class RandomTranslate:
         return sample
 
 
-class PastFrameDropout:
-    def __init__(self, dropout_frames):
-        self.dropout_frames = dropout_frames
-
-    def dropout_frames(self, pov):
-        batch_size, frame_count, _, _ = pov.size()
-        frame_count /= 3
-        past_frame_count = frame_count - 1
-        kept_frames = [idx + 1 for idx in sorted(random.sample(
-            range(past_frame_count), past_frame_count - self.dropout_frames))]
-        kept_frames = [0].append(kept_frames)
-        with th.no_grad():
-            frames = th.chunk(pov, frame_count, dim=1)
-            new_pov = th.cat([frames[idx] for idx in kept_frames], dim=1)
-        return new_pov
-
-    def __call__(self, sample):
-        state, action, next_state, done, reward = sample
-        pov, _items = state
-        next_pov, _next_items = next_state
-        new_state = self.dropout_frames(pov), _items
-        new_next_state = self.dropout_frames(next_pov), _next_items
-        sample = new_state, action, new_next_state, done, reward
         return sample
 
 
 class DataAugmentation:
     def __init__(self, config):
         self.transforms = []
-        # if config.dropout_frames > 0:
-        #     self.transforms.append(DropoutFrames(config.dropout_frames))
         if config.mirror_augment:
             self.transforms.append(RandomHorizontalMirror())
         if config.random_translate:

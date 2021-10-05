@@ -17,8 +17,7 @@ def cat_batches(tuple_of_batches):
     next_states, _ = cat_states(next_states)
     done = th.cat(done, dim=0)
     reward = th.cat(reward, dim=0)
-    batch = states, actions, next_states, done, reward
-    return batch
+    return states, actions, next_states, done, reward
 
 
 def disable_gradients(network):
@@ -63,8 +62,7 @@ class GPULoader:
         actions = actions.unsqueeze(1).to(self.device)
         done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, done, rewards
-        return batch
+        return states, actions, next_states, done, rewards
 
     def batch_to_device(self, batch):
         states, actions, next_states, done, rewards = batch
@@ -72,8 +70,7 @@ class GPULoader:
         actions = actions.unsqueeze(1).to(self.device)
         done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
         rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, done, rewards
-        return batch
+        return states, actions, next_states, done, rewards
 
     def batches_to_device(self, expert_batch, replay_batch):
         expert_states, expert_actions, expert_next_states, \

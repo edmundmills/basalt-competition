@@ -22,9 +22,6 @@ class Algorithm:
         self.update_frequency = 100
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
-        # # save_path = Path('train') / self.name
-        # # os.makedirs(save_path.as_posix(), exist_ok=True)
-        # self.save_path = save_path
         self.iter_count = 1
 
     def log_step(self):
@@ -48,20 +45,7 @@ class Algorithm:
         return rate
 
     def save_checkpoint(self, replay_buffer=None, models_with_names=()):
-        # for model, name in models_with_names:
-        #     model.save(os.path.join(self.save_path, f'{name}.pth'))
         if replay_buffer is not None:
-            # video_paths = []
-            # video_name = f'trajectory_{len(replay_buffer.trajectories)}'
-            # video_path = replay_buffer.current_trajectory().save_as_video(
-            #           self.save_path, video_name)
-            # video_paths.append(video_path)
-            # if len(replay_buffer.trajectories) > 1:
-            #     video_name2 = f'trajectory_{len(replay_buffer.trajectories)-1}'
-            #     previous_trajectory = replay_buffer.trajectories[-2]
-            #     video_path2 = previous_trajectory.save_as_video(self.save_path,
-            #                                                     video_name2)
-            #     video_paths.append(video_path2)
             if self.wandb:
                 images, frame_rate = replay_buffer.recent_frames(
                     min(self.checkpoint_frequency, 1000))
