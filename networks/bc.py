@@ -21,13 +21,13 @@ class BC(Network):
         states = [state_component.unsqueeze(0) for state_component in state]
         states, = self.gpu_loader.states_to_device([states])
         with th.no_grad():
-            Q = self.get_Q(states)
+            Q, _hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
         return action
 
     def loss(self, states, actions):
-        action_probabilities = self.forward(states)
+        action_probabilities, _hidden = self.forward(states)
         actions = actions.squeeze()
         loss = F.cross_entropy(action_probabilities, actions)
         return loss

@@ -25,7 +25,7 @@ class IQLearnLoss:
             batch_states = expert_states, replay_states, \
                 expert_next_states, replay_next_states
             batch_states, state_lengths = cat_states(batch_states)
-            batch_Qs = self.model.get_Q(batch_states)
+            batch_Qs, _ = self.model.get_Q(batch_states)
             Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)
 
             predicted_Q_expert = th.gather(Q_expert, 1, expert_actions)
@@ -36,7 +36,7 @@ class IQLearnLoss:
         else:
             current_states, current_state_lengths = cat_states((expert_states,
                                                                 replay_states))
-            current_Qs = self.model.get_Q(current_states)
+            current_Qs, _ = self.model.get_Q(current_states)
             current_Vs = self.model.get_V(current_Qs)
             current_Qs_expert, current_Qs_replay = th.split(
                 current_Qs, current_state_lengths, dim=0)
@@ -46,7 +46,7 @@ class IQLearnLoss:
             next_states, next_state_lengths = cat_states((expert_next_states,
                                                           replay_next_states))
             with th.no_grad():
-                next_Qs = self.target_q.get_Q(next_states)
+                next_Qs, _ = self.target_q.get_Q(next_states)
                 next_Vs = self.target_q.get_V(next_Qs)
 
             V_expert, V_replay = th.split(current_Vs, current_state_lengths, dim=0)
@@ -134,7 +134,7 @@ class IQLearnLossDRQ(IQLearnLoss):
                 expert_next_states_aug, replay_next_states_aug
 
             batch_states, state_lengths = cat_states(batch_states)
-            batch_Qs = self.model.get_Q(batch_states)
+            batch_Qs, _ = self.model.get_Q(batch_states)
             Q_expert, _, _, _, Q_expert_aug, _, _, _ = th.split(batch_Qs,
                                                                 state_lengths, dim=0)
 
@@ -150,7 +150,7 @@ class IQLearnLossDRQ(IQLearnLoss):
                                                                 replay_states,
                                                                 expert_states_aug,
                                                                 replay_states_aug))
-            current_Qs = self.model.get_Q(current_states)
+            current_Qs, _ = self.model.get_Q(current_states)
             current_Vs = self.model.get_V(current_Qs)
             Q_expert, Q_replay, Q_expert_aug, Q_replay_aug = th.split(
                 current_Qs, current_state_lengths, dim=0)
@@ -164,7 +164,7 @@ class IQLearnLossDRQ(IQLearnLoss):
                                                           expert_next_states_aug,
                                                           replay_next_states_aug))
             with th.no_grad():
-                next_Qs = self.target_q.get_Q(next_states)
+                next_Qs, _ = self.target_q.get_Q(next_states)
                 next_Vs = self.target_q.get_V(next_Qs)
 
             V_expert, V_replay, V_expert_aug, V_replay_aug = th.split(

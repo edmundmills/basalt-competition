@@ -75,7 +75,8 @@ class OnlineImitation(Algorithm):
 
         replay_buffer = self.initialize_replay_buffer()
 
-        TrajectoryGenerator.new_trajectory(env, replay_buffer)
+        TrajectoryGenerator.new_trajectory(env, replay_buffer,
+                                           initial_hidden=model.initial_hidden())
 
         print((f'{self.algorithm_name}: Starting training'
                f' for {self.training_steps} steps (iteration {self.iter_count})'))
@@ -87,7 +88,7 @@ class OnlineImitation(Algorithm):
 
         for step in range(self.training_steps):
             current_state = replay_buffer.current_state()
-            action = model.get_action(current_state)
+            action, hidden = model.get_action(current_state)
             if step == 0 and self.suppress_snowball_steps > 0:
                 print(('Suppressing throwing snowball for'
                        f' {min(self.training_steps, self.suppress_snowball_steps)}'
@@ -104,7 +105,7 @@ class OnlineImitation(Algorithm):
             episode_reward += r
             episode_steps += 1
 
-            replay_buffer.append_step(action, r, next_obs, done)
+            replay_buffer.append_step(action, hidden, r, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 expert_batch = replay_buffer.sample_expert()
@@ -125,9 +126,10 @@ class OnlineImitation(Algorithm):
                     reset_env = False
                 else:
                     reset_env = True
-                TrajectoryGenerator.new_trajectory(env, replay_buffer,
-                                                   reset_env=reset_env,
-                                                   current_obs=next_obs)
+                TrajectoryGenerator.new_trajectory(
+                    env, replay_buffer,
+                    reset_env=reset_env, current_obs=next_obs,
+                    initial_hidden=model.initial_hidden())
 
                 rewards_window.append(episode_reward)
                 steps_window.append(episode_steps)

@@ -41,7 +41,7 @@ class Trajectory:
         reward = self.rewards[idx] if len(self.rewards) > 0 else 0
         return self.states[idx], self.actions[idx], next_state, done, reward
 
-    def append_obs(self, obs):
+    def append_obs(self, obs, hidden=None):
         pov = ObservationSpace.obs_to_pov(obs)
         # initialize framestack
         while len(self.framestack) < self.n_observation_frames:
@@ -49,7 +49,10 @@ class Trajectory:
         self.framestack.append(pov)
         pov = th.cat(list(self.framestack), dim=0)
         items = ObservationSpace.obs_to_items(obs)
-        state = pov, items
+        if hidden is not None:
+            state = pov, items, hidden
+        else:
+            state = pov, items
         self.states.append(state)
 
     def current_state(self, **kwargs):
@@ -58,7 +61,7 @@ class Trajectory:
         return state
 
     def get_pov(self, idx):
-        pov, _items = self.states[idx]
+        pov = self.states[idx][0]
         single_frame = pov[-3:, :, :]
         return single_frame
 
@@ -121,38 +124,40 @@ class Trajectory:
 
 
 class TrajectoryGenerator:
-    def __init__(self, env, replay_buffer=None):
+    def __init__(self, env, replay_buffer=None, lstm_hidden_size=0):
         self.env = env
         self.replay_buffer = replay_buffer
+        self.lstm_hidden_size = lstm_hidden_size
+        self.initial_hidden = (th.zeros(self.lstm_hidden_size),
+                               th.zeros(self.lstm_hidden_size)) \
+            if lstm_hidden_size > 0 else None
 
     def generate(self, model, max_episode_length=100000):
         trajectory = Trajectory(n_observation_frames=model.n_observation_frames)
         obs = self.env.reset()
+        hidden = model.lstm.initial_hidden if model.lstm else None
 
         while not trajectory.done and len(trajectory) < max_episode_length:
-            trajectory.append_obs(obs)
+            trajectory.append_obs(obs, hidden)
             state = trajectory.current_state()
-            action = model.get_action(state)
+            action, hidden = model.get_action(state)
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
         print('Finished generating trajectory')
         return trajectory
 
-    def new_trajectory(env, replay_buffer, reset_env=True, current_obs=None):
+    def new_trajectory(env, replay_buffer, reset_env=True,
+                       current_obs=None, initial_hidden=None):
         if len(replay_buffer.current_trajectory()) > 0:
             replay_buffer.new_trajectory()
-        if reset_env:
-            obs = env.reset()
-        else:
-            obs = current_obs
-        replay_buffer.current_trajectory().append_obs(obs)
-        current_state = replay_buffer.current_state()
-        return current_state
+        obs = env.reset() if reset_env else current_obs
+        replay_buffer.current_trajectory().append_obs(obs, initial_hidden)
+        return replay_buffer.current_state()
 
     def start_new_trajectory(self, **kwargs):
-        current_state = TrajectoryGenerator.new_trajectory(self.env, self.replay_buffer,
-                                                           **kwargs)
+        current_state = TrajectoryGenerator.new_trajectory(
+            self.env, self.replay_buffer, initial_hidden=self.initial_hidden, **kwargs)
         return current_state
 
     def random_trajectories(self, steps):
@@ -173,7 +178,7 @@ class TrajectoryGenerator:
                 obs, _, done, _ = self.env.step(action)
                 reward = 0
 
-            self.replay_buffer.current_trajectory().append_obs(obs)
+            self.replay_buffer.current_trajectory().append_obs(obs, self.initial_hidden)
             self.replay_buffer.current_trajectory().done = done
             next_state = self.replay_buffer.current_state()
 

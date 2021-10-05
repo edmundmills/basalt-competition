@@ -15,9 +15,9 @@ class SoftQNetwork(Network):
         return self.forward(state)
 
     def get_Q_s_a(self, states, actions):
-        Qs = self.get_Q(states)
+        Qs, hidden = self.get_Q(states)
         Q_s_a = th.gather(Qs, dim=1, index=actions.reshape(-1, 1))
-        return Q_s_a
+        return Q_s_a, hidden
 
     def get_V(self, Qs):
         v = self.alpha * th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
@@ -35,10 +35,10 @@ class SoftQNetwork(Network):
         states = [state_component.unsqueeze(0) for state_component in state]
         states, = self.gpu_loader.states_to_device([states])
         with th.no_grad():
-            Q = self.get_Q(states)
+            Q, hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
-        return action
+        return action, hidden
 
 
 class TwinnedSoftQNetwork(nn.Module):

@@ -139,7 +139,6 @@ class SoftActorCritic(Algorithm):
 
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
-        current_state = TrajectoryGenerator.new_trajectory(env, self.replay_buffer)
 
         rewards_window = deque(maxlen=10)  # last N rewards
         steps_window = deque(maxlen=10)  # last N episode steps
@@ -147,9 +146,12 @@ class SoftActorCritic(Algorithm):
         episode_reward = 0
         episode_steps = 0
 
+        current_state = TrajectoryGenerator.new_trajectory(
+            env, self.replay_buffer, initial_hidden=self.actor.initial_hidden())
+
         for step in range(self.training_steps):
             # take action, update replay buffer
-            action = self.actor.get_action(current_state)
+            action, hidden = self.actor.get_action(current_state)
             self.replay_buffer.current_trajectory().actions.append(action)
             if step == 0 and self.suppress_snowball_steps > 0:
                 print(('Suppressing throwing snowball for'
@@ -163,7 +165,7 @@ class SoftActorCritic(Algorithm):
             else:
                 obs, r, done, _ = env.step(action)
 
-            self.replay_buffer.current_trajectory().append_obs(obs)
+            self.replay_buffer.current_trajectory().append_obs(obs, hidden)
             self.replay_buffer.current_trajectory().done = done
 
             # add elements of the transition tuple to the replay buffer individually
@@ -222,9 +224,10 @@ class SoftActorCritic(Algorithm):
                     reset_env = False
                 else:
                     reset_env = True
-                TrajectoryGenerator.new_trajectory(env, self.replay_buffer,
-                                                   reset_env=reset_env,
-                                                   current_obs=obs)
+                TrajectoryGenerator.new_trajectory(
+                    env, self.replay_buffer,
+                    reset_env=reset_env, current_obs=obs,
+                    initial_hidden=self.actor.initial_hidden())
 
                 rewards_window.append(episode_reward)
                 steps_window.append(episode_steps)

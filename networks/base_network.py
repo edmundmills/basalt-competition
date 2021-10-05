@@ -45,6 +45,7 @@ class LSTMLayer(nn.Module):
     def __init__(self, input_dim, config):
         super().__init__()
         self.hidden_size = config.lstm_hidden_size
+        self.initial_hidden = (th.zeros(self.hidden_size), th.zeros(self.hidden_size))
         self.lstm = nn.LSTM(input_size=input_dim,
                             hidden_size=self.hidden_size,
                             num_layers=config.lstm_layers, batch_first=True)
@@ -94,6 +95,10 @@ class Network(nn.Module):
         self.to(self.device)
         self.gpu_loader = GPULoader()
 
+    def initial_hidden(self):
+        initial_hidden = self.lstm.initial_hidden if self.lstm else None
+        return initial_hidden
+
     def forward(self, state):
         if self.lstm is not None:
             pov, items, hidden = state
@@ -106,7 +111,7 @@ class Network(nn.Module):
             features, hidden = self.lstm(features, hidden)
             return self.linear(features), hidden
         else:
-            return self.linear(features)
+            return self.linear(features), None
 
     def print_model_param_count(self):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())

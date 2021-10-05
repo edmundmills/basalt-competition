@@ -24,6 +24,11 @@ class TrajectoryStepDataset(Dataset):
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
         self.environment_path = self.data_root / self.environment
+        self.lstm_hidden_size = config.lstm_hidden_size
+        self.initial_hidden = (th.zeros(self.lstm_hidden_size),
+                               th.zeros(self.lstm_hidden_size)) \
+            if lstm_hidden_size > 0 else None
+
         self.trajectories, self.step_lookup = self._load_data()
         print(f'Expert dataset initialized with {len(self)} steps')
 
@@ -45,7 +50,7 @@ class TrajectoryStepDataset(Dataset):
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
                 if action == -1:
                     continue
-                trajectory.append_obs(obs)
+                trajectory.append_obs(obs, self.initial_hidden)
                 trajectory.actions.append(action)
                 trajectory.rewards.append(0)
                 step_lookup.append((trajectory_idx, step_idx))
@@ -115,10 +120,10 @@ class ReplayBuffer:
         self.trajectories.append(Trajectory(
             n_observation_frames=self.n_observation_frames))
 
-    def append_step(self, action, reward, next_obs, done):
+    def append_step(self, action, hidden, reward, next_obs, done):
         self.current_trajectory().actions.append(action)
         self.current_trajectory().rewards.append(reward)
-        self.current_trajectory().append_obs(next_obs)
+        self.current_trajectory().append_obs(next_obs, hidden)
         self.current_trajectory().done = done
         self.increment_step()
 
