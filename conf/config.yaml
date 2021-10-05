@@ -18,7 +18,8 @@ n_observation_frames: 6  # includes current pov
 alpha: 1e-2
 
 # lstm
-lstm_memory_dim: 0
+lstm_layers: 0
+lstm_hidden_size: 1024
 lstm_segment_length: 50
 
 # data augmentation

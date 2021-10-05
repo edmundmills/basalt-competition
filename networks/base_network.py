@@ -7,25 +7,12 @@ import torch as th
 from torch import nn
 
 
-class Network(nn.Module):
+class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.n_observation_frames = config.n_observation_frames
-        self.cnn_layers = config.cnn_layers
-        self.linear_layer_size = config.linear_layer_size
-        self.lstm_memory_dim = config.lstm_memory_dim
-        self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
-        self.item_dim = 2 * len(ObservationSpace.items())
-        self.output_dim = len(self.actions)
-        self.initialize_cnn()
-        self.initialize_linear_network()
-        self.print_model_param_count()
-        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.to(self.device)
-        self.gpu_loader = GPULoader()
-
-    def initialize_cnn(self):
+        self.cnn_layers = config.cnn_layers
         mobilenet_features = mobilenet_v3_large(
             pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
@@ -40,43 +27,91 @@ class Network(nn.Module):
                     nn.Hardswish()),
                 *mobilenet_features[1:self.cnn_layers]
             )
-        self.visual_feature_dim = self._visual_features_dim()
+        self.feature_dim = self._visual_features_dim()
 
-    def initialize_linear_network(self):
-        self.linear_input_dim = sum([self.visual_feature_dim,
-                                     self.item_dim,
-                                     self.lstm_memory_dim])
+    def forward(self, pov):
+        batch_size = pov.size()[0]
+        return self.cnn(pov).reshape(batch_size, -1)
 
+    def _visual_features_dim(self):
+        with th.no_grad():
+            dummy_input = th.zeros((1, 3*self.n_observation_frames, 64, 64))
+            output = self.forward(dummy_input)
+        print('Base network visual feature dimensions: ', output.size()[1])
+        return output.size()[1]
+
+
+class LSTMLayer(nn.Module):
+    def __init__(self, input_dim, config):
+        super().__init__()
+        self.hidden_size = config.lstm_hidden_size
+        self.lstm = nn.LSTM(input_size=input_dim,
+                            hidden_size=self.hidden_size,
+                            num_layers=config.lstm_layers, batch_first=True)
+
+        def forward(self, features, hidden):
+            new_features, new_hidden = self.lstm(features, hidden)
+            return new_features.reshape(-1, self.hidden_size), new_hidden
+
+
+class LinearLayers(nn.Module):
+    def __init__(self, input_dim, output_dim, config):
+        super().__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.layer_size = config.linear_layer_size
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Flatten(),
-            nn.Linear(self.linear_input_dim, self.linear_layer_size),
+            nn.Linear(input_dim, self.layer_size),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(self.linear_layer_size, self.output_dim)
+            nn.Linear(self.layer_size, output_dim)
         )
+
+    def forward(self, features):
+        return self.linear(features)
+
+
+class Network(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.n_observation_frames = config.n_observation_frames
+        self.actions = ActionSpace.actions()
+        self.item_dim = 2 * len(ObservationSpace.items())
+        self.output_dim = len(self.actions)
+        self.visual_feature_extractor = VisualFeatureExtractor(config)
+        linear_input_dim = sum([self.visual_feature_extractor.feature_dim,
+                                self.item_dim])
+        if config.lstm_layers > 0:
+            self.lstm = LSTMLayer(linear_input_dim, config)
+            linear_input_dim = self.lstm.hidden_size
+        else:
+            self.lstm = None
+        self.linear = LinearLayers(linear_input_dim, self.output_dim, config)
+        self.print_model_param_count()
+        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.to(self.device)
+        self.gpu_loader = GPULoader()
+
+    def forward(self, state):
+        if self.lstm is not None:
+            pov, items, hidden = state
+        else:
+            pov, items = state
+        batch_size = pov.size()[0]
+        visual_features = self.visual_feature_extractor(pov)
+        features = th.cat((visual_features, items), dim=1)
+        if self.lstm is not None:
+            features, hidden = self.lstm(features, hidden)
+            return self.linear(features), hidden
+        else:
+            return self.linear(features)
 
     def print_model_param_count(self):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
         params = sum([np.prod(p.size()) for p in model_parameters])
         print('Number of model params: ', params)
-
-    def forward(self, state):
-        pov, *nonspatial = state
-        batch_size = pov.size()[0]
-        visual_features = self.cnn(pov).reshape(batch_size, -1)
-        x = th.cat((visual_features, *nonspatial), dim=1)
-        return self.linear(x)
-
-    def _visual_features_shape(self):
-        with th.no_grad():
-            dummy_input = th.zeros((1, 3*self.n_observation_frames, 64, 64))
-            output = self.cnn(dummy_input)
-        print('Base network visual feature shape: ', output.size())
-        return output.size()
-
-    def _visual_features_dim(self):
-        return np.prod(list(self._visual_features_shape()))
 
     def load_parameters(self, model_file_path):
         self.load_state_dict(
