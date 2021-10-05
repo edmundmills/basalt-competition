@@ -1,5 +1,6 @@
 from helpers.trajectories import Trajectory
 from helpers.environment import ObservationSpace, ActionSpace
+from helpers.gpu import cat_transitions
 
 import minerl
 
@@ -68,6 +69,30 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx][step_idx]
+        return sample
+
+
+class TrajectorySegmentDataset(TrajectoryStepDataset):
+    def __init__(self, config, **kwargs):
+        super().__init__(config, **kwargs)
+        self.segment_length = config.lstm_segment_length
+        self.segment_lookup = self._identify_segments()
+
+    def _identify_segments():
+        segments = []
+        for trajectory_idx, step_idx in self.step_lookup:
+            if step_idx > self.segment_length:
+                segments.append((trajectory_idx, step_idx))
+        return segments
+
+    def __len__(self):
+        return len(self.segment_lookup)
+
+    def __getitem__(self, idx):
+        trajectory_idx, last_step_idx = self.segment_lookup[idx]
+        samples = [self.trajectories[trajectory_idx][last_step_idx - step]
+                   for step in reversed(range(self.segment_length))]
+        sample = cat_transitions(samples)
         return sample
 
 
