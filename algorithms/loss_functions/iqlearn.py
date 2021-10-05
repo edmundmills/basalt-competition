@@ -73,11 +73,11 @@ class IQLearnLoss:
         metrics['v0'] = v0
 
         def distance_function(x):
-            return x - 1/4 * x**2
+            return x - 1/2 * x**2
 
         loss_expert = -th.mean(distance_function(predicted_Q_expert - target_Q_exp))
         if self.target_q is not None:
-            loss_expert += -th.mean(-1/4*(predicted_Q_replay - target_Q_rep)**2)
+            loss_expert += -th.mean(-1/2*(predicted_Q_replay - target_Q_rep)**2)
 
         loss = loss_expert
         metrics['softq_loss'] = loss_expert
@@ -211,7 +211,7 @@ class IQLearnLossDRQ(IQLearnLoss):
         metrics['v0_aug'] = v0_aug
 
         def distance_function(x):
-            return x - 1/4 * x**2
+            return x - 1/2 * x**2
 
         target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert
         target_Q_exp_aug = (1 - expert_done) * self.discount_factor * V_next_expert_aug
@@ -224,8 +224,8 @@ class IQLearnLossDRQ(IQLearnLoss):
         loss_expert = -th.mean(distance_function(predicted_Q_expert - target_Q_exp))
         loss_expert += -th.mean(distance_function(predicted_Q_expert_aug - target_Q_exp))
         if self.target_q is not None:
-            loss_expert += -th.mean(-1/4*(predicted_Q_replay - target_Q_rep)**2)
-            loss_expert += -th.mean(-1/4*(predicted_Q_replay_aug - target_Q_rep)**2)
+            loss_expert += -th.mean(-1/2*(predicted_Q_replay - target_Q_rep)**2)
+            loss_expert += -th.mean(-1/2*(predicted_Q_replay_aug - target_Q_rep)**2)
 
         loss = loss_expert
         metrics['softq_loss'] = loss_expert

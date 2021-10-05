@@ -29,7 +29,7 @@ class SoftActorCritic(Algorithm):
         self.augmentation = DataAugmentation(config)
         method_config = config.pretraining if pretraining else config.method
         self.suppress_snowball_steps = method_config.suppress_snowball_steps
-        self.training_steps = method_config.training_steps
+        self.training_steps = int(method_config.training_steps)
         self.batch_size = method_config.batch_size
         self.tau = method_config.tau
         self.entropy_lr = method_config.entropy_lr
@@ -38,7 +38,6 @@ class SoftActorCritic(Algorithm):
         self.target_update_interval = 1
         self.updates_per_step = 1
         self.initial_alpha = config.alpha
-
         # Set up replay buffer
         if initial_replay_buffer is None:
             self.replay_buffer = ReplayBuffer(config)

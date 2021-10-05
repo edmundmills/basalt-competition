@@ -1,6 +1,6 @@
 defaults:
-  - method: curious_iq
-  - env: cave
+  - method: iqlearn_online
+  - env: cave 
   - pretraining: none
   - _self_
 
@@ -47,7 +47,7 @@ extracurricular_sparsity: 100
 # record keeping
 seed: 0
 checkpoint_frequency: 5000  # save model
-save_gifs: false  # save gifs to wandb at checkpoints
+save_gifs: true  # save gifs to wandb at checkpoints
 eval_frequency: 0  # calc reward and save video to drive
 eval_episodes: 5
 start_time: ???
