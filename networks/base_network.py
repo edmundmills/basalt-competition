@@ -13,10 +13,19 @@ class Network(nn.Module):
         self.n_observation_frames = config.n_observation_frames
         self.cnn_layers = config.cnn_layers
         self.linear_layer_size = config.linear_layer_size
+        self.lstm_memory_dim = config.lstm_memory_dim
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
         self.item_dim = 2 * len(ObservationSpace.items())
         self.output_dim = len(self.actions)
+        self.initialize_cnn()
+        self.initialize_linear_network()
+        self.print_model_param_count()
+        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.to(self.device)
+        self.gpu_loader = GPULoader()
+
+    def initialize_cnn(self):
         mobilenet_features = mobilenet_v3_large(
             pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
@@ -32,8 +41,11 @@ class Network(nn.Module):
                 *mobilenet_features[1:self.cnn_layers]
             )
         self.visual_feature_dim = self._visual_features_dim()
+
+    def initialize_linear_network(self):
         self.linear_input_dim = sum([self.visual_feature_dim,
-                                     self.item_dim])
+                                     self.item_dim,
+                                     self.lstm_memory_dim])
 
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
@@ -43,18 +55,17 @@ class Network(nn.Module):
             nn.Dropout(p=0.5),
             nn.Linear(self.linear_layer_size, self.output_dim)
         )
+
+    def print_model_param_count(self):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
         params = sum([np.prod(p.size()) for p in model_parameters])
         print('Number of model params: ', params)
-        self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.to(self.device)
-        self.gpu_loader = GPULoader()
 
     def forward(self, state):
-        pov, items = state
+        pov, *nonspatial = state
         batch_size = pov.size()[0]
         visual_features = self.cnn(pov).reshape(batch_size, -1)
-        x = th.cat((visual_features, items), dim=1)
+        x = th.cat((visual_features, *nonspatial), dim=1)
         return self.linear(x)
 
     def _visual_features_shape(self):
