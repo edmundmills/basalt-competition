@@ -62,6 +62,17 @@ class Trajectory:
         single_frame = pov[-3:, :, :]
         return single_frame
 
+    def get_segment(self, last_step_idx, segment_length):
+        is_last_step = last_step_idx + 1 == len(self)
+        done = 1 if is_last_step and self.done else 0
+        actions = self.actions[last_step_idx + 1 - segment_length, last_step_idx + 1]
+        states = self.states[last_step_idx + 1 - segment_length, last_step_idx + 2]
+        pov, items = zip(*states)
+        pov = th.stack(pov)
+        items = th.stack(items)
+        segment = pov, items, actions, done
+        return segment
+
     def save(self, path):
         path.mkdir(exist_ok=True)
         np.save(file=path / 'actions.npy', arr=np.array(self.actions))

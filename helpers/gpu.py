@@ -21,17 +21,6 @@ def cat_batches(tuple_of_batches):
     return batch
 
 
-def cat_transitions(tuple_of_transitions):
-    states, actions, next_states, done, reward = zip(*tuple_of_transitions)
-    states = [state.unsqueeze(0) for state in states]
-    next_states = [state.unsqueeze(0) for state in next_states]
-    states, _ = cat_states(states)
-    next_states, _ = cat_states(next_states)
-    segment = states, actions, next_states, done, reward
-    print(segment)
-    return segment
-
-
 def disable_gradients(network):
     for param in network.parameters():
         param.requires_grad = False

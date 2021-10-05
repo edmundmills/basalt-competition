@@ -1,6 +1,5 @@
 from helpers.trajectories import Trajectory
 from helpers.environment import ObservationSpace, ActionSpace
-from helpers.gpu import cat_transitions
 
 import minerl
 
@@ -90,9 +89,8 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
 
     def __getitem__(self, idx):
         trajectory_idx, last_step_idx = self.segment_lookup[idx]
-        samples = [self.trajectories[trajectory_idx][last_step_idx - step]
-                   for step in reversed(range(self.segment_length))]
-        sample = cat_transitions(samples)
+        sample = self.trajectories[trajectory_idx].get_segment(last_step_idx,
+                                                               self.segment_length)
         return sample
 
 
@@ -163,6 +161,35 @@ class ReplayBuffer:
         return images, frame_rate
 
 
+class SegmentReplayBuffer(ReplayBuffer):
+    def __init__(self, config):
+        super().__init__(config)
+        self.segment_lookup = []
+        self.segment_length = config.lstm_segment_length
+
+    def __len__(self):
+        return len(self.segment_lookup)
+
+    def __getitem__(self, idx):
+        trajectory_idx, segment_idx = self.segment_lookup[idx]
+        sample = self.trajectories[trajectory_idx].get_segment(segment_idx,
+                                                               self.segment_length)
+        return sample
+
+    def increment_step(self):
+        super().increment_step()
+        if len(self.current_trajectory()) > self.segment_length:
+            self.segment_lookup.append(
+                (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
+
+    def sample(self, batch_size):
+        replay_batch_size = min(batch_size, len(self.segment_lookup))
+        sample_indices = random.sample(range(len(self.segment_lookup)), replay_batch_size)
+        replay_batch = [self[idx] for idx in sample_indices]
+        batch = default_collate(replay_batch)
+        return batch
+
+
 class MixedReplayBuffer(ReplayBuffer):
     '''
     Samples a fraction from the expert trajectories
@@ -213,3 +240,11 @@ class MixedReplayBuffer(ReplayBuffer):
                 expert_rewards[rewards_idx]
             rewards_idx += 1
         print(f'{len(expert_rewards)} expert steps labeled with rewards')
+
+
+class MixedSegmentReplayBuffer(MixedReplayBuffer, SegmentReplayBuffer):
+    def __init__(self, expert_dataset, config,
+                 batch_size, initial_replay_buffer=None):
+        super().__init__(expert_dataset, config, batch_size, initial_replay_buffer)
+        if initial_replay_buffer is not None:
+            self.segment_lookup = initial_replay_buffer.segment_lookup

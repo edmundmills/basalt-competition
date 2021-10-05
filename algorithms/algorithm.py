@@ -22,9 +22,9 @@ class Algorithm:
         self.update_frequency = 100
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
-        save_path = Path('train') / self.name
-        os.makedirs(save_path.as_posix(), exist_ok=True)
-        self.save_path = save_path
+        # # save_path = Path('train') / self.name
+        # # os.makedirs(save_path.as_posix(), exist_ok=True)
+        # self.save_path = save_path
         self.iter_count = 1
 
     def log_step(self):
