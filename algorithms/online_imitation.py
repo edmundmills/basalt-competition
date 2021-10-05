@@ -37,22 +37,43 @@ class OnlineImitation(Algorithm):
         elif config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(model, config)
 
-    def __call__(self, env, profiler=None):
-        model = self.model
-        expert_dataset = self.expert_dataset
+    def initialize_replay_buffer(self):
         initial_replay_buffer = self.initial_replay_buffer
-
-        optimizer = th.optim.Adam(model.parameters(),
-                                  lr=self.lr)
-
         if initial_replay_buffer is not None:
             print((f'Using initial replay buffer'
                    f' with {len(initial_replay_buffer)} steps'))
         replay_buffer = MixedReplayBuffer(
-            expert_dataset=expert_dataset,
+            expert_dataset=self.expert_dataset,
             config=self.config,
             batch_size=self.batch_size,
             initial_replay_buffer=initial_replay_buffer)
+        return replay_buffer
+
+    def train_one_batch(self, expert_batch, replay_batch):
+        expert_batch, replay_batch = model.gpu_loader.batches_to_device(
+            expert_batch, replay_batch)
+        aug_expert_batch = self.augmentation(expert_batch)
+        aug_replay_batch = self.augmentation(replay_batch)
+        if self.drq:
+            loss, metrics = self.loss_function(expert_batch, replay_batch,
+                                               aug_expert_batch, aug_replay_batch)
+        else:
+            loss, metrics = self.loss_function(aug_expert_batch, aug_replay_batch)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        if self.wandb:
+            wandb.log(metrics, step=self.iter_count)
+
+    def __call__(self, env, profiler=None):
+        model = self.model
+        expert_dataset = self.expert_dataset
+
+        self.optimizer = th.optim.Adam(model.parameters(),
+                                       lr=self.lr)
+
+        replay_buffer = self.initialize_replay_buffer()
 
         TrajectoryGenerator.new_trajectory(env, replay_buffer)
 
@@ -88,21 +109,7 @@ class OnlineImitation(Algorithm):
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 expert_batch = replay_buffer.sample_expert()
                 replay_batch = replay_buffer.sample_replay()
-                expert_batch, replay_batch = model.gpu_loader.batches_to_device(
-                    expert_batch, replay_batch)
-                aug_expert_batch = self.augmentation(expert_batch)
-                aug_replay_batch = self.augmentation(replay_batch)
-                if self.drq:
-                    loss, metrics = self.loss_function(expert_batch, replay_batch,
-                                                       aug_expert_batch, aug_replay_batch)
-                else:
-                    loss, metrics = self.loss_function(aug_expert_batch, aug_replay_batch)
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                if self.wandb:
-                    wandb.log(metrics, step=self.iter_count)
+                self.train_one_batch(expert_batch, replay_batch)
 
             self.log_step()
 
