@@ -1,4 +1,4 @@
-from helpers.environment import ActionSpace, ObservationSpace
+from utils.environment import ActionSpace, ObservationSpace
 
 import torch as th
 
@@ -38,6 +38,12 @@ class GPULoader:
         state[0] /= 255.0
         state[1] /= self.item_normalization
         return tuple(state)
+
+    def state_to_device(self, state):
+        state = [state_component.unsqueeze(0).to(self.device, dtype=th.float)
+                 for state_component in state]
+        state = self.normalize_state(state)
+        return state
 
     def states_to_device(self, tuple_of_states):
         # # this is slower, but may be better for larger batch sizes?

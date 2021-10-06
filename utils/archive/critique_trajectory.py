@@ -1,4 +1,4 @@
-from helpers.trajectories import Trajectory
+from utils.trajectories import Trajectory
 from networks.termination_critic import TerminationCritic
 from pathlib import Path
 import os

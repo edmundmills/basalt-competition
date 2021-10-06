@@ -1,5 +1,5 @@
-from helpers.environment import ObservationSpace, ActionSpace
-from helpers.gpu import cat_states
+from utils.environment import ObservationSpace, ActionSpace
+from utils.gpu import cat_states
 
 import torch as th
 import torch.nn.functional as F
@@ -42,7 +42,7 @@ class SACQLossDRQ:
         self.target_q = target_q
         method_config = config.pretraining if pretraining else config.method
         self.discount_factor = method_config.discount_factor
-        self.double_q = method_config.double_q
+        # self.double_q = method_config.double_q
 
     def __call__(self, batch, aug_batch):
         states, actions, next_states, done, rewards = batch
@@ -74,9 +74,9 @@ class SACPolicyLoss:
         self.discount_factor = method_config.discount_factor
         # self.double_q = method_config.double_q
 
-    def __call__(self, batch):
+    def __call__(self, step, batch):
         states, _actions, _next_states, _done, _rewards = batch
-        actor_Qs = self.policy.get_Q(states)
+        actor_Qs, _ = self.policy.get_Q(states)
         entropies = self.policy.entropies(actor_Qs)
         action_probabilities = self.policy.action_probabilities(actor_Qs)
 
@@ -93,7 +93,7 @@ class SACPolicyLoss:
         entropy = th.sum(action_probabilities.detach() * entropies.detach(),
                          dim=1, keepdim=True).mean()
         metrics = {'policy_loss': loss.detach().item(),
-                   'alpha_loss': alpha_loss.detach.item(),
+                   'alpha_loss': alpha_loss.detach().item(),
                    'entropy': entropy.item()}
         return loss, alpha_loss, metrics
 

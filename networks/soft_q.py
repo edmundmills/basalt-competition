@@ -31,9 +31,7 @@ class SoftQNetwork(Network):
         entropies = -F.log_softmax(Qs/self.alpha, dim=1)
         return entropies
 
-    def get_action(self, state):
-        states = [state_component.unsqueeze(0) for state_component in state]
-        states, = self.gpu_loader.states_to_device([states])
+    def get_action(self, states):
         with th.no_grad():
             Q, hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()

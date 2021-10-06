@@ -1,10 +1,10 @@
 from algorithms.algorithm import Algorithm
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
-from algorithms.loss_functions.sqil import SqilLoss
-from helpers.environment import ObservationSpace, ActionSpace
-from helpers.datasets import MixedReplayBuffer
-from helpers.data_augmentation import DataAugmentation
-from helpers.trajectories import TrajectoryGenerator
+# from algorithms.loss_functions.sqil import SqilLoss
+from utils.environment import ObservationSpace, ActionSpace
+from utils.datasets import MixedReplayBuffer
+from utils.data_augmentation import DataAugmentation
+from utils.trajectories import TrajectoryGenerator
 
 import numpy as np
 import torch as th
@@ -50,7 +50,7 @@ class OnlineImitation(Algorithm):
         return replay_buffer
 
     def train_one_batch(self, expert_batch, replay_batch):
-        expert_batch, replay_batch = model.gpu_loader.batches_to_device(
+        expert_batch, replay_batch = self.gpu_loader.batches_to_device(
             expert_batch, replay_batch)
         aug_expert_batch = self.augmentation(expert_batch)
         aug_replay_batch = self.augmentation(replay_batch)
@@ -88,7 +88,8 @@ class OnlineImitation(Algorithm):
 
         for step in range(self.training_steps):
             current_state = replay_buffer.current_state()
-            action, hidden = model.get_action(current_state)
+            action, hidden = model.get_action(
+                self.gpu_loader.state_to_device(current_state))
             if step == 0 and self.suppress_snowball_steps > 0:
                 print(('Suppressing throwing snowball for'
                        f' {min(self.training_steps, self.suppress_snowball_steps)}'

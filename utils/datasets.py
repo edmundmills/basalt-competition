@@ -1,5 +1,5 @@
-from helpers.trajectories import Trajectory
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.trajectories import Trajectory
+from utils.environment import ObservationSpace, ActionSpace
 
 import minerl
 
@@ -25,9 +25,8 @@ class TrajectoryStepDataset(Dataset):
         self.environment = os.getenv('MINERL_ENVIRONMENT')
         self.environment_path = self.data_root / self.environment
         self.lstm_hidden_size = config.lstm_hidden_size
-        self.initial_hidden = (th.zeros(self.lstm_hidden_size),
-                               th.zeros(self.lstm_hidden_size)) \
-            if lstm_hidden_size > 0 else None
+        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
+            if self.lstm_hidden_size > 0 else None
 
         self.trajectories, self.step_lookup = self._load_data()
         print(f'Expert dataset initialized with {len(self)} steps')

@@ -1,6 +1,6 @@
 from networks.soft_q import SoftQNetwork
-from helpers.trajectories import Trajectory, TrajectoryGenerator
-from environment.start import start_env
+from utils.trajectories import Trajectory, TrajectoryGenerator
+from utils.environment import start_env
 
 from pathlib import Path
 import os
@@ -28,4 +28,3 @@ if __name__ == "__main__":
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
     trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
-    trajectory.view()

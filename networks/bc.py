@@ -1,4 +1,4 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 from networks.base_network import Network
 import torch as th
 import torch.nn.functional as F
@@ -18,8 +18,6 @@ class BC(Network):
         return probabilities
 
     def get_action(self, state):
-        states = [state_component.unsqueeze(0) for state_component in state]
-        states, = self.gpu_loader.states_to_device([states])
         with th.no_grad():
             Q, _hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()

@@ -4,11 +4,11 @@ from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
     SACPolicyLoss, CuriousIQPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
-from helpers.environment import ObservationSpace, ActionSpace
-from helpers.datasets import ReplayBuffer, MixedReplayBuffer
-from helpers.trajectories import TrajectoryGenerator
-from helpers.gpu import disable_gradients, cat_batches
-from helpers.data_augmentation import DataAugmentation
+from utils.environment import ObservationSpace, ActionSpace
+from utils.datasets import ReplayBuffer, MixedReplayBuffer
+from utils.trajectories import TrajectoryGenerator
+from utils.gpu import disable_gradients, cat_batches
+from utils.data_augmentation import DataAugmentation
 
 import numpy as np
 import torch as th
@@ -139,7 +139,7 @@ class SoftActorCritic(Algorithm):
         return suppressed_snowball
 
     def train_one_batch(self, step, batch):
-        batch = self.actor.gpu_loader.batch_to_device(batch)
+        batch = self.gpu_loader.batch_to_device(batch)
         aug_batch = self.augmentation(batch)
         if self.drq:
             q_metrics = self.update_q(batch, aug_batch)
@@ -164,10 +164,12 @@ class SoftActorCritic(Algorithm):
 
         for step in range(self.training_steps):
             # take action, update replay buffer
-            action, hidden = self.actor.get_action(current_state)
+            action, hidden = self.actor.get_action(
+                self.gpu_loader.state_to_device(current_state))
             self.replay_buffer.current_trajectory().actions.append(action)
 
-            if self.suppressed_snowball(step, current_state, action):
+            suppressed_snowball = self.suppressed_snowball(step, current_state, action)
+            if suppressed_snowball:
                 obs, r, done, _ = env.step(-1)
             else:
                 obs, r, done, _ = env.step(action)
@@ -202,7 +204,7 @@ class SoftActorCritic(Algorithm):
                         for k, v in iter(metrics.items()):
                             step_metrics[k].append(v)
                 for k, v in iter(step_metrics.items()):
-                    step_metrics[k] = sum(v) / updates_per_step
+                    step_metrics[k] = sum(v) / len(v)
                 if self.wandb:
                     wandb.log(
                         {'reward': reward,

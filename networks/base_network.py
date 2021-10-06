@@ -1,6 +1,5 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
-from helpers.gpu import GPULoader
 
 import numpy as np
 import torch as th
@@ -45,13 +44,15 @@ class LSTMLayer(nn.Module):
     def __init__(self, input_dim, config):
         super().__init__()
         self.hidden_size = config.lstm_hidden_size
-        self.initial_hidden = (th.zeros(self.hidden_size), th.zeros(self.hidden_size))
+        self.initial_hidden = th.zeros(self.hidden_size * 2)
         self.lstm = nn.LSTM(input_size=input_dim,
                             hidden_size=self.hidden_size,
                             num_layers=config.lstm_layers, batch_first=True)
 
         def forward(self, features, hidden):
-            new_features, new_hidden = self.lstm(features, hidden)
+            hidden, cell = th.chunk(hidden, 2, dim=1)
+            new_features, new_hidden = self.lstm(features, hidden, cell)
+            new_hidden = th.cat(new_hidden, dim=1)
             return new_features.reshape(-1, self.hidden_size), new_hidden
 
 
@@ -93,7 +94,6 @@ class Network(nn.Module):
         self.print_model_param_count()
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.to(self.device)
-        self.gpu_loader = GPULoader()
 
     def initial_hidden(self):
         initial_hidden = self.lstm.initial_hidden if self.lstm else None

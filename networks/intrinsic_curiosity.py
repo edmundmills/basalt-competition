@@ -1,6 +1,6 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
-from helpers.gpu import GPULoader, cat_states
+from utils.gpu import GPULoader, cat_states
 
 import numpy as np
 import torch as th
@@ -72,7 +72,7 @@ class CuriosityModule(nn.Module):
         return features
 
     def get_features(self, state):
-        pov, _items = state
+        pov = state[0]
         features = self.features(pov).flatten(start_dim=1)
         return features
 

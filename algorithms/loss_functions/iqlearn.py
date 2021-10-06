@@ -1,5 +1,5 @@
-from helpers.environment import ObservationSpace, ActionSpace
-from helpers.gpu import cat_states
+from utils.environment import ObservationSpace, ActionSpace
+from utils.gpu import cat_states
 
 import torch as th
 import torch.nn.functional as F

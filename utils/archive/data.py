@@ -1,4 +1,4 @@
-from helpers.trajectories import Trajectory
+from utils.trajectories import Trajectory
 
 from pathlib import Path
 import os

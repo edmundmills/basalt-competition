@@ -1,4 +1,5 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
+from utils.gpu import GPULoader
 
 import math
 from pathlib import Path
@@ -17,7 +18,6 @@ class Trajectory:
         self.states = []
         self.actions = []
         self.rewards = []
-        self.done = False
         self.additional_data = OrderedDict()
 
     def __len__(self):
@@ -101,9 +101,9 @@ class TrajectoryGenerator:
     def __init__(self, env, replay_buffer=None, lstm_hidden_size=0):
         self.env = env
         self.replay_buffer = replay_buffer
+        self.gpu_loader = GPULoader()
         self.lstm_hidden_size = lstm_hidden_size
-        self.initial_hidden = (th.zeros(self.lstm_hidden_size),
-                               th.zeros(self.lstm_hidden_size)) \
+        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if lstm_hidden_size > 0 else None
 
     def generate(self, model, max_episode_length=100000):
@@ -114,7 +114,8 @@ class TrajectoryGenerator:
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs, hidden)
             state = trajectory.current_state()
-            action, hidden = model.get_action(state)
+            action, hidden = model.get_action(
+                self.gpu_loader.state_to_device(current_state))
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done

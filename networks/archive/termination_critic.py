@@ -1,4 +1,4 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 from networks.base_network import Network
 
 import os

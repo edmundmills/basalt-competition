@@ -1,8 +1,8 @@
-from helpers.datasets import TrajectoryStepDataset
+from utils.datasets import TrajectoryStepDataset
 from networks.soft_q import SoftQNetwork
-from environment.start import start_env
-from helpers.trajectories import TrajectoryGenerator
-from helpers.datasets import ReplayBuffer
+from utils.environment import start_env
+from utils.trajectories import TrajectoryGenerator
+from utils.datasets import ReplayBuffer
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ

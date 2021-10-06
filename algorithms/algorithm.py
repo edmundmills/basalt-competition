@@ -1,4 +1,5 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
+from utils.gpu import GPULoader
 
 import time
 import os
@@ -12,6 +13,7 @@ import numpy as np
 class Algorithm:
     def __init__(self, config, pretraining=False):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.gpu_loader = GPULoader()
         th.backends.cudnn.benchmark = True
         self.config = config
         self.wandb = config.wandb
