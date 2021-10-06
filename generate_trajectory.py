@@ -1,6 +1,6 @@
 from networks.soft_q import SoftQNetwork
-from helpers.trajectories import Trajectory, TrajectoryGenerator
-from environment.start import start_env
+from utils.trajectories import Trajectory, TrajectoryGenerator
+from utils.environment import start_env
 
 from pathlib import Path
 import os
@@ -10,7 +10,7 @@ if __name__ == "__main__":
     environment = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
     env = start_env(debug_env=False)
-    model = SoftQNetwork(alpha=.1, n_observation_frames=3)
+    model = SoftQNetwork(config)
     training_run = 'MineRLBasaltFindCave-v0_online_imitation_1632236774'
     saved_model_path = Path('train') / training_run / 'model.pth'
     model.load_parameters(saved_model_path)
@@ -28,4 +28,3 @@ if __name__ == "__main__":
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
     trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
-    trajectory.view()

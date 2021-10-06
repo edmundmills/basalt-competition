@@ -1,4 +1,4 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 
 import torch as th
 import torch.nn.functional as F

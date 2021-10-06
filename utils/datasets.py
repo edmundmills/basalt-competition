@@ -1,5 +1,5 @@
-from helpers.trajectories import Trajectory
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.trajectories import Trajectory
+from utils.environment import ObservationSpace, ActionSpace
 
 import minerl
 
@@ -24,8 +24,12 @@ class TrajectoryStepDataset(Dataset):
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = os.getenv('MINERL_ENVIRONMENT')
         self.environment_path = self.data_root / self.environment
+        self.lstm_hidden_size = config.lstm_hidden_size
+        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
+            if self.lstm_hidden_size > 0 else None
+
         self.trajectories, self.step_lookup = self._load_data()
-        print(f'Expert dataset initialized with {len(self)} steps')
+        print(f'Expert dataset initialized with {len(self.step_lookup)} steps')
 
     def _load_data(self):
         data = minerl.data.make(self.environment)
@@ -40,15 +44,12 @@ class TrajectoryStepDataset(Dataset):
 
             trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
             step_idx = 0
-            noops = deque([True, True], maxlen=2)
             for obs, action, _, _, done in data.load_data(str(trajectory_path)):
                 trajectory.done = done
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
-                noops.append(action == -1)
-                # skip adding states that are not part of a non-no-op transition
-                if noops[0] and noops[1]:
+                if action == -1:
                     continue
-                trajectory.append_obs(obs)
+                trajectory.append_obs(obs, self.initial_hidden)
                 trajectory.actions.append(action)
                 trajectory.rewards.append(0)
                 step_lookup.append((trajectory_idx, step_idx))
@@ -68,6 +69,29 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx][step_idx]
+        return sample
+
+
+class TrajectorySegmentDataset(TrajectoryStepDataset):
+    def __init__(self, config, **kwargs):
+        super().__init__(config, **kwargs)
+        self.segment_length = config.lstm_segment_length
+        self.segment_lookup = self._identify_segments()
+
+    def _identify_segments(self):
+        segments = []
+        for trajectory_idx, step_idx in self.step_lookup:
+            if step_idx > self.segment_length + 1:
+                segments.append((trajectory_idx, step_idx))
+        return segments
+
+    def __len__(self):
+        return len(self.segment_lookup)
+
+    def __getitem__(self, idx):
+        trajectory_idx, last_step_idx = self.segment_lookup[idx]
+        sample = self.trajectories[trajectory_idx].get_segment(last_step_idx,
+                                                               self.segment_length)
         return sample
 
 
@@ -95,10 +119,10 @@ class ReplayBuffer:
         self.trajectories.append(Trajectory(
             n_observation_frames=self.n_observation_frames))
 
-    def append_step(self, action, reward, next_obs, done):
+    def append_step(self, action, hidden, reward, next_obs, done):
         self.current_trajectory().actions.append(action)
         self.current_trajectory().rewards.append(reward)
-        self.current_trajectory().append_obs(next_obs)
+        self.current_trajectory().append_obs(next_obs, hidden)
         self.current_trajectory().done = done
         self.increment_step()
 
@@ -114,13 +138,13 @@ class ReplayBuffer:
         return batch
 
     def update_rewards(self, rewards):
-        assert(len(rewards) == len(self))
+        assert(len(rewards) == len(self.step_lookup))
         for idx, (trajectory_idx, step_idx) in enumerate(self.step_lookup):
             self.trajectories[trajectory_idx].rewards[step_idx] = rewards[idx]
         print(f'{len(rewards)} replay steps labeled with rewards')
 
     def recent_frames(self, number_of_steps):
-        total_steps = len(self)
+        total_steps = len(self.step_lookup)
         steps = min(number_of_steps, total_steps)
         frame_skip = 2
         frames = int(round(total_steps / (frame_skip + 1)))
@@ -136,6 +160,35 @@ class ReplayBuffer:
                   for image in images]
         images = np.stack(images, 0)
         return images, frame_rate
+
+
+class SegmentReplayBuffer(ReplayBuffer):
+    def __init__(self, config):
+        super().__init__(config)
+        self.segment_lookup = []
+        self.segment_length = config.lstm_segment_length
+
+    def __len__(self):
+        return len(self.segment_lookup)
+
+    def __getitem__(self, idx):
+        trajectory_idx, segment_idx = self.segment_lookup[idx]
+        sample = self.trajectories[trajectory_idx].get_segment(segment_idx,
+                                                               self.segment_length)
+        return sample
+
+    def increment_step(self):
+        super().increment_step()
+        if len(self.current_trajectory()) > self.segment_length + 1:
+            self.segment_lookup.append(
+                (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
+
+    def sample(self, batch_size):
+        replay_batch_size = min(batch_size, len(self.segment_lookup))
+        sample_indices = random.sample(range(len(self.segment_lookup)), replay_batch_size)
+        replay_batch = [self[idx] for idx in sample_indices]
+        batch = default_collate(replay_batch)
+        return batch
 
 
 class MixedReplayBuffer(ReplayBuffer):
@@ -188,3 +241,11 @@ class MixedReplayBuffer(ReplayBuffer):
                 expert_rewards[rewards_idx]
             rewards_idx += 1
         print(f'{len(expert_rewards)} expert steps labeled with rewards')
+
+
+class MixedSegmentReplayBuffer(MixedReplayBuffer, SegmentReplayBuffer):
+    def __init__(self, expert_dataset, config,
+                 batch_size, initial_replay_buffer=None):
+        super().__init__(expert_dataset, config, batch_size, initial_replay_buffer)
+        if initial_replay_buffer is not None:
+            self.segment_lookup = initial_replay_buffer.segment_lookup

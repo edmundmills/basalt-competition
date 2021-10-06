@@ -15,30 +15,30 @@ class SoftQNetwork(Network):
         return self.forward(state)
 
     def get_Q_s_a(self, states, actions):
-        Qs = self.get_Q(states)
-        Q_s_a = th.gather(Qs, dim=1, index=actions.reshape(-1, 1))
-        return Q_s_a
+        Qs, hidden = self.get_Q(states)
+        Q_s_a = th.gather(Qs, dim=-1, index=actions.reshape(-1, 1))
+        return Q_s_a, hidden
 
     def get_V(self, Qs):
-        v = self.alpha * th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
+        v = self.alpha * th.logsumexp(Qs / self.alpha, dim=-1, keepdim=True)
         return v
 
     def action_probabilities(self, Qs):
-        probabilities = F.softmax(Qs/self.alpha, dim=1)
+        probabilities = F.softmax(Qs/self.alpha, dim=-1)
         return probabilities
 
     def entropies(self, Qs):
-        entropies = -F.log_softmax(Qs/self.alpha, dim=1)
+        entropies = -F.log_softmax(Qs/self.alpha, dim=-1)
         return entropies
 
-    def get_action(self, state):
-        states = [state_component.unsqueeze(0) for state_component in state]
-        states, = self.gpu_loader.states_to_device([states])
+    def get_action(self, states):
         with th.no_grad():
-            Q = self.get_Q(states)
+            Q, hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
-        return action
+        if hidden is not None:
+            hidden = hidden.cpu().squeeze()
+        return action, hidden
 
 
 class TwinnedSoftQNetwork(nn.Module):

@@ -1,4 +1,4 @@
-from helpers.environment import ActionSpace, ObservationSpace
+from utils.environment import ActionSpace, ObservationSpace
 
 import torch as th
 
@@ -17,8 +17,7 @@ def cat_batches(tuple_of_batches):
     next_states, _ = cat_states(next_states)
     done = th.cat(done, dim=0)
     reward = th.cat(reward, dim=0)
-    batch = states, actions, next_states, done, reward
-    return batch
+    return states, actions, next_states, done, reward
 
 
 def disable_gradients(network):
@@ -27,18 +26,32 @@ def disable_gradients(network):
 
 
 class GPULoader:
-    def __init__(self):
+    def __init__(self, config):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         starting_count = th.FloatTensor(
             list(ObservationSpace.starting_inventory().values())).reshape(1, -1)
         ones = th.ones(starting_count.size())
         self.item_normalization = th.cat((starting_count, ones), dim=1).to(self.device)
+        self.loading_sequences = config.lstm_layers > 0
 
     def normalize_state(self, state):
-        pov, items = state
-        pov /= 255.0
-        items /= self.item_normalization
-        state = pov, items
+        state = list(state)
+        state[0] /= 255.0
+        state[1] /= self.item_normalization
+        return tuple(state)
+
+    def states_from_sequence(self, sequence):
+        current_states = [state_component[:, :-1, ...] for state_component in sequence]
+        next_states = [state_component[:, 1:, ...] for state_component in sequence]
+        return current_states, next_states
+
+    def state_to_device(self, state):
+        state = [state_component.unsqueeze(0).to(self.device, dtype=th.float)
+                 for state_component in state]
+        state = self.normalize_state(state)
+        # if state includes hidden, add sequence dimension
+        if len(state) == 3:
+            state = [state_component.unsqueeze(0) for state_component in state]
         return state
 
     def states_to_device(self, tuple_of_states):
@@ -51,34 +64,25 @@ class GPULoader:
         # return tuple(list_of_states)
         states = []
         for state in tuple_of_states:
-            state = [state_component.to(self.device, dtype=th.float)
-                     for state_component in state]
-            state = self.normalize_state(state)
+            if len(state) != 0:
+                state = [state_component.to(self.device, dtype=th.float)
+                         for state_component in state]
+                state = self.normalize_state(state)
             states.append(state)
         return tuple(states)
 
     def expert_batch_to_device(self, batch):
-        states, actions, next_states, done, rewards = batch
-        mask = actions != -1
-        actions = actions[mask]
-        states = [state_component[mask] for state_component in states]
-        next_states = [state_component[mask] for state_component in next_states]
-        done = done[mask]
-        states, next_states = self.states_to_device((states, next_states))
-        actions = actions.unsqueeze(1).to(self.device)
-        done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
-        rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, done, rewards
-        return batch
+        return self.batch_to_device(batch)
 
     def batch_to_device(self, batch):
         states, actions, next_states, done, rewards = batch
         states, next_states = self.states_to_device((states, next_states))
-        actions = actions.unsqueeze(1).to(self.device)
-        done = th.as_tensor(done).unsqueeze(1).float().to(self.device)
-        rewards = rewards.float().unsqueeze(1).to(self.device)
-        batch = states, actions, next_states, done, rewards
-        return batch
+        if self.loading_sequences:
+            states, next_states = self.states_from_sequence(states)
+        actions = actions.unsqueeze(-1).to(self.device)
+        done = th.as_tensor(done).unsqueeze(-1).float().to(self.device)
+        rewards = rewards.float().unsqueeze(-1).to(self.device)
+        return states, actions, next_states, done, rewards
 
     def batches_to_device(self, expert_batch, replay_batch):
         expert_states, expert_actions, expert_next_states, \
@@ -86,22 +90,20 @@ class GPULoader:
         replay_states, replay_actions, replay_next_states, \
             replay_done, replay_rewards = replay_batch
 
-        expert_actions = expert_actions.unsqueeze(1)
-
-        mask = (expert_actions != -1).squeeze()
-        expert_actions = expert_actions[mask].to(self.device)
-        replay_actions = replay_actions.unsqueeze(1).to(self.device)
-        expert_states = [state_component[mask] for state_component in expert_states]
-        expert_next_states = [state_component[mask]
-                              for state_component in expert_next_states]
+        expert_actions = expert_actions.unsqueeze(-1).to(self.device)
+        replay_actions = replay_actions.unsqueeze(-1).to(self.device)
 
         expert_states, replay_states, expert_next_states, replay_next_states = \
             self.states_to_device((expert_states, replay_states,
                                    expert_next_states, replay_next_states))
 
-        expert_done = th.as_tensor(expert_done[mask]).float().to(self.device).unsqueeze(1)
-        replay_done = th.as_tensor(replay_done).float().to(self.device).unsqueeze(1)
-        replay_rewards = replay_rewards.float().unsqueeze(1).to(self.device)
+        if self.loading_sequences:
+            expert_states, expert_next_states = self.states_from_sequence(expert_states)
+            replay_states, replay_next_states = self.states_from_sequence(replay_states)
+
+        expert_done = th.as_tensor(expert_done).float().unsqueeze(-1).to(self.device)
+        replay_done = th.as_tensor(replay_done).float().unsqueeze(-1).to(self.device)
+        replay_rewards = replay_rewards.float().unsqueeze(-1).to(self.device)
 
         expert_batch = expert_states, expert_actions, expert_next_states, \
             expert_done, _expert_rewards

@@ -1,5 +1,5 @@
 from networks.base_network import Network
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 
 import os
 import time

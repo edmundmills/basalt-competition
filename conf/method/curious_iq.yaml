@@ -4,7 +4,7 @@ loss_function: 'iqlearn'
 loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
-curiosity_reward: true
+
 online_curiosity_training: true
 normalize_reward: true  # for curiosity rewards
 entropy_adjustment: true
@@ -31,4 +31,4 @@ entropy_lr: 1e-3
 tau: .05
 
 expert_dataset: true
-double_q: false
+# double_q: false

@@ -1,6 +1,6 @@
 from algorithms.algorithm import Algorithm
-from helpers.environment import ObservationSpace, ActionSpace
-from helpers.data_augmentation import DataAugmentation
+from utils.environment import ObservationSpace, ActionSpace
+from utils.data_augmentation import DataAugmentation
 
 import os
 import wandb
@@ -25,7 +25,7 @@ class SupervisedLearning(Algorithm):
         iter_count = 0
         for epoch in range(self.epochs):
             for batch in train_dataloader:
-                batch = model.gpu_loader.expert_batch_to_device(batch)
+                batch = self.gpu_loader.expert_batch_to_device(batch)
                 batch = self.augmentation(batch)
                 states, actions, _next_states, _done, _rewards = batch
                 loss = model.loss(states, actions)

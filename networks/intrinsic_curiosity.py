@@ -1,6 +1,6 @@
-from helpers.environment import ObservationSpace, ActionSpace
+from utils.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
-from helpers.gpu import GPULoader, cat_states
+from utils.gpu import GPULoader, cat_states
 
 import numpy as np
 import torch as th
@@ -9,17 +9,17 @@ import torch.nn.functional as F
 
 
 class CuriosityModule(nn.Module):
-    def __init__(self, n_observation_frames=1, eta=0.5, beta=0.1):
+    def __init__(self, config):
         super().__init__()
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        self.n_observation_frames = config.n_observation_frames
         # scales the returned reward
-        self.eta = eta
+        self.eta = 0.5
         # controls the relative weight of the two different loss loss_functions
         # low values prioritize deducing actions over predicting next features
-        self.beta = beta
+        self.beta = 0.1
         self.actions = ActionSpace.actions()
         self.frame_shape = ObservationSpace.frame_shape
-        self.n_observation_frames = n_observation_frames
         mobilenet_features = mobilenet_v3_small(pretrained=True, progress=True).features
         self.features = nn.Sequential(
             nn.Sequential(nn.Conv2d(3*self.n_observation_frames, 16, kernel_size=(3, 3),
@@ -45,7 +45,7 @@ class CuriosityModule(nn.Module):
             nn.ReLU(),
             nn.Linear(256, self.feature_dim)
         )
-        self.gpu_loader = GPULoader()
+        self.gpu_loader = GPULoader(config)
 
     def _visual_features_shape(self, frames):
         with th.no_grad():
@@ -72,7 +72,7 @@ class CuriosityModule(nn.Module):
         return features
 
     def get_features(self, state):
-        pov, _items = state
+        pov = state[0]
         features = self.features(pov).flatten(start_dim=1)
         return features
 

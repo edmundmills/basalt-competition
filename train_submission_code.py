@@ -1,12 +1,11 @@
-from helpers.datasets import TrajectoryStepDataset
-# from networks.termination_critic import TerminationCritic
+from utils.datasets import ReplayBuffer, SegmentReplayBuffer
+from utils.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
 from networks.soft_q import SoftQNetwork
-from environment.start import start_env
-from helpers.trajectories import TrajectoryGenerator
-from helpers.datasets import ReplayBuffer
+from utils.environment import start_env
+from utils.trajectories import TrajectoryGenerator
 from algorithms.online_imitation import OnlineImitation
-from algorithms.sac import SoftActorCritic, IntrinsicCuriosityTraining, \
-    CuriousIQ
+from algorithms.iqlearn_sac import IQLearnSAC
+from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
 
 import torch as th
 import numpy as np
@@ -82,8 +81,6 @@ def main():
                            action='store_false', default=True)
     argparser.add_argument('--virtual-display-false', dest='virtual_display',
                            action='store_false', default=True)
-    argparser.add_argument('--save-gifs-false', dest='gifs',
-                           action='store_false', default=True)
     argparser.add_argument("overrides", nargs="*", default=["env=cave"])
 
     args = argparser.parse_args()
@@ -119,11 +116,13 @@ def main():
     else:
         env = None
 
-    replay_buffer = ReplayBuffer(config)
+    replay_buffer = ReplayBuffer(config) if config.lstm_layers == 0 \
+        else SegmentReplayBuffer(config)
     iter_count = 0
     if config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, replay_buffer).random_trajectories(config.method.starting_steps)
+            env, replay_buffer).random_trajectories(
+                config.method.starting_steps, lstm_hidden_size=config.lstm_hidden_size)
         iter_count += config.method.starting_steps
 
     if config.pretraining.name == 'curiosity_pretraining':
@@ -139,7 +138,12 @@ def main():
 
     # initialize dataset, model, algorithm
     if config.method.expert_dataset:
-        expert_dataset = TrajectoryStepDataset(config, debug_dataset=args.debug_env)
+        if config.lstm_layers == 0:
+            expert_dataset = TrajectoryStepDataset(config,
+                                                   debug_dataset=args.debug_env)
+        else:
+            expert_dataset = TrajectorySegmentDataset(config,
+                                                      debug_dataset=args.debug_env)
 
     if pretrained_model is not None:
         model = pretrained_model
@@ -150,6 +154,10 @@ def main():
         training_algorithm = CuriousIQ(expert_dataset, config,
                                        initial_replay_buffer=replay_buffer,
                                        initial_iter_count=iter_count)
+    elif config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
+        training_algorithm = IQLearnSAC(expert_dataset, config,
+                                        initial_replay_buffer=replay_buffer,
+                                        initial_iter_count=iter_count)
     elif config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config,
                                              initial_replay_buffer=replay_buffer,
