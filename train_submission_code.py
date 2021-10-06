@@ -1,12 +1,11 @@
 from helpers.datasets import TrajectoryStepDataset
-# from networks.termination_critic import TerminationCritic
 from networks.soft_q import SoftQNetwork
 from environment.start import start_env
 from helpers.trajectories import TrajectoryGenerator
 from helpers.datasets import ReplayBuffer
 from algorithms.online_imitation import OnlineImitation
-from algorithms.sac import SoftActorCritic, IntrinsicCuriosityTraining, \
-    CuriousIQ
+from algorithms.iqlearn_sac import IQLearnSAC
+from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
 
 import torch as th
 import numpy as np
@@ -82,8 +81,6 @@ def main():
                            action='store_false', default=True)
     argparser.add_argument('--virtual-display-false', dest='virtual_display',
                            action='store_false', default=True)
-    argparser.add_argument('--save-gifs-false', dest='gifs',
-                           action='store_false', default=True)
     argparser.add_argument("overrides", nargs="*", default=["env=cave"])
 
     args = argparser.parse_args()
@@ -155,6 +152,10 @@ def main():
         training_algorithm = CuriousIQ(expert_dataset, config,
                                        initial_replay_buffer=replay_buffer,
                                        initial_iter_count=iter_count)
+    elif config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
+        training_algorithm = IQLearnSAC(expert_dataset, config,
+                                        initial_replay_buffer=replay_buffer,
+                                        initial_iter_count=iter_count)
     elif config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, model, config,
                                              initial_replay_buffer=replay_buffer,
