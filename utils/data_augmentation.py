@@ -20,7 +20,7 @@ class RandomHorizontalMirror:
         return action
 
     def mirror_pov(self, pov):
-        new_pov = th.flip(pov, dims=[3])
+        new_pov = th.flip(pov, dims=[-1])
         return new_pov
 
     def __call__(self, sample):
@@ -31,7 +31,8 @@ class RandomHorizontalMirror:
         state = list(state)
         next_state = list(next_state)
         state[0] = self.mirror_pov(state[0])
-        next_state[0] = self.mirror_pov(next_state[0])
+        if len(next_state) != 0:
+            next_state[0] = self.mirror_pov(next_state[0])
         new_action = self.mirror_action(action)
         sample = tuple(state), action, tuple(next_state), done, reward
         return sample
@@ -42,11 +43,11 @@ class InventoryNoise:
         self.inventory_noise = inventory_noise
 
     def transform(self, items):
-        batch_size, item_dim = items.size()
-        noise = th.randn((batch_size, int(item_dim / 2)), device=items.device) \
+        *batch_size, item_dim = items.size()
+        noise = th.randn((*batch_size, int(item_dim / 2)), device=items.device) \
             * self.inventory_noise
-        zeros = th.zeros((batch_size, int(item_dim / 2)), device=items.device)
-        noise = th.cat((noise, zeros), dim=1)
+        zeros = th.zeros((*batch_size, int(item_dim / 2)), device=items.device)
+        noise = th.cat((noise, zeros), dim=-1)
         new_items = th.clamp(items + noise, 0, 1)
         return new_items
 
@@ -55,7 +56,8 @@ class InventoryNoise:
         state = list(state)
         next_state = list(next_state)
         state[1] = self.transform(state[1])
-        next_state[1] = self.transform(next_state[1])
+        if len(next_state) != 0:
+            next_state[1] = self.transform(next_state[1])
         sample = tuple(state), action, tuple(next_state), done, reward
         return sample
 
@@ -103,7 +105,9 @@ class RandomTranslate:
         self.transform = RandomShiftsAug(4)
 
     def random_translate(self, pov):
-        new_pov = self.transform(pov)
+        *n, c, h, w = pov.size()
+        pov = pov.reshape(-1, c, h, w)
+        new_pov = self.transform(pov).reshape(*n, c, h, w)
         return new_pov
 
     def __call__(self, sample):
@@ -111,7 +115,8 @@ class RandomTranslate:
         state = list(state)
         next_state = list(next_state)
         state[0] = self.random_translate(state[0])
-        next_state[0] = self.random_translate(next_state[0])
+        if len(next_state) != 0:
+            next_state[0] = self.random_translate(next_state[0])
         sample = tuple(state), action, tuple(next_state), done, reward
         return sample
 
@@ -126,7 +131,7 @@ class DataAugmentation:
         if config.inventory_noise > 0:
             self.transforms.append(InventoryNoise(config.inventory_noise))
 
-    def __call__(self, state):
+    def __call__(self, sample):
         for transform in self.transforms:
-            state = transform(state)
-        return state
+            sample = transform(sample)
+        return sample

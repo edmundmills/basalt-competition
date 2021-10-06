@@ -29,7 +29,7 @@ class TrajectoryStepDataset(Dataset):
             if self.lstm_hidden_size > 0 else None
 
         self.trajectories, self.step_lookup = self._load_data()
-        print(f'Expert dataset initialized with {len(self)} steps')
+        print(f'Expert dataset initialized with {len(self.step_lookup)} steps')
 
     def _load_data(self):
         data = minerl.data.make(self.environment)
@@ -78,7 +78,7 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         self.segment_length = config.lstm_segment_length
         self.segment_lookup = self._identify_segments()
 
-    def _identify_segments():
+    def _identify_segments(self):
         segments = []
         for trajectory_idx, step_idx in self.step_lookup:
             if step_idx > self.segment_length:

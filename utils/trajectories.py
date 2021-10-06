@@ -62,10 +62,12 @@ class Trajectory:
     def get_segment(self, last_step_idx, segment_length):
         is_last_step = last_step_idx + 1 == len(self)
         done = 1 if is_last_step and self.done else 0
-        actions = self.actions[last_step_idx + 1 - segment_length, last_step_idx + 1]
-        states = self.states[last_step_idx + 1 - segment_length, last_step_idx + 2]
+        actions = th.FloatTensor(
+            self.actions[last_step_idx + 1 - segment_length:last_step_idx + 1])
+        print(actions)
+        states = self.states[last_step_idx + 1 - segment_length:last_step_idx + 2]
         states = [th.stack(state_component) for state_component in zip(*states)]
-        _next_states = ([], [], [])
+        _next_states = []
         _rewards = []
         return states, actions, _next_states, done, _rewards
 

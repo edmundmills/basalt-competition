@@ -55,9 +55,10 @@ class GPULoader:
         # return tuple(list_of_states)
         states = []
         for state in tuple_of_states:
-            state = [state_component.to(self.device, dtype=th.float)
-                     for state_component in state]
-            state = self.normalize_state(state)
+            if len(state) != 0:
+                state = [state_component.to(self.device, dtype=th.float)
+                         for state_component in state]
+                state = self.normalize_state(state)
             states.append(state)
         return tuple(states)
 

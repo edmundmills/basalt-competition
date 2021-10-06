@@ -1,4 +1,4 @@
-from utils.datasets import TrajectoryStepDataset
+from utils.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
 from networks.soft_q import SoftQNetwork
 from utils.environment import start_env
 from utils.trajectories import TrajectoryGenerator

@@ -30,14 +30,14 @@ class VisualFeatureExtractor(nn.Module):
 
     def forward(self, pov):
         batch_size = pov.size()[0]
-        return self.cnn(pov).reshape(batch_size, -1)
+        return self.cnn(pov)
 
     def _visual_features_dim(self):
         with th.no_grad():
             dummy_input = th.zeros((1, 3*self.n_observation_frames, 64, 64))
             output = self.forward(dummy_input)
-        print('Base network visual feature dimensions: ', output.size()[1])
-        return output.size()[1]
+        print('Base network visual feature dimensions: ', output.size())
+        return output.reshape(-1).size()[0]
 
 
 class LSTMLayer(nn.Module):
@@ -49,11 +49,11 @@ class LSTMLayer(nn.Module):
                             hidden_size=self.hidden_size,
                             num_layers=config.lstm_layers, batch_first=True)
 
-        def forward(self, features, hidden):
-            hidden, cell = th.chunk(hidden, 2, dim=1)
-            new_features, new_hidden = self.lstm(features, hidden, cell)
-            new_hidden = th.cat(new_hidden, dim=1)
-            return new_features.reshape(-1, self.hidden_size), new_hidden
+    def forward(self, features, hidden):
+        hidden, cell = th.chunk(hidden, 2, dim=2)
+        new_features, new_hidden = self.lstm(features, (hidden, cell))
+        new_hidden = th.cat(new_hidden, dim=1)
+        return new_features.reshape(-1, self.hidden_size), new_hidden
 
 
 class LinearLayers(nn.Module):
@@ -106,11 +106,15 @@ class Network(nn.Module):
             pov, items = state
         batch_size = pov.size()[0]
         visual_features = self.visual_feature_extractor(pov)
-        features = th.cat((visual_features, items), dim=1)
         if self.lstm is not None:
-            features, hidden = self.lstm(features, hidden)
+            seq_size = 1 if len(items.size()) == 2 else pov.size()[1]
+            features = th.cat((visual_features.reshape(batch_size, seq_size, -1),
+                               items.reshape(batch_size, seq_size, -1)), dim=2)
+            features, hidden = self.lstm(features,
+                                         hidden.reshape(batch_size, seq_size, -1))
             return self.linear(features), hidden
         else:
+            features = th.cat((visual_features.reshape(batch_size, -1), items), dim=1)
             return self.linear(features), None
 
     def print_model_param_count(self):
