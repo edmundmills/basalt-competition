@@ -16,19 +16,19 @@ class SoftQNetwork(Network):
 
     def get_Q_s_a(self, states, actions):
         Qs, hidden = self.get_Q(states)
-        Q_s_a = th.gather(Qs, dim=1, index=actions.reshape(-1, 1))
+        Q_s_a = th.gather(Qs, dim=-1, index=actions.reshape(-1, 1))
         return Q_s_a, hidden
 
     def get_V(self, Qs):
-        v = self.alpha * th.logsumexp(Qs / self.alpha, dim=1, keepdim=True)
+        v = self.alpha * th.logsumexp(Qs / self.alpha, dim=-1, keepdim=True)
         return v
 
     def action_probabilities(self, Qs):
-        probabilities = F.softmax(Qs/self.alpha, dim=1)
+        probabilities = F.softmax(Qs/self.alpha, dim=-1)
         return probabilities
 
     def entropies(self, Qs):
-        entropies = -F.log_softmax(Qs/self.alpha, dim=1)
+        entropies = -F.log_softmax(Qs/self.alpha, dim=-1)
         return entropies
 
     def get_action(self, states):
@@ -36,6 +36,8 @@ class SoftQNetwork(Network):
             Q, hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
+        if hidden is not None:
+            hidden = hidden.cpu().squeeze()
         return action, hidden
 
 

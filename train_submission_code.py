@@ -1,8 +1,8 @@
+from utils.datasets import ReplayBuffer, SegmentReplayBuffer
 from utils.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
 from networks.soft_q import SoftQNetwork
 from utils.environment import start_env
 from utils.trajectories import TrajectoryGenerator
-from utils.datasets import ReplayBuffer
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
@@ -116,11 +116,13 @@ def main():
     else:
         env = None
 
-    replay_buffer = ReplayBuffer(config)
+    replay_buffer = ReplayBuffer(config) if config.lstm_layers == 0 \
+        else SegmentReplayBuffer(config)
     iter_count = 0
     if config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, replay_buffer).random_trajectories(config.method.starting_steps)
+            env, replay_buffer).random_trajectories(
+                config.method.starting_steps, lstm_hidden_size=config.lstm_hidden_size)
         iter_count += config.method.starting_steps
 
     if config.pretraining.name == 'curiosity_pretraining':

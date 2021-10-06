@@ -4,7 +4,7 @@ from algorithms.loss_functions.sac import CuriousIQPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
 from utils.environment import ObservationSpace, ActionSpace
-from utils.datasets import MixedReplayBuffer
+from utils.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from utils.gpu import disable_gradients, cat_batches
 
 import numpy as np
@@ -24,8 +24,7 @@ class IntrinsicCuriosityTraining(SoftActorCritic):
         self.curiosity_pretraining_steps = method_config.curiosity_pretraining_steps
         self.normalize_reward = method_config.normalize_reward
         self.running_avg_loss = deque(maxlen=250)
-        self.curiosity_module = CuriosityModule(
-            n_observation_frames=config.n_observation_frames).to(self.device)
+        self.curiosity_module = CuriosityModule(config).to(self.device)
         self.curiosity_optimizer = th.optim.Adam(self.curiosity_module.parameters(),
                                                  lr=method_config.curiosity_lr)
 
@@ -161,11 +160,15 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         if self.entropy_adjustment:
             self.initialize_alpha_optimization()
 
-        self.replay_buffer = MixedReplayBuffer(
+        kwargs = dict(
             expert_dataset=expert_dataset,
             config=config,
             batch_size=config.method.batch_size,
             initial_replay_buffer=self.replay_buffer)
+        if self.config.lstm_layers == 0:
+            self.replay_buffer = MixedReplayBuffer(**kwargs)
+        else:
+            self.replay_buffer = MixedSegmentReplayBuffer(**kwargs)
 
     def update_model_alphas(self):
         alpha = self._policy_loss.log_alpha.detach().exp().item()

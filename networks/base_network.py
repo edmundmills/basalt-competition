@@ -9,6 +9,7 @@ from torch import nn
 class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.config = config
         self.n_observation_frames = config.n_observation_frames
         self.frame_shape = ObservationSpace.frame_shape
         self.cnn_layers = config.cnn_layers
@@ -29,8 +30,10 @@ class VisualFeatureExtractor(nn.Module):
         self.feature_dim = self._visual_features_dim()
 
     def forward(self, pov):
-        batch_size = pov.size()[0]
-        return self.cnn(pov)
+        *n, c, h, w = pov.size()
+        pov = pov.reshape(-1, c, h, w)
+        features = self.cnn(pov)
+        return self.cnn(pov).reshape(*n, -1)
 
     def _visual_features_dim(self):
         with th.no_grad():
@@ -50,10 +53,11 @@ class LSTMLayer(nn.Module):
                             num_layers=config.lstm_layers, batch_first=True)
 
     def forward(self, features, hidden):
-        hidden, cell = th.chunk(hidden, 2, dim=2)
-        new_features, new_hidden = self.lstm(features, (hidden, cell))
-        new_hidden = th.cat(new_hidden, dim=1)
-        return new_features.reshape(-1, self.hidden_size), new_hidden
+        hidden, cell = th.chunk(hidden, 2, dim=-1)
+        new_features, new_hidden = self.lstm(features,
+                                             (hidden.contiguous(), cell.contiguous()))
+        new_hidden = th.cat(new_hidden, dim=-1)
+        return new_features, new_hidden
 
 
 class LinearLayers(nn.Module):
@@ -72,7 +76,9 @@ class LinearLayers(nn.Module):
         )
 
     def forward(self, features):
-        return self.linear(features)
+        *n, feature_dim = features.size()
+        out = self.linear(features.reshape(-1, feature_dim)).reshape(*n, -1)
+        return out
 
 
 class Network(nn.Module):
@@ -102,20 +108,19 @@ class Network(nn.Module):
     def forward(self, state):
         if self.lstm is not None:
             pov, items, hidden = state
+            # only use initial hidden state
+            hidden = hidden[:, 0, :].squeeze(dim=1)
+            # add dimension D for non-bidirectional
+            hidden = hidden.unsqueeze(0)
         else:
             pov, items = state
-        batch_size = pov.size()[0]
         visual_features = self.visual_feature_extractor(pov)
+        features = th.cat((visual_features, items), dim=-1)
         if self.lstm is not None:
-            seq_size = 1 if len(items.size()) == 2 else pov.size()[1]
-            features = th.cat((visual_features.reshape(batch_size, seq_size, -1),
-                               items.reshape(batch_size, seq_size, -1)), dim=2)
-            features, hidden = self.lstm(features,
-                                         hidden.reshape(batch_size, seq_size, -1))
-            return self.linear(features), hidden
+            features, hidden = self.lstm(features, hidden)
         else:
-            features = th.cat((visual_features.reshape(batch_size, -1), items), dim=1)
-            return self.linear(features), None
+            hidden = None
+        return self.linear(features), hidden
 
     def print_model_param_count(self):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())

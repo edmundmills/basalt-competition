@@ -13,7 +13,7 @@ import numpy as np
 class Algorithm:
     def __init__(self, config, pretraining=False):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.gpu_loader = GPULoader()
+        self.gpu_loader = GPULoader(config)
         th.backends.cudnn.benchmark = True
         self.config = config
         self.wandb = config.wandb

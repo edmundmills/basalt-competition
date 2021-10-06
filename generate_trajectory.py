@@ -10,7 +10,7 @@ if __name__ == "__main__":
     environment = 'MineRLBasaltFindCave-v0'
     os.environ['MINERL_ENVIRONMENT'] = environment
     env = start_env(debug_env=False)
-    model = SoftQNetwork(alpha=.1, n_observation_frames=3)
+    model = SoftQNetwork(config)
     training_run = 'MineRLBasaltFindCave-v0_online_imitation_1632236774'
     saved_model_path = Path('train') / training_run / 'model.pth'
     model.load_parameters(saved_model_path)

@@ -1,5 +1,5 @@
 from algorithms.sac import SoftActorCritic
-from utils.datasets import MixedReplayBuffer
+from utils.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from algorithms.loss_functions.sac import SACPolicyLoss
 from utils.gpu import cat_batches
@@ -8,11 +8,15 @@ from utils.gpu import cat_batches
 class IQLearnSAC(SoftActorCritic):
     def __init__(self, expert_dataset, config, **kwargs):
         super().__init__(config, pretraining=False, **kwargs)
-        self.replay_buffer = MixedReplayBuffer(
+        kwargs = dict(
             expert_dataset=expert_dataset,
             config=config,
             batch_size=config.method.batch_size,
             initial_replay_buffer=self.replay_buffer)
+        if self.config.lstm_layers == 0:
+            self.replay_buffer = MixedReplayBuffer(**kwargs)
+        else:
+            self.replay_buffer = MixedSegmentReplayBuffer(**kwargs)
 
     def initialize_loss_functions(self):
         if self.drq:

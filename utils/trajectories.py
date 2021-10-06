@@ -61,14 +61,14 @@ class Trajectory:
 
     def get_segment(self, last_step_idx, segment_length):
         is_last_step = last_step_idx + 1 == len(self)
-        done = 1 if is_last_step and self.done else 0
-        actions = th.FloatTensor(
-            self.actions[last_step_idx + 1 - segment_length:last_step_idx + 1])
-        print(actions)
-        states = self.states[last_step_idx + 1 - segment_length:last_step_idx + 2]
+        done = th.zeros(segment_length)
+        done[-1] = 1 if is_last_step and self.done else 0
+        actions = th.LongTensor(
+            self.actions[last_step_idx - segment_length:last_step_idx])
+        states = self.states[last_step_idx - segment_length:last_step_idx + 1]
         states = [th.stack(state_component) for state_component in zip(*states)]
         _next_states = []
-        _rewards = []
+        _rewards = th.tensor([])
         return states, actions, _next_states, done, _rewards
 
     def save_as_video(self, save_dir_path, filename):
@@ -100,24 +100,21 @@ class Trajectory:
 
 
 class TrajectoryGenerator:
-    def __init__(self, env, replay_buffer=None, lstm_hidden_size=0):
+    def __init__(self, env, replay_buffer=None):
         self.env = env
         self.replay_buffer = replay_buffer
-        self.gpu_loader = GPULoader()
-        self.lstm_hidden_size = lstm_hidden_size
-        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
-            if lstm_hidden_size > 0 else None
 
     def generate(self, model, max_episode_length=100000):
+        gpu_loader = GPULoader(model.config)
         trajectory = Trajectory(n_observation_frames=model.n_observation_frames)
+
         obs = self.env.reset()
         hidden = model.lstm.initial_hidden if model.lstm else None
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs, hidden)
             state = trajectory.current_state()
-            action, hidden = model.get_action(
-                self.gpu_loader.state_to_device(current_state))
+            action, hidden = model.get_action(gpu_loader.state_to_device(current_state))
             trajectory.actions.append(action)
             obs, _, done, _ = self.env.step(action)
             trajectory.done = done
@@ -134,13 +131,13 @@ class TrajectoryGenerator:
 
     def start_new_trajectory(self, **kwargs):
         current_state = TrajectoryGenerator.new_trajectory(
-            self.env, self.replay_buffer, initial_hidden=self.initial_hidden, **kwargs)
+            self.env, self.replay_buffer, **kwargs)
         return current_state
 
-    def random_trajectories(self, steps):
+    def random_trajectories(self, steps, lstm_hidden_size=0):
         print(f'Generating random trajectories for {steps} steps')
-
-        current_state = self.start_new_trajectory()
+        initial_hidden = th.zeros(lstm_hidden_size*2) if lstm_hidden_size > 0 else None
+        current_state = self.start_new_trajectory(initial_hidden=initial_hidden)
 
         # generate random trajectories
         for step in range(steps):
@@ -155,7 +152,7 @@ class TrajectoryGenerator:
                 obs, _, done, _ = self.env.step(action)
                 reward = 0
 
-            self.replay_buffer.current_trajectory().append_obs(obs, self.initial_hidden)
+            self.replay_buffer.current_trajectory().append_obs(obs, initial_hidden)
             self.replay_buffer.current_trajectory().done = done
             next_state = self.replay_buffer.current_state()
 
@@ -166,10 +163,11 @@ class TrajectoryGenerator:
 
             if done or (step % 1000 == 0 and step != steps):
                 print(f'Random trajectory completed at step {step}')
-                current_state = self.start_new_trajectory()
+                current_state = self.start_new_trajectory(initial_hidden=initial_hidden)
             elif suppressed_snowball:
                 current_state = self.start_new_trajectory(reset_env=False,
-                                                          current_obs=obs)
+                                                          current_obs=obs,
+                                                          initial_hidden=initial_hidden)
 
         trajectory_count = len(self.replay_buffer.trajectories)
         print(f'Finished generating {trajectory_count} random trajectories')

@@ -18,9 +18,10 @@ n_observation_frames: 6  # includes current pov
 alpha: 1e-2
 
 # lstm
-lstm_layers: 1  # set to 0 to disable
+# set layers and hidden size to 0 to disable
+lstm_layers: 1
 lstm_hidden_size: 1024
-lstm_segment_length: 50
+lstm_segment_length: 10
 
 # data augmentation
 inventory_noise: 0.1  # scale of gaussian noise added to inventory

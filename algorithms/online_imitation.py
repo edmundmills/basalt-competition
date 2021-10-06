@@ -2,7 +2,7 @@ from algorithms.algorithm import Algorithm
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 # from algorithms.loss_functions.sqil import SqilLoss
 from utils.environment import ObservationSpace, ActionSpace
-from utils.datasets import MixedReplayBuffer
+from utils.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from utils.data_augmentation import DataAugmentation
 from utils.trajectories import TrajectoryGenerator
 
@@ -30,6 +30,9 @@ class OnlineImitation(Algorithm):
         self.iter_count += initial_iter_count
         self.drq = config.method.drq
         self.augmentation = DataAugmentation(config)
+        self.initialize_loss_function(model, config)
+
+    def initialize_loss_function(self, model, config):
         if config.method.loss_function == 'sqil':
             self.loss_function = SqilLoss(model, config)
         elif config.method.loss_function == 'iqlearn' and self.drq:
@@ -42,11 +45,16 @@ class OnlineImitation(Algorithm):
         if initial_replay_buffer is not None:
             print((f'Using initial replay buffer'
                    f' with {len(initial_replay_buffer)} steps'))
-        replay_buffer = MixedReplayBuffer(
+        kwargs = dict(
             expert_dataset=self.expert_dataset,
             config=self.config,
             batch_size=self.batch_size,
-            initial_replay_buffer=initial_replay_buffer)
+            initial_replay_buffer=initial_replay_buffer
+        )
+        if self.config.lstm_layers == 0:
+            replay_buffer = MixedReplayBuffer(**kwargs)
+        else:
+            replay_buffer = MixedSegmentReplayBuffer(**kwargs)
         return replay_buffer
 
     def train_one_batch(self, expert_batch, replay_batch):

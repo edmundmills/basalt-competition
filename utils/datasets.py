@@ -81,7 +81,7 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
     def _identify_segments(self):
         segments = []
         for trajectory_idx, step_idx in self.step_lookup:
-            if step_idx > self.segment_length:
+            if step_idx > self.segment_length + 1:
                 segments.append((trajectory_idx, step_idx))
         return segments
 
@@ -138,13 +138,13 @@ class ReplayBuffer:
         return batch
 
     def update_rewards(self, rewards):
-        assert(len(rewards) == len(self))
+        assert(len(rewards) == len(self.step_lookup))
         for idx, (trajectory_idx, step_idx) in enumerate(self.step_lookup):
             self.trajectories[trajectory_idx].rewards[step_idx] = rewards[idx]
         print(f'{len(rewards)} replay steps labeled with rewards')
 
     def recent_frames(self, number_of_steps):
-        total_steps = len(self)
+        total_steps = len(self.step_lookup)
         steps = min(number_of_steps, total_steps)
         frame_skip = 2
         frames = int(round(total_steps / (frame_skip + 1)))
@@ -179,7 +179,7 @@ class SegmentReplayBuffer(ReplayBuffer):
 
     def increment_step(self):
         super().increment_step()
-        if len(self.current_trajectory()) > self.segment_length:
+        if len(self.current_trajectory()) > self.segment_length + 1:
             self.segment_lookup.append(
                 (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
 
