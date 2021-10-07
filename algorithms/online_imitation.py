@@ -111,6 +111,11 @@ class OnlineImitation(Algorithm):
                 next_obs, r, done, _ = env.step(-1)
             else:
                 next_obs, r, done, _ = env.step(action)
+            if self.wandb:
+                wandb.log({'Rewards/ground_truth_reward': r}, step=self.iter_count)
+                if 'compass' in next_obs.keys():
+                    wandb.log({'compass': next_obs['compass']['angle']},
+                              step=self.iter_count)
 
             episode_reward += r
             episode_steps += 1

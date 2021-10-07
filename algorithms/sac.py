@@ -176,6 +176,8 @@ class SoftActorCritic(Algorithm):
                 obs, r, done, _ = env.step(-1)
             else:
                 obs, r, done, _ = env.step(action)
+            if self.wandb:
+                wandb.log({'Rewards/ground_truth_reward': r}, step=self.iter_count)
 
             self.replay_buffer.current_trajectory().append_obs(obs, hidden)
             self.replay_buffer.current_trajectory().done = done
