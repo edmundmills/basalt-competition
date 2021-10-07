@@ -20,6 +20,6 @@ target_entropy_ratio: 0.05
 entropy_lr: 1e-4
 
 
-starting_steps: 5000
+starting_steps: 1000
 suppress_snowball_steps: 2000
-training_steps: 30000
+training_steps: 50000

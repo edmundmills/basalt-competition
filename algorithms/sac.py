@@ -223,7 +223,9 @@ class SoftActorCritic(Algorithm):
                     and self.iter_count % self.checkpoint_frequency == 0:
                 self.save_checkpoint(replay_buffer=self.replay_buffer)
 
-            if done or suppressed_snowball:
+            if done or suppressed_snowball \
+                    or len(self.replay_buffer.current_trajectory()) == \
+                    self.max_training_episode_length:
                 print(f'Trajectory completed at iteration {self.iter_count}')
                 if suppressed_snowball:
                     print('Suppressed Snowball')

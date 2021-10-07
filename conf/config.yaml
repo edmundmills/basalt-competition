@@ -11,6 +11,8 @@ env: ???
 method: ???
 wandb: ???
 
+max_training_episode_length: 2000
+
 # model attributes
 cnn_layers: 17  # max is 17
 linear_layer_size: 1024

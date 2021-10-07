@@ -127,7 +127,9 @@ class OnlineImitation(Algorithm):
                 self.save_checkpoint(replay_buffer=replay_buffer,
                                      models_with_names=[(model, 'model')])
 
-            if done or suppressed_snowball:
+            if done or suppressed_snowball \
+                    or len(replay_buffer.current_trajectory()) == \
+                    self.max_training_episode_length:
                 print(f'Trajectory completed at iteration {self.iter_count}')
                 if suppressed_snowball:
                     print('Suppressed Snowball')
