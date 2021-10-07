@@ -14,15 +14,15 @@ wandb: ???
 max_training_episode_length: 2000
 
 # model attributes
-cnn_layers: 17  # max is 17
-linear_layer_size: 1024
-n_observation_frames: 6  # includes current pov
-alpha: 1e-2
+cnn_layers: 12  # max is 17
+linear_layer_size: 512
+n_observation_frames: 3  # includes current pov
+alpha: 1e-1
 
 # lstm
 # set layers and hidden size to 0 to disable
 lstm_layers: 1
-lstm_hidden_size: 1024
+lstm_hidden_size: 512
 lstm_segment_length: 10
 
 # data augmentation
