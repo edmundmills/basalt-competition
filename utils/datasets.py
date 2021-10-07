@@ -69,7 +69,7 @@ class TrajectoryStepDataset(Dataset):
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx][step_idx]
-        return sample
+        return sample, idx
 
 
 class TrajectorySegmentDataset(TrajectoryStepDataset):
@@ -92,7 +92,12 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         trajectory_idx, last_step_idx = self.segment_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_segment(last_step_idx,
                                                                self.segment_length)
-        return sample
+        return sample, idx
+
+    def update_hidden(self, indices, hidden):
+        for segment_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
+            trajectory_idx, step_idx = self.segment_lookup[segment_idx]
+            self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
 
 
 class ReplayBuffer:
@@ -107,7 +112,7 @@ class ReplayBuffer:
     def __getitem__(self, idx):
         trajectory_idx, step_idx = self.step_lookup[idx]
         sample = self.trajectories[trajectory_idx][step_idx]
-        return sample
+        return sample, idx
 
     def current_trajectory(self):
         return self.trajectories[-1]
@@ -175,7 +180,7 @@ class SegmentReplayBuffer(ReplayBuffer):
         trajectory_idx, segment_idx = self.segment_lookup[idx]
         sample = self.trajectories[trajectory_idx].get_segment(segment_idx,
                                                                self.segment_length)
-        return sample
+        return sample, idx
 
     def increment_step(self):
         super().increment_step()
@@ -189,6 +194,12 @@ class SegmentReplayBuffer(ReplayBuffer):
         replay_batch = [self[idx] for idx in sample_indices]
         batch = default_collate(replay_batch)
         return batch
+
+    def update_hidden(self, indices, hidden):
+        for segment_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
+            trajectory_idx, step_idx = self.segment_lookup[segment_idx]
+            self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
+            _, _, next_state, _, _ = self.trajectories[trajectory_idx][step_idx]
 
 
 class MixedReplayBuffer(ReplayBuffer):
@@ -222,13 +233,13 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def sample_expert(self):
         try:
-            sample = next(self.expert_dataloader)
+            batch = next(self.expert_dataloader)
         except StopIteration:
             self.expert_dataloader = self._initialize_dataloader()
-            sample = next(self.expert_dataloader)
-        return sample
+            batch = next(self.expert_dataloader)
+        return batch
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, include_idx=False):
         return self.sample_expert(), self.sample_replay()
 
     def update_rewards(self, replay_rewards, expert_rewards):
@@ -249,3 +260,7 @@ class MixedSegmentReplayBuffer(MixedReplayBuffer, SegmentReplayBuffer):
         super().__init__(expert_dataset, config, batch_size, initial_replay_buffer)
         if initial_replay_buffer is not None:
             self.segment_lookup = initial_replay_buffer.segment_lookup
+
+    def update_hidden(self, replay_indices, replay_hidden, expert_indices, expert_hidden):
+        super().update_hidden(replay_indices, replay_hidden)
+        self.expert_dataset.update_hidden(expert_indices, expert_hidden)

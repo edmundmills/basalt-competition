@@ -57,7 +57,8 @@ class OnlineImitation(Algorithm):
             replay_buffer = MixedSegmentReplayBuffer(**kwargs)
         return replay_buffer
 
-    def train_one_batch(self, expert_batch, replay_batch):
+    def train_one_batch(self, batch):
+        (expert_batch, expert_idx), (replay_batch, replay_idx) = batch
         expert_batch, replay_batch = self.gpu_loader.batches_to_device(
             expert_batch, replay_batch)
         aug_expert_batch = self.augmentation(expert_batch)
@@ -117,9 +118,7 @@ class OnlineImitation(Algorithm):
             replay_buffer.append_step(action, hidden, r, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
-                expert_batch = replay_buffer.sample_expert()
-                replay_batch = replay_buffer.sample_replay()
-                self.train_one_batch(expert_batch, replay_batch)
+                self.train_one_batch(replay_buffer.sample(batch_size=self.batch_size))
 
             self.log_step()
 
