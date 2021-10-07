@@ -29,6 +29,7 @@ class DebugEnv:
     def step(self, _action):
         obs = {"pov": np.random.randint(0, 255, (64, 64, 3)),
                "inventory": self.inventory,
+               "compassAngle": 0,
                "equipped_items": {"mainhand": {'type': 'snowball'}}}
         _reward = 0
         _info = None
@@ -48,6 +49,8 @@ class EnvironmentHelper:
                          'MineRLBasaltCreateVillageAnimalPen-v0',
                          'MineRLBasaltFindCave-v0',
                          'MineRLBasaltMakeWaterfall-v0',
+                         'MineRLNavigateExtremeDense-v0',
+                         'MineRLNavigateDense-v0',
                          'MineRLTreechop-v0']
 
 
@@ -92,6 +95,8 @@ class ObservationSpace:
         'MineRLBasaltMakeWaterfall-v0': OrderedDict([('waterbucket', 1),
                                                      ('snowball', 1)]),
         'MineRLTreechop-v0': OrderedDict([('snowball', 1)]),
+        'MineRLNavigateExtremeDense-v0': OrderedDict([('compassAngle', 180)]),
+        'MineRLNavigateDense-v0': OrderedDict([('compassAngle', 180)]),
     }
 
     frame_shape = (3, 64, 64)
@@ -135,6 +140,11 @@ class ObservationSpace:
         environment = os.getenv('MINERL_ENVIRONMENT')
         if environment == 'MineRLTreechop-v0':
             items = th.zeros(2, dtype=th.uint8)
+        elif environment in ['MineRLNavigateDense-v0', 'MineRLNavigateExtremeDense-v0']:
+            if 'compassAngle' in obs.keys():
+                items = th.FloatTensor([obs['compassAngle'], 0])
+            else:
+                items = th.FloatTensor([float(obs['compass']['angle']), 0])
         else:
             items = th.cat((ObservationSpace.obs_to_inventory(obs),
                             ObservationSpace.obs_to_equipped_item(obs)), dim=0)
@@ -167,7 +177,8 @@ class ActionSpace:
         actions = list(range(len(ActionSpace.action_name_list) - 1 +
                              len(ObservationSpace.items())))
         environment = os.getenv('MINERL_ENVIRONMENT')
-        if environment == 'MineRLTreechop-v0':
+        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                           'MineRLNavigateExtremeDense-v0']:
             # no use or equip actions
             actions = actions[:-2]
         return actions
@@ -182,7 +193,8 @@ class ActionSpace:
 
     def threw_snowball(obs_or_state, action):
         environment = os.getenv('MINERL_ENVIRONMENT')
-        if environment == 'MineRLTreechop-v0':
+        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                           'MineRLNavigateExtremeDense-v0']:
             return False
         if isinstance(obs_or_state, dict):
             equipped_item = obs_or_state['equipped_items']['mainhand']['type']
@@ -195,7 +207,8 @@ class ActionSpace:
 
     def threw_snowball_list(obs, actions):
         environment = os.getenv('MINERL_ENVIRONMENT')
-        if environment == 'MineRLTreechop-v0':
+        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                           'MineRLNavigateExtremeDense-v0']:
             return [False for action in actions]
         equipped_items = obs['equipped_items']['mainhand']['type']
         if isinstance(actions, th.Tensor):
@@ -230,7 +243,8 @@ class ActionSpace:
         right_actions = dataset_actions["right"].reshape(-1)
         jump_actions = dataset_actions["jump"].reshape(-1)
         environment = os.getenv('MINERL_ENVIRONMENT')
-        if environment != 'MineRLTreechop-v0':
+        if environment not in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                               'MineRLNavigateExtremeDense-v0']:
             equip_actions = dataset_actions["equip"]
             use_actions = dataset_actions["use"].reshape(-1)
 
@@ -239,9 +253,13 @@ class ActionSpace:
         items = ObservationSpace.items()
 
         for i in range(batch_size):
-            if environment != 'MineRLTreechop-v0' and use_actions[i] == 1:
+            if environment not in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                                   'MineRLNavigateExtremeDense-v0'] \
+                    and use_actions[i] == 1:
                 actions[i] = 11
-            elif environment != 'MineRLTreechop-v0' and equip_actions[i] in items:
+            elif environment not in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                                     'MineRLNavigateExtremeDense-v0'] \
+                    and equip_actions[i] in items:
                 actions[i] = 12 + items.index(equip_actions[i])
             elif camera_actions[i][0] < -camera_margin:
                 actions[i] = 6

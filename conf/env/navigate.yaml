@@ -1,0 +1,4 @@
+name: MineRLNavigateDense-v0
+demo: MineRLNavigateDense-v0_1000
+# learn_steps: 1e5
+# eval_interval: 1e3

@@ -41,9 +41,13 @@ class TrajectoryStepDataset(Dataset):
         for trajectory_path in trajectory_paths:
             if not trajectory_path.is_dir():
                 continue
+            if trajectory_path.name in [
+                    'v3_villainous_black_eyed_peas_loch_ness_monster-2_95372-97535']:
+                continue
 
             trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
             step_idx = 0
+            print(trajectory_path)
             for obs, action, _, _, done in data.load_data(str(trajectory_path)):
                 trajectory.done = done
                 action = ActionSpace.dataset_action_batch_to_actions(action)[0]
@@ -59,7 +63,9 @@ class TrajectoryStepDataset(Dataset):
             trajectory_idx += 1
             if self.debug_dataset and trajectory_idx >= 2:
                 break
-            if self.environment == 'MineRLTreechop-v0' and trajectory_idx >= 80:
+            if self.environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                                    'MineRLNavigateExtremeDense-v0'] \
+                    and trajectory_idx >= 80:
                 break
         return trajectories, step_lookup
 
