@@ -112,7 +112,7 @@ class SoftActorCritic(Algorithm):
         return metrics
 
     def update_policy(self, step, batch):
-        policy_loss, alpha_loss, metrics = self._policy_loss(step, batch)
+        policy_loss, alpha_loss, final_hidden, metrics = self._policy_loss(step, batch)
         self.policy_optimizer.zero_grad(set_to_none=True)
         policy_loss.backward()
         self.policy_optimizer.step()
@@ -122,7 +122,7 @@ class SoftActorCritic(Algorithm):
             self.alpha_optimizer.step()
             self.update_model_alphas()
             metrics['alpha'] = self.actor.alpha
-        return metrics
+        return metrics, final_hidden
 
     def _soft_update_target(self):
         for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
@@ -139,13 +139,16 @@ class SoftActorCritic(Algorithm):
         return suppressed_snowball
 
     def train_one_batch(self, step, batch):
+        batch, batch_idx = batch
         batch = self.gpu_loader.batch_to_device(batch)
         aug_batch = self.augmentation(batch)
         if self.drq:
             q_metrics = self.update_q(batch, aug_batch)
         else:
             q_metrics = self.update_q(aug_batch)
-        policy_metrics = self.update_policy(step, aug_batch)
+        policy_metrics, final_hidden = self.update_policy(step, aug_batch)
+        if final_hidden is not None:
+            self.replay_buffer.update_hidden(batch_idx, final_hidden)
         metrics = {**policy_metrics, **q_metrics}
         return metrics
 

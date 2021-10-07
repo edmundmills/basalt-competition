@@ -56,7 +56,7 @@ class LSTMLayer(nn.Module):
         hidden, cell = th.chunk(hidden, 2, dim=-1)
         new_features, new_hidden = self.lstm(features,
                                              (hidden.contiguous(), cell.contiguous()))
-        new_hidden = th.cat(new_hidden, dim=-1)
+        new_hidden = th.cat(new_hidden, dim=-1).squeeze(0).detach().cpu()
         return new_features, new_hidden
 
 

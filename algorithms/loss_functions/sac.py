@@ -72,11 +72,12 @@ class SACPolicyLoss:
         self.policy = policy
         method_config = config.pretraining if pretraining else config.method
         self.discount_factor = method_config.discount_factor
+        self.entropy_adjustment = method_config.entropy_adjustment
         # self.double_q = method_config.double_q
 
     def __call__(self, step, batch):
         states, _actions, _next_states, _done, _rewards = batch
-        actor_Qs, _ = self.policy.get_Q(states)
+        actor_Qs, final_hidden = self.policy.get_Q(states)
         entropies = self.policy.entropies(actor_Qs)
         action_probabilities = self.policy.action_probabilities(actor_Qs)
 
@@ -88,14 +89,18 @@ class SACPolicyLoss:
 
         loss = -th.sum((Qs + self.policy.alpha * entropies)
                        * action_probabilities, dim=1, keepdim=True).mean()
-        alpha_loss = th.sum((-self.log_alpha * (self.target_entropy - entropies.detach()))
-                            * action_probabilities.detach(), dim=1, keepdim=True).mean()
+        if self.entropy_adjustment:
+            alpha_loss = th.sum((-self.log_alpha *
+                                 (self.target_entropy - entropies.detach())) *
+                                action_probabilities.detach(), dim=1, keepdim=True).mean()
+        else:
+            alpha_loss = th.tensor([0])
         entropy = th.sum(action_probabilities.detach() * entropies.detach(),
                          dim=1, keepdim=True).mean()
         metrics = {'policy_loss': loss.detach().item(),
                    'alpha_loss': alpha_loss.detach().item(),
                    'entropy': entropy.item()}
-        return loss, alpha_loss, metrics
+        return loss, alpha_loss, final_hidden, metrics
 
 
 class CuriousIQPolicyLoss:

@@ -35,7 +35,7 @@ class IQLearnSAC(SoftActorCritic):
         return metrics
 
     def train_one_batch(self, step, batch):
-        expert_batch, replay_batch = batch
+        (expert_batch, expert_idx), (replay_batch, replay_idx) = batch
         expert_batch = self.gpu_loader.expert_batch_to_device(expert_batch)
         replay_batch = self.gpu_loader.batch_to_device(replay_batch)
         expert_batch_aug = self.augmentation(expert_batch)
@@ -47,7 +47,10 @@ class IQLearnSAC(SoftActorCritic):
                                       expert_batch_aug, replay_batch_aug)
         else:
             q_metrics = self.update_q(expert_batch_aug, replay_batch_aug)
-        policy_metrics = self.update_policy(step, combined_batch)
-
+        policy_metrics, final_hidden = self.update_policy(step, combined_batch)
+        if final_hidden is not None:
+            final_hidden_expert, final_hidden_replay, _, _ = final_hidden.chunk(4, dim=0)
+            self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
+                                             expert_idx, final_hidden_expert)
         metrics = {**policy_metrics, **q_metrics}
         return metrics

@@ -49,6 +49,16 @@ class Trajectory:
             state = pov, items
         self.states.append(state)
 
+    def update_hidden(self, idx, new_hidden):
+        is_last_step = idx + 1 == len(self)
+        done = is_last_step and self.done
+        if not done:
+            idx += 1
+        next_state = self.states[idx]
+        *state_components, hidden = next_state
+        updated_state = (*state_components, new_hidden)
+        self.states[idx] = updated_state
+
     def current_state(self, **kwargs):
         current_idx = len(self) - 1
         state = self.states[current_idx]
