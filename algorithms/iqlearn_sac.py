@@ -48,8 +48,9 @@ class IQLearnSAC(SoftActorCritic):
         else:
             q_metrics = self.update_q(expert_batch_aug, replay_batch_aug)
         policy_metrics, final_hidden = self.update_policy(step, combined_batch)
-        final_hidden_expert, final_hidden_replay, _, _ = final_hidden.chunk(4, dim=0)
-        self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
-                                         expert_idx, final_hidden_expert)
+        if final_hidden is not None:
+            final_hidden_expert, final_hidden_replay, _, _ = final_hidden.chunk(4, dim=0)
+            self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
+                                             expert_idx, final_hidden_expert)
         metrics = {**policy_metrics, **q_metrics}
         return metrics
