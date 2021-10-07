@@ -6,7 +6,7 @@ drq: true
 
 expert_dataset: true
 expert_sample_fraction: 0.5
-batch_size: 256
+batch_size: 32
 
 discount_factor: 0.99
 q_lr: 3e-4
@@ -15,9 +15,9 @@ policy_lr: 1e-4
 target_q: true  # for iqlearn q function
 tau: .05
 
-entropy_adjustment: true
-target_entropy_ratio: 0.1
-entropy_lr: 1e-3
+entropy_adjustment: false
+target_entropy_ratio: 0.05
+entropy_lr: 1e-4
 
 
 starting_steps: 5000
