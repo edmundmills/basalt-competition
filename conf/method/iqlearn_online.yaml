@@ -6,12 +6,12 @@ drq: true
 
 expert_dataset: true
 expert_sample_fraction: 0.5
-batch_size: 128
+batch_size: 32
 
 
-starting_steps: 2000
+starting_steps: 500
 suppress_snowball_steps: 500
-training_steps: 10000
+training_steps: 50000
 
 learning_rate: 3e-4
 discount_factor: 0.99

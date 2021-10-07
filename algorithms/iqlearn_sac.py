@@ -27,8 +27,8 @@ class IQLearnSAC(SoftActorCritic):
 
     def update_q(self, expert_batch, replay_batch,
                  expert_batch_aug=None, replay_batch_aug=None):
-        loss, metrics = self._q_loss(expert_batch, replay_batch,
-                                     expert_batch_aug, replay_batch_aug)
+        loss, metrics, _ = self._q_loss(expert_batch, replay_batch,
+                                        expert_batch_aug, replay_batch_aug)
         self.q_optimizer.zero_grad(set_to_none=True)
         loss.backward()
         self.q_optimizer.step()

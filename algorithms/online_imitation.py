@@ -55,6 +55,7 @@ class OnlineImitation(Algorithm):
             replay_buffer = MixedReplayBuffer(**kwargs)
         else:
             replay_buffer = MixedSegmentReplayBuffer(**kwargs)
+        self.replay_buffer = replay_buffer
         return replay_buffer
 
     def train_one_batch(self, batch):
@@ -64,14 +65,20 @@ class OnlineImitation(Algorithm):
         aug_expert_batch = self.augmentation(expert_batch)
         aug_replay_batch = self.augmentation(replay_batch)
         if self.drq:
-            loss, metrics = self.loss_function(expert_batch, replay_batch,
-                                               aug_expert_batch, aug_replay_batch)
+            loss, metrics, final_hidden = self.loss_function(
+                expert_batch, replay_batch, aug_expert_batch, aug_replay_batch)
         else:
-            loss, metrics = self.loss_function(aug_expert_batch, aug_replay_batch)
+            loss, metrics, final_hidden = self.loss_function(
+                aug_expert_batch, aug_replay_batch)
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        if final_hidden is not None:
+            final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
+            self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
+                                             expert_idx, final_hidden_expert)
+
         if self.wandb:
             wandb.log(metrics, step=self.iter_count)
 
