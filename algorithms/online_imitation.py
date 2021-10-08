@@ -164,6 +164,9 @@ class OnlineImitation(Algorithm):
                 episode_reward = 0
                 episode_steps = 0
 
+            if time.time() > self.shutdown_time:
+                break
+
             if profiler:
                 profiler.step()
 

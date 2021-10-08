@@ -60,6 +60,8 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
+    cfg.training_timeout = int(
+        os.getenv('MINERL_TRAINING_TIMEOUT_MINUTES', 4 * 24 * 60)) / 4
     if args.profile:
         cfg.method.training_steps = 510
     cfg.hydra_base_dir = os.getcwd()

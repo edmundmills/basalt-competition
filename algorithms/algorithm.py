@@ -22,6 +22,9 @@ class Algorithm:
         self.algorithm_name = method_config.name
         self.environment = config.env.name
         self.timestamps = []
+        self.start_time = time.time()
+        self.training_timeout = config.training_timeout
+        self.shutdown_time = self.start_time + self.training_timeout - 300
         self.update_frequency = 100
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
