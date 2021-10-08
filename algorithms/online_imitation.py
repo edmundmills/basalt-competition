@@ -91,12 +91,14 @@ class OnlineImitation(Algorithm):
         model = self.model
         expert_dataset = self.expert_dataset
 
-        self.optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
+        self.optimizer = th.optim.AdamW(model.parameters(), lr=self.lr)
         if self.cyclic_learning_rate:
+            decay_factor = .25**(1/(self.training_steps/2))
             self.scheduler = th.optim.lr_scheduler.CyclicLR(self.optimizer,
                                                             base_lr=self.lr,
                                                             max_lr=self.lr*10,
-                                                            mode='exp_range', gamma=0.99,
+                                                            mode='exp_range',
+                                                            gamma=decay_factor,
                                                             step_size_up=2000,
                                                             cycle_momentum=False)
 
