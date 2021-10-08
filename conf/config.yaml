@@ -13,7 +13,7 @@ wandb: ???
 
 # training params
 max_training_episode_length: 2000
-cyclic_learning_rate: false
+cyclic_learning_rate: true
 
 # model attributes
 cnn_layers: 12  # max is 17
@@ -33,7 +33,7 @@ random_translate: true
 mirror_augment: false # leave off
 
 # curriculum learning
-curriculum_training: false
+curriculum_training: true
 initial_curriculum_size: 100
 curriculum_fraction_of_training: 0.75
 min_training_episode_length: 500
