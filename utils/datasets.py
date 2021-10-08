@@ -83,6 +83,14 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         super().__init__(config, **kwargs)
         self.segment_length = config.lstm_segment_length
         self.segment_lookup = self._identify_segments()
+        print(f'Identified {len(self.segment_lookup)} sub-segments'
+              f'of {self.segment_length} steps')
+        self.curriculum_training = config.curriculum_training
+        if self.curriculum_training:
+            self.update_curriculum(config.initial_curriculum_size)
+            self.lookup = self.filtered_lookup
+        else:
+            self.lookup = self.segment_lookup
 
     def _identify_segments(self):
         segments = []
@@ -92,18 +100,30 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         return segments
 
     def __len__(self):
-        return len(self.segment_lookup)
+        return len(self.lookup)
 
     def __getitem__(self, idx):
-        trajectory_idx, last_step_idx = self.segment_lookup[idx]
+        trajectory_idx, last_step_idx = self.lookup[idx]
+        master_idx = self.cross_lookup[idx] if self.curriculum_training else idx
         sample = self.trajectories[trajectory_idx].get_segment(last_step_idx,
                                                                self.segment_length)
-        return sample, idx
+        return sample, master_idx
 
     def update_hidden(self, indices, hidden):
         for segment_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
             trajectory_idx, step_idx = self.segment_lookup[segment_idx]
             self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
+
+    def update_curriculum(self, max_expert_steps):
+        self.filtered_lookup, master_indices = \
+            zip(*[[(t_idx, segment_idx), master_idx]
+                  for master_idx, (t_idx, segment_idx) in enumerate(self.segment_lookup)
+                  if segment_idx < max_expert_steps])
+        self.cross_lookup = {filtered_idx: master_idx
+                             for filtered_idx, master_idx in enumerate(master_indices)}
+        print(f'Expert curriculum updated, including {len(self.filtered_lookup)}'
+              f' / {len(self.segment_lookup)} segments')
+        self.lookup = self.filtered_lookup
 
 
 class ReplayBuffer:
@@ -225,6 +245,8 @@ class MixedReplayBuffer(ReplayBuffer):
             self.trajectories = initial_replay_buffer.trajectories
             self.step_lookup = initial_replay_buffer.step_lookup
         self.expert_dataset = expert_dataset
+        self.curriculum_training = config.curriculum_training
+        self.curriculum_refresh_steps = config.curriculum_refresh_steps
         self.expert_dataloader = self._initialize_dataloader()
 
     def _initialize_dataloader(self):
@@ -241,6 +263,8 @@ class MixedReplayBuffer(ReplayBuffer):
         try:
             batch = next(self.expert_dataloader)
         except StopIteration:
+            if self.curriculum_training:
+                self.expert_dataset.update_curriculum(self.curriculum_length)
             self.expert_dataloader = self._initialize_dataloader()
             batch = next(self.expert_dataloader)
         return batch
@@ -258,6 +282,17 @@ class MixedReplayBuffer(ReplayBuffer):
                 expert_rewards[rewards_idx]
             rewards_idx += 1
         print(f'{len(expert_rewards)} expert steps labeled with rewards')
+
+    def update_curriculum(self, step, max_expert_steps):
+        self.curriculum_length = max_expert_steps
+        if step % self.curriculum_refresh_steps == 0 and \
+                len(self.expert_dataset.filtered_lookup) \
+                < len(self.expert_dataset.segment_lookup):
+            self.expert_dataset.update_curriculum(self.curriculum_length)
+            self.expert_dataloader = self._initialize_dataloader()
+        curriculum_inclusion = len(self.expert_dataset.filtered_lookup) / \
+            len(self.expert_dataset.segment_lookup)
+        return curriculum_inclusion
 
 
 class MixedSegmentReplayBuffer(MixedReplayBuffer, SegmentReplayBuffer):
