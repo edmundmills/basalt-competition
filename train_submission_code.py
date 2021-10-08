@@ -22,6 +22,7 @@ import argparse
 import logging
 from torch.profiler import profile, record_function, ProfilerActivity, schedule
 import os
+import time
 # import aicrowd_helper
 # from utility.parser import Parser
 import coloredlogs
@@ -60,6 +61,7 @@ def get_config(args):
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = args.wandb
+    cfg.start_time = time.time()
     cfg.training_timeout = int(
         os.getenv('MINERL_TRAINING_TIMEOUT_MINUTES', 4 * 24 * 60)) * 60 / 4
     if args.profile:

@@ -24,7 +24,7 @@ class Algorithm:
         self.algorithm_name = method_config.name
         self.environment = config.env.name
         self.timestamps = []
-        self.start_time = time.time()
+        self.start_time = config.start_time
         self.training_timeout = config.training_timeout
         self.shutdown_time = self.start_time + self.training_timeout - 300
         self.update_frequency = 100
