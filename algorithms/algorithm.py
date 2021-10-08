@@ -88,4 +88,4 @@ class Algorithm:
             rewards += sum(trajectory.rewards)
         print('Evaluation reward:', rewards/episodes)
         if self.wandb:
-            wabdb.log({'Rewards/eval': rewards/episodes})
+            wandb.log({'Rewards/eval': rewards/episodes}, step=self.iter_count)

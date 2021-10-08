@@ -136,18 +136,19 @@ class OnlineImitation(Algorithm):
                 print('Ending training before time cap')
                 break
 
-            if self.checkpoint_frequency and \
+            if self.checkpoint_frequency > 0 and \
                     self.iter_count % self.checkpoint_frequency == 0:
                 self.save_checkpoint(replay_buffer=replay_buffer)
 
             eval = self.eval_frequency > 0 and ((step + 1) % self.eval_frequency == 0)
-            if eval:
-                self.eval(env, model, replay_buffer)
+            training_done = step + 1 == self.training_steps
+            max_episode_length_reached = len(replay_buffer.current_trajectory()) == \
+                self.max_training_episode_length
+            end_episode = done or suppressed_snowball or eval or training_done \
+                or max_episode_length_reached
 
             training_done = step + 1 == self.training_steps
-            if done or suppressed_snowball or eval or training_done\
-                    or len(replay_buffer.current_trajectory()) == \
-                    self.max_training_episode_length:
+            if end_episode:
                 print(f'Trajectory completed at iteration {self.iter_count}')
 
                 self.rewards_window.append(
@@ -159,6 +160,9 @@ class OnlineImitation(Algorithm):
                               step=self.iter_count)
                     wandb.log({'Timesteps/episodes_length': np.mean(self.steps_window)},
                               step=self.iter_count)
+
+                if eval:
+                    self.eval(env, model, replay_buffer)
 
                 reset_env = not (training_done or suppressed_snowball)
                 TrajectoryGenerator.new_trajectory(
