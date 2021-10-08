@@ -283,7 +283,9 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def update_curriculum(self, step, max_expert_steps):
         self.curriculum_length = max_expert_steps
-        if step % self.curriculum_refresh_steps == 0:
+        if step % self.curriculum_refresh_steps == 0 and \
+                len(self.expert_dataset.filtered_lookup) \
+                < len(self.expert_dataset.segment_lookup):
             self.expert_dataset.update_curriculum(self.curriculum_length)
             self.expert_dataloader = self._initialize_dataloader()
         curriculum_inclusion = len(self.expert_dataset.filtered_lookup) / \
