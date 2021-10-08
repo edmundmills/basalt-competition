@@ -30,6 +30,7 @@ class OnlineImitation(Algorithm):
         self.iter_count += initial_iter_count
         self.drq = config.method.drq
         self.augmentation = DataAugmentation(config)
+        self.cyclic_learning_rate = config.cyclic_learning_rate
         self.initialize_loss_function(model, config)
 
     def initialize_loss_function(self, model, config):
@@ -86,8 +87,12 @@ class OnlineImitation(Algorithm):
         model = self.model
         expert_dataset = self.expert_dataset
 
-        self.optimizer = th.optim.Adam(model.parameters(),
-                                       lr=self.lr)
+        self.optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
+        if self.cyclic_learning_rate:
+            scheduler = th.optim.lr_scheduler.CyclicLR(self.optimizer, base_lr=self.lr,
+                                                       max_lr=self.lr*10,
+                                                       mode='exp_range', gamma=0.99,
+                                                       step_size_up=2000)
 
         replay_buffer = self.initialize_replay_buffer()
 
@@ -131,6 +136,8 @@ class OnlineImitation(Algorithm):
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 self.train_one_batch(replay_buffer.sample(batch_size=self.batch_size))
+                if self.cyclic_learning_rate:
+                    scheduler.step()
 
             self.log_step()
 

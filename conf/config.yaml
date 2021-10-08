@@ -30,6 +30,7 @@ inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
 mirror_augment: false
 
+cyclic_learning_rate: false
 
 seed: 0
 checkpoint_frequency: 1000
