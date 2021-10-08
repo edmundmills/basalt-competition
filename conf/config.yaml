@@ -11,20 +11,14 @@ env: ???
 method: ???
 wandb: ???
 
-start_time: ???
-training_timeout: ???
-
-curriculum_training: true
-initial_curriculum_size: 100
-curriculum_fraction_of_training: 0.75
-min_training_episode_length: 500
+# training params
 max_training_episode_length: 2000
-curriculum_refresh_steps: 2000
+cyclic_learning_rate: false
 
 # model attributes
 cnn_layers: 12  # max is 17
 linear_layer_size: 512
-n_observation_frames: 3  # includes current pov
+n_observation_frames: 3  # includes current frame
 alpha: 1e-1
 
 # lstm
@@ -38,9 +32,17 @@ inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
 mirror_augment: false # leave off
 
-cyclic_learning_rate: false
+# curriculum learning
+curriculum_training: false
+initial_curriculum_size: 100
+curriculum_fraction_of_training: 0.75
+min_training_episode_length: 500
+curriculum_refresh_steps: 2000
 
+# record keeping
 seed: 0
 checkpoint_frequency: 2000
 eval_frequency: 20000
+start_time: ???
+training_timeout: ???
 hydra_base_dir: ""

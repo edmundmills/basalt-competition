@@ -245,6 +245,7 @@ class MixedReplayBuffer(ReplayBuffer):
             self.trajectories = initial_replay_buffer.trajectories
             self.step_lookup = initial_replay_buffer.step_lookup
         self.expert_dataset = expert_dataset
+        self.curriculum_training = config.curriculum_training
         self.curriculum_refresh_steps = config.curriculum_refresh_steps
         self.expert_dataloader = self._initialize_dataloader()
 
@@ -262,7 +263,8 @@ class MixedReplayBuffer(ReplayBuffer):
         try:
             batch = next(self.expert_dataloader)
         except StopIteration:
-            self.expert_dataset.update_curriculum(self.curriculum_length)
+            if self.curriculum_training:
+                self.expert_dataset.update_curriculum(self.curriculum_length)
             self.expert_dataloader = self._initialize_dataloader()
             batch = next(self.expert_dataloader)
         return batch
