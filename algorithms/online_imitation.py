@@ -165,8 +165,9 @@ class OnlineImitation(Algorithm):
 
             eval = self.eval_frequency > 0 and ((step + 1) % self.eval_frequency == 0)
             training_done = step + 1 == self.training_steps
-            max_episode_length_reached = len(replay_buffer.current_trajectory()) == \
-                max(current_max_episode_length, self.min_training_episode_length)
+            max_episode_length_reached = len(replay_buffer.current_trajectory()) >= \
+                min(max(current_max_episode_length, self.min_training_episode_length),
+                    self.max_training_episode_length)
             end_episode = done or suppressed_snowball or eval or training_done \
                 or max_episode_length_reached
 
