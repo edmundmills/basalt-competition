@@ -9,7 +9,6 @@ from torch import nn
 class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.config = config
         self.n_observation_frames = config.n_observation_frames
         self.frame_shape = ObservationSpace.frame_shape
         self.cnn_layers = config.cnn_layers
@@ -84,6 +83,7 @@ class LinearLayers(nn.Module):
 class Network(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.config = config
         self.n_observation_frames = config.n_observation_frames
         self.actions = ActionSpace.actions()
         self.item_dim = 2 * len(ObservationSpace.items())

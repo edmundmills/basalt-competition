@@ -18,6 +18,7 @@ class Trajectory:
         self.states = []
         self.actions = []
         self.rewards = []
+        self.done = False
         self.additional_data = OrderedDict()
 
     def __len__(self):
@@ -117,18 +118,24 @@ class TrajectoryGenerator:
     def generate(self, model, max_episode_length=100000):
         gpu_loader = GPULoader(model.config)
         trajectory = Trajectory(n_observation_frames=model.n_observation_frames)
+        if self.replay_buffer:
+            self.replay_buffer.trajectories.append(trajectory)
 
         obs = self.env.reset()
         hidden = model.lstm.initial_hidden if model.lstm else None
 
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs, hidden)
-            state = trajectory.current_state()
+            current_state = trajectory.current_state()
             action, hidden = model.get_action(gpu_loader.state_to_device(current_state))
             trajectory.actions.append(action)
-            obs, _, done, _ = self.env.step(action)
+            obs, r, done, _ = self.env.step(action)
+            trajectory.rewards.append(r)
             trajectory.done = done
-        print('Finished generating trajectory')
+            if self.replay_buffer:
+                self.replay_buffer.increment_step()
+        print('Finished generating trajectory'
+              f' (reward: {sum(trajectory.rewards)}, length: {len(trajectory.rewards)})')
         return trajectory
 
     def new_trajectory(env, replay_buffer, reset_env=True,

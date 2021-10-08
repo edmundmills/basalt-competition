@@ -128,16 +128,6 @@ class SoftActorCritic(Algorithm):
         for target, online in zip(self.target_q.parameters(), self.online_q.parameters()):
             target.data.copy_(target.data * (1.0 - self.tau) + online.data * self.tau)
 
-    def suppressed_snowball(self, step, current_state, action):
-        if step == 0 and self.suppress_snowball_steps > 0:
-            print(('Suppressing throwing snowball for'
-                   f' {min(self.training_steps, self.suppress_snowball_steps)}'))
-        elif step == self.suppress_snowball_steps and step != 0:
-            print('No longer suppressing snowball')
-        suppressed_snowball = step < self.suppress_snowball_steps \
-            and ActionSpace.threw_snowball(current_state, action)
-        return suppressed_snowball
-
     def train_one_batch(self, step, batch):
         batch, batch_idx = batch
         batch = self.gpu_loader.batch_to_device(batch)

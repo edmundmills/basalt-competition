@@ -1,10 +1,12 @@
 from utils.environment import ObservationSpace, ActionSpace
 from utils.gpu import GPULoader
+from utils.trajectories import TrajectoryGenerator
 
 import time
 import os
 import wandb
 from pathlib import Path
+from collections import deque
 
 import torch as th
 import numpy as np
@@ -26,9 +28,12 @@ class Algorithm:
         self.training_timeout = config.training_timeout
         self.shutdown_time = self.start_time + self.training_timeout - 300
         self.update_frequency = 100
+        self.eval_frequency = config.eval_frequency
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
         self.iter_count = 1
+        self.rewards_window = deque(maxlen=10)  # last N rewards
+        self.steps_window = deque(maxlen=10)  # last N episode steps
 
     def log_step(self):
         self.iter_count += 1
@@ -50,6 +55,18 @@ class Algorithm:
         rate = iterations / duration
         return rate
 
+    def suppressed_snowball(self, step, current_state, action):
+        if step == 0 and self.suppress_snowball_steps > 0:
+            print(('Suppressing throwing snowball for'
+                   f' {min(self.training_steps, self.suppress_snowball_steps)} steps'))
+        elif step == self.suppress_snowball_steps and step != 0:
+            print('No longer suppressing snowball')
+        suppressed_snowball = step < self.suppress_snowball_steps \
+            and ActionSpace.threw_snowball(current_state, action)
+        if suppressed_snowball:
+            print('Suppressed Snowball')
+        return suppressed_snowball
+
     def save_checkpoint(self, replay_buffer=None, models_with_names=()):
         if replay_buffer is not None:
             if self.wandb:
@@ -61,3 +78,14 @@ class Algorithm:
                     step=self.iter_count)
 
         print(f'Checkpoint saved at iteration {self.iter_count}')
+
+    def eval(self, env, model, replay_buffer, episodes=5):
+        generator = TrajectoryGenerator(env, replay_buffer)
+        rewards = 0
+        for i in range(episodes):
+            print('Starting Evaluation Episode', i + 1)
+            trajectory = generator.generate(model)
+            rewards += sum(trajectory.rewards)
+        print('Evaluation reward:', rewards/episodes)
+        if self.wandb:
+            wabdb.log({'Rewards/eval': rewards/episodes})

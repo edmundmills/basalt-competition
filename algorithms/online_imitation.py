@@ -10,7 +10,7 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
-from collections import deque
+import time
 
 import wandb
 import os
@@ -75,6 +75,10 @@ class OnlineImitation(Algorithm):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        if self.cyclic_learning_rate:
+            self.scheduler.step()
+            metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
+
         if final_hidden is not None:
             final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
@@ -89,10 +93,12 @@ class OnlineImitation(Algorithm):
 
         self.optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
         if self.cyclic_learning_rate:
-            scheduler = th.optim.lr_scheduler.CyclicLR(self.optimizer, base_lr=self.lr,
-                                                       max_lr=self.lr*10,
-                                                       mode='exp_range', gamma=0.99,
-                                                       step_size_up=2000)
+            self.scheduler = th.optim.lr_scheduler.CyclicLR(self.optimizer,
+                                                            base_lr=self.lr,
+                                                            max_lr=self.lr*10,
+                                                            mode='exp_range', gamma=0.99,
+                                                            step_size_up=2000,
+                                                            cycle_momentum=False)
 
         replay_buffer = self.initialize_replay_buffer()
 
@@ -101,24 +107,12 @@ class OnlineImitation(Algorithm):
 
         print((f'{self.algorithm_name}: Starting training'
                f' for {self.training_steps} steps (iteration {self.iter_count})'))
-        rewards_window = deque(maxlen=10)  # last N rewards
-        steps_window = deque(maxlen=10)  # last N episode steps
-
-        episode_reward = 0
-        episode_steps = 0
 
         for step in range(self.training_steps):
             current_state = replay_buffer.current_state()
             action, hidden = model.get_action(
                 self.gpu_loader.state_to_device(current_state))
-            if step == 0 and self.suppress_snowball_steps > 0:
-                print(('Suppressing throwing snowball for'
-                       f' {min(self.training_steps, self.suppress_snowball_steps)}'
-                       ' steps'))
-            elif step == self.suppress_snowball_steps and step != 0:
-                print('No longer suppressing snowball')
-            suppressed_snowball = step < self.suppress_snowball_steps \
-                and ActionSpace.threw_snowball(current_state, action)
+            suppressed_snowball = self.suppressed_snowball(step, current_state, action)
             if suppressed_snowball:
                 next_obs, r, done, _ = env.step(-1)
             else:
@@ -126,53 +120,49 @@ class OnlineImitation(Algorithm):
             if self.wandb:
                 wandb.log({'Rewards/ground_truth_reward': r}, step=self.iter_count)
                 if 'compass' in next_obs.keys():
-                    wandb.log({'compass': next_obs['compass']['angle']},
+                    wandb.log({'Rewards/compass': next_obs['compass']['angle']},
                               step=self.iter_count)
-
-            episode_reward += r
-            episode_steps += 1
 
             replay_buffer.append_step(action, hidden, r, next_obs, done)
 
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 self.train_one_batch(replay_buffer.sample(batch_size=self.batch_size))
-                if self.cyclic_learning_rate:
-                    scheduler.step()
 
             self.log_step()
 
+            if time.time() > self.shutdown_time:
+                print('Ending training before time cap')
+                break
+
             if self.checkpoint_frequency and \
                     self.iter_count % self.checkpoint_frequency == 0:
-                self.save_checkpoint(replay_buffer=replay_buffer,
-                                     models_with_names=[(model, 'model')])
+                self.save_checkpoint(replay_buffer=replay_buffer)
 
-            if done or suppressed_snowball \
+            eval = self.eval_frequency > 0 and ((step + 1) % self.eval_frequency == 0)
+            if eval:
+                self.eval(env, model, replay_buffer)
+
+            training_done = step + 1 == self.training_steps
+            if done or suppressed_snowball or eval or training_done\
                     or len(replay_buffer.current_trajectory()) == \
                     self.max_training_episode_length:
                 print(f'Trajectory completed at iteration {self.iter_count}')
-                if suppressed_snowball:
-                    print('Suppressed Snowball')
-                    reset_env = False
-                else:
-                    reset_env = True
+
+                self.rewards_window.append(
+                    sum(replay_buffer.current_trajectory().rewards))
+                self.steps_window.append(
+                    len(replay_buffer.current_trajectory().rewards))
+                if self.wandb:
+                    wandb.log({'Rewards/train_reward': np.mean(self.rewards_window)},
+                              step=self.iter_count)
+                    wandb.log({'Timesteps/episodes_length': np.mean(self.steps_window)},
+                              step=self.iter_count)
+
+                reset_env = not (training_done or suppressed_snowball)
                 TrajectoryGenerator.new_trajectory(
                     env, replay_buffer,
                     reset_env=reset_env, current_obs=next_obs,
                     initial_hidden=model.initial_hidden())
-
-                rewards_window.append(episode_reward)
-                steps_window.append(episode_steps)
-                if self.wandb:
-                    wandb.log({'Rewards/train_reward': np.mean(rewards_window)},
-                              step=self.iter_count)
-                    wandb.log({'Timesteps/train': np.mean(steps_window)},
-                              step=self.iter_count)
-
-                episode_reward = 0
-                episode_steps = 0
-
-            if time.time() > self.shutdown_time:
-                break
 
             if profiler:
                 profiler.step()

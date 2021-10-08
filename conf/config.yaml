@@ -10,6 +10,7 @@ device: ???  # to be specified later
 env: ???
 method: ???
 wandb: ???
+training_timeout: ???
 
 max_training_episode_length: 2000
 
@@ -28,10 +29,11 @@ lstm_segment_length: 10
 # data augmentation
 inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
-mirror_augment: false
+mirror_augment: false # leave off
 
 cyclic_learning_rate: false
 
 seed: 0
-checkpoint_frequency: 1000
+checkpoint_frequency: 2000
+eval_frequency: 20000
 hydra_base_dir: ""
