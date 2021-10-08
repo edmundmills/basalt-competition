@@ -14,7 +14,12 @@ wandb: ???
 start_time: ???
 training_timeout: ???
 
+curriculum_training: true
+initial_curriculum_size: 100
+curriculum_fraction_of_training: 0.75
+min_training_episode_length: 500
 max_training_episode_length: 2000
+curriculum_refresh_steps: 2000
 
 # model attributes
 cnn_layers: 12  # max is 17

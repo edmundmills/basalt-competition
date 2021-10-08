@@ -29,9 +29,25 @@ class OnlineImitation(Algorithm):
         self.initial_replay_buffer = initial_replay_buffer
         self.iter_count += initial_iter_count
         self.drq = config.method.drq
+        self.curriculum_training = config.curriculum_training
+        self.initial_curriculum_size = config.initial_curriculum_size
+        self.curriculum_fraction_of_training = config.curriculum_fraction_of_training
         self.augmentation = DataAugmentation(config)
         self.cyclic_learning_rate = config.cyclic_learning_rate
         self.initialize_loss_function(model, config)
+
+    def max_episode_length(self, step):
+        if not self.curriculum_training:
+            return self.max_training_episode_length
+        curriculum_fraction = step / (self.curriculum_fraction_of_training
+                                      * self.training_steps)
+        curriculum_span = self.max_training_episode_length - self.initial_curriculum_size
+        curriculum_length = int(self.initial_curriculum_size +
+                                curriculum_fraction * curriculum_span)
+        if curriculum_length >= self.max_training_episode_length:
+            return 100000
+        else:
+            return curriculum_length
 
     def initialize_loss_function(self, model, config):
         if config.method.loss_function == 'sqil':
@@ -111,6 +127,7 @@ class OnlineImitation(Algorithm):
                f' for {self.training_steps} steps (iteration {self.iter_count})'))
 
         for step in range(self.training_steps):
+            current_max_episode_length = self.max_episode_length(step)
             current_state = replay_buffer.current_state()
             action, hidden = model.get_action(
                 self.gpu_loader.state_to_device(current_state))
@@ -127,6 +144,12 @@ class OnlineImitation(Algorithm):
 
             replay_buffer.append_step(action, hidden, r, next_obs, done)
 
+            if self.curriculum_training:
+                curriculum_inclusion = \
+                    replay_buffer.update_curriculum(step, current_max_episode_length)
+                if self.wandb:
+                    wandb.log({'Curriculum/inclusion_fraction': curriculum_inclusion},
+                              step=self.iter_count)
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 self.train_one_batch(replay_buffer.sample(batch_size=self.batch_size))
 
@@ -143,7 +166,7 @@ class OnlineImitation(Algorithm):
             eval = self.eval_frequency > 0 and ((step + 1) % self.eval_frequency == 0)
             training_done = step + 1 == self.training_steps
             max_episode_length_reached = len(replay_buffer.current_trajectory()) == \
-                self.max_training_episode_length
+                max(current_max_episode_length, self.min_training_episode_length)
             end_episode = done or suppressed_snowball or eval or training_done \
                 or max_episode_length_reached
 
