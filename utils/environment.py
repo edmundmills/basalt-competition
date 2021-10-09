@@ -92,7 +92,7 @@ class ObservationSpace:
             ('snowball', 1),
         ]),
         'MineRLBasaltFindCave-v0': OrderedDict([('snowball', 1)]),
-        'MineRLBasaltMakeWaterfall-v0': OrderedDict([('waterbucket', 1),
+        'MineRLBasaltMakeWaterfall-v0': OrderedDict([('water_bucket', 1),
                                                      ('snowball', 1)]),
         'MineRLTreechop-v0': OrderedDict([('snowball', 1)]),
         'MineRLNavigateExtremeDense-v0': OrderedDict([('compassAngle', 180)]),

@@ -12,7 +12,6 @@ method: ???
 wandb: ???
 
 # training params
-max_training_episode_length: 2000
 cyclic_learning_rate: true
 
 # model attributes

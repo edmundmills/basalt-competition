@@ -18,7 +18,7 @@ class Algorithm:
         self.gpu_loader = GPULoader(config)
         th.backends.cudnn.benchmark = True
         self.config = config
-        self.max_training_episode_length = config.max_training_episode_length
+        self.max_training_episode_length = config.env.max_training_episode_length
         self.min_training_episode_length = config.min_training_episode_length
         self.wandb = config.wandb
         method_config = config.pretraining if pretraining else config.method
