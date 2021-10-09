@@ -30,6 +30,7 @@ class Algorithm:
         self.shutdown_time = self.start_time + self.training_timeout - 300
         self.update_frequency = 100
         self.eval_frequency = config.eval_frequency
+        self.eval_episodes = config.eval_episodes
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
         self.iter_count = 1
@@ -80,13 +81,13 @@ class Algorithm:
 
         print(f'Checkpoint saved at iteration {self.iter_count}')
 
-    def eval(self, env, model, replay_buffer, episodes=5):
+    def eval(self, env, model, replay_buffer):
         generator = TrajectoryGenerator(env, replay_buffer)
         rewards = 0
-        for i in range(episodes):
+        for i in range(self.eval_episodes):
             print('Starting Evaluation Episode', i + 1)
             trajectory = generator.generate(model)
             rewards += sum(trajectory.rewards)
-        print('Evaluation reward:', rewards/episodes)
+        print('Evaluation reward:', rewards/self.eval_episodes)
         if self.wandb:
-            wandb.log({'Rewards/eval': rewards/episodes}, step=self.iter_count)
+            wandb.log({'Rewards/eval': rewards/self.eval_episodes}, step=self.iter_count)

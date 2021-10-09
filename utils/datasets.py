@@ -84,10 +84,11 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         self.segment_length = config.lstm_segment_length
         self.segment_lookup = self._identify_segments()
         print(f'Identified {len(self.segment_lookup)} sub-segments'
-              f'of {self.segment_length} steps')
+              f' of {self.segment_length} steps')
         self.curriculum_training = config.curriculum_training
+        self.initial_curriculum_size = config.initial_curriculum_size
         if self.curriculum_training:
-            self.update_curriculum(config.initial_curriculum_size)
+            self.update_curriculum(0)
             self.lookup = self.filtered_lookup
         else:
             self.lookup = self.segment_lookup
@@ -114,11 +115,12 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
             trajectory_idx, step_idx = self.segment_lookup[segment_idx]
             self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
 
-    def update_curriculum(self, max_expert_steps):
+    def update_curriculum(self, curriculum_fraction):
         self.filtered_lookup, master_indices = \
             zip(*[[(t_idx, segment_idx), master_idx]
                   for master_idx, (t_idx, segment_idx) in enumerate(self.segment_lookup)
-                  if segment_idx < max_expert_steps])
+                  if (segment_idx <= len(self.trajectories[t_idx]) * curriculum_fraction
+                      or segment_idx < self.initial_curriculum_size)])
         self.cross_lookup = {filtered_idx: master_idx
                              for filtered_idx, master_idx in enumerate(master_indices)}
         print(f'Expert curriculum updated, including {len(self.filtered_lookup)}'
@@ -264,7 +266,7 @@ class MixedReplayBuffer(ReplayBuffer):
             batch = next(self.expert_dataloader)
         except StopIteration:
             if self.curriculum_training:
-                self.expert_dataset.update_curriculum(self.curriculum_length)
+                self.expert_dataset.update_curriculum(self.curriculum_fraction)
             self.expert_dataloader = self._initialize_dataloader()
             batch = next(self.expert_dataloader)
         return batch
@@ -283,12 +285,12 @@ class MixedReplayBuffer(ReplayBuffer):
             rewards_idx += 1
         print(f'{len(expert_rewards)} expert steps labeled with rewards')
 
-    def update_curriculum(self, step, max_expert_steps):
-        self.curriculum_length = max_expert_steps
-        if step % self.curriculum_refresh_steps == 0 and \
-                len(self.expert_dataset.filtered_lookup) \
-                < len(self.expert_dataset.segment_lookup):
-            self.expert_dataset.update_curriculum(self.curriculum_length)
+    def update_curriculum(self, step, curriculum_fraction):
+        self.curriculum_fraction = curriculum_fraction
+        current_curriculum_inclusion = len(self.expert_dataset.filtered_lookup) / \
+            len(self.expert_dataset.segment_lookup)
+        if step % self.curriculum_refresh_steps == 0 and current_curriculum_inclusion < 1:
+            self.expert_dataset.update_curriculum(self.curriculum_fraction)
             self.expert_dataloader = self._initialize_dataloader()
         curriculum_inclusion = len(self.expert_dataset.filtered_lookup) / \
             len(self.expert_dataset.segment_lookup)

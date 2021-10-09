@@ -33,15 +33,18 @@ mirror_augment: false # leave off
 
 # curriculum learning
 curriculum_training: true
-initial_curriculum_size: 100
 curriculum_fraction_of_training: 0.75
-min_training_episode_length: 500
+initial_curriculum_size: 100
 curriculum_refresh_steps: 2000
+variable_training_episode_length: true
+min_training_episode_length: 500
+
 
 # record keeping
 seed: 0
 checkpoint_frequency: 2000
-eval_frequency: 20000
+eval_frequency: 0
+eval_episodes: 5
 start_time: ???
 training_timeout: ???
 hydra_base_dir: ""
