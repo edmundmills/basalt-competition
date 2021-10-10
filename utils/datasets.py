@@ -37,7 +37,7 @@ class TrajectoryStepDataset(Dataset):
         step_lookup = []
 
         trajectory_paths = list(self.environment_path.iterdir())
-        if self.environment == 'MineRLBasaltCreateAnimalPen-v0':
+        if self.environment == 'MineRLBasaltCreateVillageAnimalPen-v0':
             animal_pen_plains_path = \
                 self.environment_path / 'MineRLBasaltCreateAnimalPenPlains-v0'
             trajectory_paths.extend(list(animal_pen_plains_path.iterdir()))
