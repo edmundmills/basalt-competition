@@ -36,13 +36,18 @@ class TrajectoryStepDataset(Dataset):
         trajectories = []
         step_lookup = []
 
-        trajectory_paths = self.environment_path.iterdir()
+        trajectory_paths = list(self.environment_path.iterdir())
+        if self.environment == 'MineRLBasaltCreateAnimalPen-v0':
+            animal_pen_plains_path = \
+                self.environment_path / 'MineRLBasaltCreateAnimalPenPlains-v0'
+            trajectory_paths.extend(list(animal_pen_plains_path.iterdir()))
         trajectory_idx = 0
         for trajectory_path in trajectory_paths:
             if not trajectory_path.is_dir():
                 continue
             if trajectory_path.name in [
-                    'v3_villainous_black_eyed_peas_loch_ness_monster-2_95372-97535']:
+                    'v3_villainous_black_eyed_peas_loch_ness_monster-2_95372-97535',
+                    'MineRLBasaltCreateAnimalPenPlains-v0']:
                 continue
 
             trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
