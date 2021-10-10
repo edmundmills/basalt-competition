@@ -63,7 +63,7 @@ def get_config(args):
     cfg.wandb = args.wandb
     cfg.start_time = time.time()
     if args.profile:
-        cfg.method.training_steps = 510
+        cfg.env.training_steps = 510
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     return cfg

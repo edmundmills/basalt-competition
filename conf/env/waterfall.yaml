@@ -2,6 +2,7 @@ name: MineRLBasaltMakeWaterfall-v0
 demo: MineRLBasaltMakeWaterfall-v0_1000
 max_training_episode_length: 6000
 training_timeout:  86400 # 24 hours
+training_steps: 300000
 
 # learn_steps: 1e5
 # eval_interval: 1e3

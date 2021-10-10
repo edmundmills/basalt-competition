@@ -2,5 +2,6 @@ name: MineRLBasaltFindCave-v0
 demo: MineRLBasaltFindCave-v0_1000
 max_training_episode_length: 3600
 training_timeout:  43200 # 12 hours
+training_steps: 150000
 # learn_steps: 1e5
 # eval_interval: 1e3

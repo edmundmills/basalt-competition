@@ -22,7 +22,7 @@ class OnlineImitation(Algorithm):
         super().__init__(config)
         self.lr = config.method.learning_rate
         self.suppress_snowball_steps = config.method.suppress_snowball_steps
-        self.training_steps = config.method.training_steps
+        self.training_steps = config.env.training_steps
         self.batch_size = config.method.batch_size
         self.model = model
         self.expert_dataset = expert_dataset

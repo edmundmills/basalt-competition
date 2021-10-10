@@ -11,7 +11,6 @@ batch_size: 32
 
 starting_steps: 500
 suppress_snowball_steps: 500
-training_steps: 50000
 
 learning_rate: 3e-4
 discount_factor: 0.99
