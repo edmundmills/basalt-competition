@@ -34,11 +34,14 @@ mirror_augment: false # leave off
 
 # curriculum learning
 curriculum_training: true
-curriculum_fraction_of_training: 0.75
+curriculum_fraction_of_training: 0.67
 initial_curriculum_size: 100
 curriculum_refresh_steps: 2000
 variable_training_episode_length: true
 min_training_episode_length: 500
+emphasize_new_samples: true
+emphasized_fraction: 0.15
+emphasis_relative_sample_frequency: 3
 
 # record keeping
 seed: 0

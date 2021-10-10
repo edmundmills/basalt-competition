@@ -92,6 +92,13 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
               f' of {self.segment_length} steps')
         self.curriculum_training = config.curriculum_training
         self.initial_curriculum_size = config.initial_curriculum_size
+        self.emphasize_new_samples = config.emphasize_new_samples
+        self.emphasized_fraction = config.emphasized_fraction
+        self.emphasis_relative_sample_frequency = \
+            config.emphasis_relative_sample_frequency
+        self.final_curriculum_fraction = 1 + self.emphasized_fraction \
+            if self.emphasize_new_samples else 1
+
         if self.curriculum_training:
             self.update_curriculum(0)
             self.lookup = self.filtered_lookup
@@ -124,11 +131,29 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         self.filtered_lookup, master_indices = \
             zip(*[[(t_idx, segment_idx), master_idx]
                   for master_idx, (t_idx, segment_idx) in enumerate(self.segment_lookup)
-                  if (segment_idx <= len(self.trajectories[t_idx]) * curriculum_fraction
+                  if (segment_idx <= (len(self.trajectories[t_idx]) * curriculum_fraction)
                       or segment_idx < self.initial_curriculum_size)])
+        self.filtered_lookup = list(self.filtered_lookup)
+        master_indices = list(master_indices)
+        self.current_curriculum_length = len(self.filtered_lookup)
+        if self.emphasize_new_samples and curriculum_fraction > self.emphasized_fraction \
+                and curriculum_fraction < self.final_curriculum_fraction:
+            for i in range(self.emphasis_relative_sample_frequency - 1):
+                emphasis_lookup, emphasis_master_indices = \
+                    zip(*[[(t_idx, segment_idx), master_idx]
+                          for master_idx, (t_idx, segment_idx)
+                          in enumerate(self.segment_lookup)
+                          if (segment_idx <=
+                              (len(self.trajectories[t_idx]) * curriculum_fraction)
+                              and segment_idx > (len(self.trajectories[t_idx])
+                                                 * (curriculum_fraction
+                                                    - self.emphasized_fraction)))])
+                self.filtered_lookup.extend(emphasis_lookup)
+                print(f'{len(emphasis_lookup)} samples emphasized')
+                master_indices.extend(emphasis_master_indices)
         self.cross_lookup = {filtered_idx: master_idx
                              for filtered_idx, master_idx in enumerate(master_indices)}
-        print(f'Expert curriculum updated, including {len(self.filtered_lookup)}'
+        print(f'Expert curriculum updated, including {self.current_curriculum_length}'
               f' / {len(self.segment_lookup)} segments')
         self.lookup = self.filtered_lookup
 
@@ -292,12 +317,13 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def update_curriculum(self, step, curriculum_fraction):
         self.curriculum_fraction = curriculum_fraction
-        current_curriculum_inclusion = len(self.expert_dataset.filtered_lookup) / \
+        current_curriculum_inclusion = self.expert_dataset.current_curriculum_length / \
             len(self.expert_dataset.segment_lookup)
-        if step % self.curriculum_refresh_steps == 0 and current_curriculum_inclusion < 1:
+        if step % self.curriculum_refresh_steps == 0 and self.curriculum_fraction \
+                < self.expert_dataset.final_curriculum_fraction:
             self.expert_dataset.update_curriculum(self.curriculum_fraction)
             self.expert_dataloader = self._initialize_dataloader()
-        curriculum_inclusion = len(self.expert_dataset.filtered_lookup) / \
+        curriculum_inclusion = self.expert_dataset.current_curriculum_length / \
             len(self.expert_dataset.segment_lookup)
         return curriculum_inclusion
 
