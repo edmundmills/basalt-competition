@@ -4,10 +4,13 @@ from utils.environment import ActionShaping
 from utils.trajectories import TrajectoryGenerator
 
 import os
+import time
 import gym
 from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
+
+import torch as th
 
 
 class EpisodeDone(Exception):
@@ -57,8 +60,11 @@ class MineRLAgent():
         with initialize(config_path='conf'):
             cfg = compose('config.yaml')
 
-        cfg.device = "cpu"
+        cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
         cfg.wandb = False
+        cfg.start_time = time.time()
+        cfg.training_timeout = 0
+
         cfg.hydra_base_dir = os.getcwd()
         print(OmegaConf.to_yaml(cfg))
         environment = cfg.env.name
@@ -66,7 +72,7 @@ class MineRLAgent():
 
         self.model = SoftQNetwork(cfg)
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-            if saved_agent_path.suffix == '.pth':
+            if saved_agent_path.suffix == '.pth' and environment in saved_agent_path.name:
                 print(f'Loading {saved_agent_path.name} as agent')
                 self.model.load_parameters(saved_agent_path)
                 break

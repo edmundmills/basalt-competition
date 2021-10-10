@@ -23,8 +23,8 @@ import logging
 from torch.profiler import profile, record_function, ProfilerActivity, schedule
 import os
 import time
-# import aicrowd_helper
-# from utility.parser import Parser
+import aicrowd_helper
+from utility.parser import Parser
 import coloredlogs
 coloredlogs.install(logging.DEBUG)
 
@@ -44,14 +44,14 @@ MINERL_TRAINING_MAX_INSTANCES = int(os.getenv('MINERL_TRAINING_MAX_INSTANCES', 5
 # This will give you current state like number of steps completed, instances launched
 # and so on.
 # Make your you keep a tap on the numbers to avoid breaching any limits.
-# parser = Parser(
-#     'performance/',
-#     maximum_instances=MINERL_TRAINING_MAX_INSTANCES,
-#     raise_on_error=False,
-#     no_entry_poll_timeout=600,
-#     submission_timeout=MINERL_TRAINING_TIMEOUT * 60,
-#     initial_poll_timeout=600
-# )
+parser = Parser(
+    'performance/',
+    maximum_instances=MINERL_TRAINING_MAX_INSTANCES,
+    raise_on_error=False,
+    no_entry_poll_timeout=600,
+    submission_timeout=MINERL_TRAINING_TIMEOUT * 60,
+    initial_poll_timeout=600
+)
 os.environ["MINERL_DATA_ROOT"] = MINERL_DATA_ROOT
 
 
@@ -76,6 +76,7 @@ def main():
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
+    aicrowd_helper.training_start()
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--debug-env', dest='debug_env',
                            action='store_true', default=False)
@@ -197,7 +198,7 @@ def main():
             model_art.save()
 
     # Training 100% Completed
-    # aicrowd_helper.register_progress(1)
+    aicrowd_helper.register_progress(1)
     if args.virtual_display:
         display.stop()
     if env is not None:

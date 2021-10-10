@@ -7,6 +7,7 @@ import os
 import wandb
 from pathlib import Path
 from collections import deque
+import aicrowd_helper
 
 import torch as th
 import numpy as np
@@ -34,6 +35,7 @@ class Algorithm:
         self.checkpoint_frequency = config.checkpoint_frequency
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
         self.iter_count = 1
+        self.starting_steps = method_config.starting_steps
         self.rewards_window = deque(maxlen=10)  # last N rewards
         self.steps_window = deque(maxlen=10)  # last N episode steps
 
@@ -46,6 +48,8 @@ class Algorithm:
         if (self.iter_count % self.update_frequency) == 0:
             print((f'{self.algorithm_name}: Iteration {self.iter_count}'
                    f' {self.iteration_rate():.2f} it/s'))
+            aicrowd_helper.register_progress(self.iter_count / (
+                self.starting_steps + self.training_steps))
 
     def iteration_rate(self):
         if len(self.timestamps) < self.update_frequency - 1:
@@ -69,7 +73,7 @@ class Algorithm:
             print('Suppressed Snowball')
         return suppressed_snowball
 
-    def save_checkpoint(self, replay_buffer=None, models_with_names=()):
+    def save_checkpoint(self, replay_buffer=None, model=None):
         if replay_buffer is not None:
             if self.wandb:
                 images, frame_rate = replay_buffer.recent_frames(
@@ -78,6 +82,9 @@ class Algorithm:
                     images,
                     format='gif', fps=frame_rate)},
                     step=self.iter_count)
+        if self.model is not None:
+            model_save_path = os.path.join('train', f'{self.name}.pth')
+            model.save(model_save_path)
 
         print(f'Checkpoint saved at iteration {self.iter_count}')
 

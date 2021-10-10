@@ -165,7 +165,7 @@ class OnlineImitation(Algorithm):
 
             if self.checkpoint_frequency > 0 and \
                     self.iter_count % self.checkpoint_frequency == 0:
-                self.save_checkpoint(replay_buffer=replay_buffer)
+                self.save_checkpoint(replay_buffer=replay_buffer, model=model)
 
             eval = self.eval_frequency > 0 and ((step + 1) % self.eval_frequency == 0)
             training_done = step + 1 == self.training_steps
