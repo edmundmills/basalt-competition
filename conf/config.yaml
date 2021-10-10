@@ -27,6 +27,7 @@ lstm_hidden_size: 512
 lstm_segment_length: 10
 
 # data augmentation
+normalize_obs: true
 inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
 mirror_augment: false # leave off
@@ -38,7 +39,6 @@ initial_curriculum_size: 100
 curriculum_refresh_steps: 2000
 variable_training_episode_length: true
 min_training_episode_length: 500
-
 
 # record keeping
 seed: 0
