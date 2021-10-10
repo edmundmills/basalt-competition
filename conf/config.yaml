@@ -46,5 +46,4 @@ checkpoint_frequency: 2000
 eval_frequency: 0
 eval_episodes: 5
 start_time: ???
-training_timeout: ???
 hydra_base_dir: ""

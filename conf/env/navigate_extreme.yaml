@@ -1,6 +1,7 @@
 name: MineRLNavigateExtremeDense-v0
 demo: MineRLNavigateExtremeDense-v0_1000
 max_training_episode_length: 2000
+training_timeout:  86400 # 24 hours
 
 # learn_steps: 1e5
 # eval_interval: 1e3
