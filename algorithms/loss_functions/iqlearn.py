@@ -58,6 +58,10 @@ class IQLearnLoss:
 
         metrics = {}
 
+        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert \
+            + expert_done
+        target_Q_rep = (1 - replay_done) * self.discount_factor * V_next_replay
+
         # keep track of v0
         v0 = V_expert.mean()
         metrics['v0'] = v0
@@ -65,12 +69,9 @@ class IQLearnLoss:
         def distance_function(x):
             return x - 1/4 * x**2
 
-        loss_expert = -th.mean(distance_function(
-            predicted_Q_expert - (1-expert_done) * self.discount_factor * V_next_expert)
-        )
+        loss_expert = -th.mean(distance_function(predicted_Q_expert - target_Q_exp))
         if self.target_q is not None:
-            loss_expert += -th.mean(-1/4*(predicted_Q_replay - (1-replay_done)
-                                          * self.discount_factor * V_next_replay)**2)
+            loss_expert += -th.mean(-1/4*(predicted_Q_replay - target_Q_rep)**2)
 
         loss = loss_expert
         metrics['softq_loss'] = loss_expert
@@ -86,26 +87,22 @@ class IQLearnLoss:
         elif self.config.method.loss == "value":
             # alternative 2nd term for our loss (use expert and policy states)
             # E_(ρ)[Q(s,a) - γV(s')]
-            done = th.cat((replay_done, expert_done), dim=0)
             value_loss = th.mean(th.cat((V_replay, V_expert), dim=0) -
-                                 (1 - done) * self.discount_factor *
-                                 th.cat((V_next_replay, V_next_expert), dim=0))
+                                 th.cat((target_Q_rep, target_Q_exp), dim=0))
             loss += value_loss
             metrics['value_loss'] = value_loss
 
         elif self.config.method.loss == "value_expert":
             # alternative 2nd term for our loss (use expert and policy states)
             # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(V_expert - (1 - expert_done) *
-                                 self.discount_factor * V_next_expert)
+            value_loss = th.mean(V_expert - target_Q_exp)
             loss += value_loss
             metrics['value_loss'] = value_loss
 
         elif self.config.method.loss == "value_policy":
             # alternative 2nd term for our loss (use only policy states)
             # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(V_replay - (1 - replay_done) *
-                                 self.discount_factor * V_next_replay)
+            value_loss = th.mean(V_replay - target_Q_rep)
             loss += value_loss
             metrics['value_policy_loss'] = value_loss
 
@@ -192,8 +189,10 @@ class IQLearnLossDRQ(IQLearnLoss):
         def distance_function(x):
             return x - 1/4 * x**2
 
-        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert
-        target_Q_exp_aug = (1 - expert_done) * self.discount_factor * V_next_expert_aug
+        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert \
+            + expert_done
+        target_Q_exp_aug = (1 - expert_done) * self.discount_factor * V_next_expert_aug \
+            + expert_done
         target_Q_exp = (target_Q_exp + target_Q_exp_aug) / 2
 
         target_Q_rep = (1 - replay_done) * self.discount_factor * V_next_replay
