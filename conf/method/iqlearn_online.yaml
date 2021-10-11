@@ -9,7 +9,7 @@ expert_sample_fraction: 0.5
 batch_size: 32
 
 
-starting_steps: 500
+starting_steps: 10000
 suppress_snowball_steps: 500
 
 learning_rate: 3e-4

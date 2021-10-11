@@ -94,6 +94,7 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
         self.initial_curriculum_size = config.initial_curriculum_size
         self.emphasize_new_samples = config.emphasize_new_samples
         self.emphasized_fraction = config.emphasized_fraction
+        self.extracurricular_sparsity = config.extracurricular_sparsity
         self.emphasis_relative_sample_frequency = \
             config.emphasis_relative_sample_frequency
         self.final_curriculum_fraction = 1 + self.emphasized_fraction \
@@ -128,11 +129,14 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
             self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
 
     def update_curriculum(self, curriculum_fraction):
+        random_seed = random.randint(0, self.extracurricular_sparsity - 1)
         self.filtered_lookup, master_indices = \
             zip(*[[(t_idx, segment_idx), master_idx]
                   for master_idx, (t_idx, segment_idx) in enumerate(self.segment_lookup)
                   if (segment_idx <= (len(self.trajectories[t_idx]) * curriculum_fraction)
-                      or segment_idx < self.initial_curriculum_size)])
+                      or segment_idx < self.initial_curriculum_size
+                      or (segment_idx + random_seed) % self.extracurricular_sparsity == 0)
+                  ])
         self.filtered_lookup = list(self.filtered_lookup)
         master_indices = list(master_indices)
         self.current_curriculum_length = len(self.filtered_lookup)
