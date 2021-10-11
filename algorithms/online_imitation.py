@@ -188,7 +188,7 @@ class OnlineImitation(Algorithm):
                               step=self.iter_count)
 
                 if eval:
-                    self.eval(env, model, replay_buffer)
+                    self.eval(env, model)
 
                 reset_env = not (training_done or suppressed_snowball)
                 TrajectoryGenerator.new_trajectory(

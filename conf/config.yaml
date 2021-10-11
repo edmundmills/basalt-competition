@@ -30,7 +30,7 @@ lstm_segment_length: 10
 normalize_obs: true
 inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
-mirror_augment: false # leave off
+mirror_augment: false  # leave off
 
 # curriculum learning
 curriculum_training: true
@@ -46,8 +46,9 @@ extracurricular_sparsity: 100
 
 # record keeping
 seed: 0
-checkpoint_frequency: 5000
-eval_frequency: 0 # only calculates reward, doesn't save video
+checkpoint_frequency: 5000  # save model
+save_gifs: false  # save gifs to wandb at checkpoints
+eval_frequency: 0  # calc reward and save video to drive
 eval_episodes: 5
 start_time: ???
 hydra_base_dir: ""

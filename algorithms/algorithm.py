@@ -30,6 +30,7 @@ class Algorithm:
         self.training_timeout = config.env.training_timeout
         self.shutdown_time = self.start_time + self.training_timeout - 300
         self.update_frequency = 100
+        self.save_gifs = config.save_gifs
         self.eval_frequency = config.eval_frequency
         self.eval_episodes = config.eval_episodes
         self.checkpoint_frequency = config.checkpoint_frequency
@@ -74,27 +75,30 @@ class Algorithm:
         return suppressed_snowball
 
     def save_checkpoint(self, replay_buffer=None, model=None):
-        if replay_buffer is not None:
-            if self.wandb:
-                images, frame_rate = replay_buffer.recent_frames(
-                    min(self.checkpoint_frequency, 1000))
-                wandb.log({"video": wandb.Video(
-                    images,
-                    format='gif', fps=frame_rate)},
-                    step=self.iter_count)
+        if replay_buffer is not None and self.wandb and self.save_gifs:
+            images, frame_rate = replay_buffer.recent_frames(
+                min(self.checkpoint_frequency, 1000))
+            wandb.log({"video": wandb.Video(
+                images,
+                format='gif', fps=frame_rate)},
+                step=self.iter_count)
         if self.model is not None:
             model_save_path = os.path.join('train', f'{self.name}.pth')
             model.save(model_save_path)
 
         print(f'Checkpoint saved at iteration {self.iter_count}')
 
-    def eval(self, env, model, replay_buffer):
-        generator = TrajectoryGenerator(env, replay_buffer)
+    def eval(self, env, model):
+        eval_path = Path('eval')
+        eval_path.mkdir(exist_ok=True)
+        save_path = eval_path / self.name
+        generator = TrajectoryGenerator(env)
         rewards = 0
         for i in range(self.eval_episodes):
             print('Starting Evaluation Episode', i + 1)
             trajectory = generator.generate(model)
             rewards += sum(trajectory.rewards)
+            trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
         print('Evaluation reward:', rewards/self.eval_episodes)
         if self.wandb:
             wandb.log({'Rewards/eval': rewards/self.eval_episodes}, step=self.iter_count)
