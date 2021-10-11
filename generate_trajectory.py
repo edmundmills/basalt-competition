@@ -2,29 +2,37 @@ from networks.soft_q import SoftQNetwork
 from utils.trajectories import Trajectory, TrajectoryGenerator
 from utils.environment import start_env
 
-from pathlib import Path
 import os
 import time
+import gym
+from hydra import compose, initialize
+from omegaconf import DictConfig, OmegaConf
+from pathlib import Path
+import torch as th
 
 if __name__ == "__main__":
-    environment = 'MineRLBasaltFindCave-v0'
+    with initialize(config_path='conf'):
+        cfg = compose('config.yaml')
+
+    cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
+    cfg.wandb = False
+    cfg.start_time = time.time()
+
+    cfg.hydra_base_dir = os.getcwd()
+    print(OmegaConf.to_yaml(cfg))
+    environment = cfg.env.name
     os.environ['MINERL_ENVIRONMENT'] = environment
     env = start_env(debug_env=False)
-    model = SoftQNetwork(config)
-    training_run = 'MineRLBasaltFindCave-v0_online_imitation_1632236774'
-    saved_model_path = Path('train') / training_run / 'model.pth'
+    model = SoftQNetwork(cfg)
+    training_run = 'MineRLBasaltFindCave-v0_iqlearn_online_1633889875'
+    model_file_name = training_run + '.pth'
+    saved_model_path = Path('train') / model_file_name
     model.load_parameters(saved_model_path)
-
-    # for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
-    #     if ('sqil' in saved_agent_path.name
-    #             and environment in saved_agent_path.name):
-    #         print(f'Loading {saved_agent_path.name} as agent')
-    #         agent.load_parameters(saved_agent_path)
-    #         break
-    generator = TrajectoryGenerator(env, model)
-    trajectory = generator.generate(max_episode_length=2000)
-    env.close()
     eval_path = Path('eval')
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
-    trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
+    generator = TrajectoryGenerator(env)
+    for _ in range(5):
+        trajectory = generator.generate(model, max_episode_length=2000)
+        trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
+    env.close()
