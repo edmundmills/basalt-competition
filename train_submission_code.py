@@ -1,6 +1,7 @@
 from utils.datasets import ReplayBuffer, SegmentReplayBuffer
 from utils.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
 from networks.soft_q import SoftQNetwork
+from networks.termination_critic import TerminationCritic
 from utils.environment import start_env
 from utils.trajectories import TrajectoryGenerator
 from algorithms.online_imitation import OnlineImitation
@@ -152,6 +153,12 @@ def main():
         model = pretrained_model
     elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
         model = SoftQNetwork(config)
+
+    if config.env.termination_critic:
+        print('Training Termination Critic')
+        model.termination_critic.train(expert_dataset)
+        iter_count += model.termination_critic.steps_trained
+        print('Trained Termination Critic')
 
     if config.method.algorithm == 'curious_IQ':
         training_algorithm = CuriousIQ(expert_dataset, config,

@@ -6,3 +6,6 @@ training_steps: 100000
 
 # learn_steps: 1e5
 # eval_interval: 1e3
+
+# termination critic
+termination_critic: false

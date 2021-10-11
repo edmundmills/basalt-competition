@@ -5,3 +5,8 @@ training_timeout:  43200 # 12 hours
 training_steps: 150000
 # learn_steps: 1e5
 # eval_interval: 1e3
+
+
+# termination critic
+termination_critic: true
+termination_critic_training_epochs: 20

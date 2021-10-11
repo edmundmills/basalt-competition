@@ -173,6 +173,25 @@ class ActionSpace:
             return f'Equip {item}'
         return ActionSpace.action_name_list[action_number]
 
+    def equip_snowball_action():
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                           'MineRLNavigateExtremeDense-v0']:
+            action = -1
+        if environment == 'MineRLBasaltBuildVillageHouse-v0':
+            action = 32
+        elif environment == 'MineRLBasaltCreateVillageAnimalPen-v0':
+            action = 14
+        elif environment == 'MineRLBasaltMakeWaterfall-v0':
+            action = 13
+        elif environment == 'MineRLBasaltFindCave-v0':
+            action = 12
+        print(ActionSpace.action_name(action))
+        return action
+
+    def use_action():
+        return 11
+
     def actions():
         actions = list(range(len(ActionSpace.action_name_list) - 1 +
                              len(ObservationSpace.items())))
@@ -191,7 +210,18 @@ class ActionSpace:
         snowball_number = ObservationSpace.items().index('snowball')
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))
 
-    def threw_snowball(obs_or_state, action):
+    def snowball_equipped(state, device='cpu'):
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                           'MineRLNavigateExtremeDense-v0']:
+            return False
+        items = state[1]
+        _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
+        snowball_equipped = th.all(th.eq(equipped_item,
+                                         ActionSpace.one_hot_snowball().to(device)))
+        return snowball_equipped.item()
+
+    def threw_snowball(obs_or_state, action, device='cpu'):
         environment = os.getenv('MINERL_ENVIRONMENT')
         if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
                            'MineRLNavigateExtremeDense-v0']:
@@ -201,7 +231,7 @@ class ActionSpace:
         else:
             items = obs_or_state[1]
             _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
-            if th.all(th.eq(equipped_item, ActionSpace.one_hot_snowball())):
+            if th.all(th.eq(equipped_item, ActionSpace.one_hot_snowball().to(device))):
                 equipped_item = 'snowball'
         return action == 11 and equipped_item == 'snowball'
 

@@ -80,13 +80,9 @@ class GPULoader:
             state[0] = (state[0] - self.pov_normalization[0])/self.pov_normalization[1]
             state[0] = state[0] * self.mobilenet_normalization[1] \
                 + self.mobilenet_normalization[0]
-            state[1] /= self.item_normalization
-            if self.env not in \
-                    ['MineRLNavigateDense-v0', 'MineRLNavigateExtremeDense-v0']:
-                state[1] -= 0.5
         else:
             state[0] /= 255.0
-            state[1] /= self.item_normalization
+        state[1] /= self.item_normalization
         return tuple(state)
 
     def states_from_sequence(self, sequence):

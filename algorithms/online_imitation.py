@@ -133,8 +133,8 @@ class OnlineImitation(Algorithm):
 
         for step in range(self.training_steps):
             current_state = replay_buffer.current_state()
-            action, hidden = model.get_action(
-                self.gpu_loader.state_to_device(current_state))
+            state_on_device = self.gpu_loader.state_to_device(current_state)
+            action, hidden = model.get_action(state_on_device, self.iter_count)
             suppressed_snowball = self.suppressed_snowball(step, current_state, action)
             if suppressed_snowball:
                 next_obs, r, done, _ = env.step(-1)

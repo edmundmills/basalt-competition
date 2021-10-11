@@ -10,19 +10,21 @@ from torch.utils.data import DataLoader
 
 
 class SupervisedLearning(Algorithm):
-    def __init__(self, config):
+    def __init__(self, config, epochs=None):
         super().__init__(config)
-        self.epochs = config.method.epochs
+        self.epochs = epochs if epochs else config.epochs
         self.lr = config.method.learning_rate
         self.batch_size = config.method.batch_size
         self.augmentation = DataAugmentation(config)
+        self.gpu_loader.loading_sequences = False
 
     def __call__(self, model, train_dataset, test_dataset=None, _env=None):
-        optimizer = th.optim.Adam(model.parameters(), lr=self.lr)
+        self.training_steps = len(train_dataset) * self.epochs / self.batch_size
+        optimizer = th.optim.AdamW(model.parameters(), lr=self.lr)
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size,
                                       shuffle=True, num_workers=4)
 
-        iter_count = 0
+        self.iter_count = 0
         for epoch in range(self.epochs):
             for batch in train_dataloader:
                 batch = self.gpu_loader.expert_batch_to_device(batch)
@@ -35,10 +37,10 @@ class SupervisedLearning(Algorithm):
                 optimizer.step()
 
                 if self.wandb:
-                    wandb.log({'train_loss': loss.detach()}, step=self.iter_count)
+                    wandb.log({'TerminationCritic/train_loss': loss.detach()},
+                              step=self.iter_count)
 
-                iter_count += 1
-                self.log_step()
+                self.iter_count += 1
 
             print(f'Epoch #{epoch + 1} completed')
             if test_dataset is not None and self.wandb:
@@ -47,7 +49,7 @@ class SupervisedLearning(Algorithm):
                 wandb.log(eval_metrics)
 
         print('Training complete')
-        model.save(os.path.join('train', f'{self.name}.pth'))
+        # model.save(os.path.join('train', f'{self.name}.pth'))
         return model, None
 
     def eval(self, model, test_dataset):

@@ -1,15 +1,20 @@
 from networks.base_network import Network
+from networks.termination_critic import TerminationCritic
+from utils.environment import ActionSpace
 
 import torch as th
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
+import wandb
 
 
 class SoftQNetwork(Network):
     def __init__(self, config):
         super().__init__(config)
         self.alpha = config.alpha
+        self.termination_critic = TerminationCritic(config) \
+            if config.env.termination_critic else None
 
     def get_Q(self, state):
         return self.forward(state)
@@ -31,11 +36,30 @@ class SoftQNetwork(Network):
         entropies = -F.log_softmax(Qs/self.alpha, dim=-1)
         return entropies
 
-    def get_action(self, states):
+    def get_action(self, states, iter_count=None):
         with th.no_grad():
             Q, hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
+        if self.termination_critic is not None:
+            threw_snowball = ActionSpace.threw_snowball(states, action,
+                                                        device=self.device)
+            while threw_snowball:
+                action = np.random.choice(self.actions, p=probabilities)
+                threw_snowball = ActionSpace.threw_snowball(states, action,
+                                                            device=self.device)
+            if iter_count is None or iter_count % 10 == 0:
+                eval = self.termination_critic.evaluate(states)
+                if self.config.wandb:
+                    wandb.log({'TerminationCritic/state_eval': eval},
+                              step=iter_count)
+                if eval > 0.5:
+                    if ActionSpace.snowball_equipped(states, device=self.device):
+                        action = ActionSpace.use_action()
+                        print("Snowball thrown by termination_critic")
+                    else:
+                        action = ActionSpace.equip_snowball_action()
+                        print("Snowball equipped by termination_critic")
         if hidden is not None:
             hidden = hidden.cpu().squeeze()
         return action, hidden
