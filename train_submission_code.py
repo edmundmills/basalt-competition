@@ -60,7 +60,7 @@ def get_config(args):
         cfg = compose('config.yaml', overrides=args.overrides)
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
-    cfg.wandb = args.wandb
+    cfg.wandb = args.wandb if __name__ == "__main__" else False
     cfg.start_time = time.time()
     if args.profile:
         cfg.env.training_steps = 510
@@ -95,7 +95,7 @@ def main():
     environment = config.env.name
     os.environ['MINERL_ENVIRONMENT'] = environment
 
-    if args.wandb:
+    if config.wandb:
         wandb.init(
             project=config.project_name,
             entity="basalt",
