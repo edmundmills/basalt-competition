@@ -58,8 +58,7 @@ class IQLearnLoss:
 
         metrics = {}
 
-        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert \
-            + expert_done
+        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert
         target_Q_rep = (1 - replay_done) * self.discount_factor * V_next_replay
 
         # keep track of v0
@@ -189,10 +188,8 @@ class IQLearnLossDRQ(IQLearnLoss):
         def distance_function(x):
             return x - 1/4 * x**2
 
-        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert \
-            + expert_done
-        target_Q_exp_aug = (1 - expert_done) * self.discount_factor * V_next_expert_aug \
-            + expert_done
+        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert
+        target_Q_exp_aug = (1 - expert_done) * self.discount_factor * V_next_expert_aug
         target_Q_exp = (target_Q_exp + target_Q_exp_aug) / 2
 
         target_Q_rep = (1 - replay_done) * self.discount_factor * V_next_replay
