@@ -53,7 +53,8 @@ class SoftQNetwork(Network):
                 if self.config.wandb:
                     wandb.log({'TerminationCritic/state_eval': eval},
                               step=iter_count)
-                if eval > 0.5:
+                if eval > 0.65:
+                    print('termination_critic:', eval)
                     if ActionSpace.snowball_equipped(states, device=self.device):
                         action = ActionSpace.use_action()
                         print("Snowball thrown by termination_critic")

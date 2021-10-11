@@ -127,7 +127,8 @@ class TrajectoryGenerator:
         while not trajectory.done and len(trajectory) < max_episode_length:
             trajectory.append_obs(obs, hidden)
             current_state = trajectory.current_state()
-            action, hidden = model.get_action(gpu_loader.state_to_device(current_state))
+            action, hidden = model.get_action(gpu_loader.state_to_device(current_state),
+                                              iter_count=len(trajectory))
             trajectory.actions.append(action)
             obs, r, done, _ = self.env.step(action)
             trajectory.rewards.append(r)
