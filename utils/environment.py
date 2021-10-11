@@ -129,7 +129,7 @@ class ObservationSpace:
         if isinstance(first_item, np.ndarray):
             inventory = {k: th.from_numpy(v).unsqueeze(0).to(th.uint8)
                          for k, v in inventory.items()}
-        elif isinstance(first_item, (int, np.int32)):
+        elif isinstance(first_item, (int, np.int32, np.int64)):
             inventory = {k: th.tensor([v], dtype=th.uint8) for k, v in inventory.items()}
         inventory = [inventory[item_name]
                      for item_name in iter(ObservationSpace.starting_inventory().keys())]
