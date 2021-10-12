@@ -39,6 +39,7 @@ class OnlineImitation(Algorithm):
         self.initial_alpha = config.alpha
         self.entropy_tuning = config.method.entropy_tuning
         self.target_entropy_ratio = config.method.target_entropy_ratio
+        self.entropy_lr = config.method.entropy_lr
         if self.entropy_tuning:
             self.initialize_alpha_optimization()
 
