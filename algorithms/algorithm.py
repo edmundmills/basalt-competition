@@ -85,6 +85,10 @@ class Algorithm:
         if self.model is not None:
             model_save_path = os.path.join('train', f'{self.name}.pth')
             model.save(model_save_path)
+            if args.wandb:
+                model_art = wandb.Artifact("agent", type="model")
+                model_art.add_file(model_save_path)
+                model_art.save()
 
         print(f'Checkpoint saved at iteration {self.iter_count}')
 
