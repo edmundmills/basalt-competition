@@ -115,7 +115,7 @@ class TrajectoryGenerator:
         self.env = env
         self.replay_buffer = replay_buffer
 
-    def generate(self, model, max_episode_length=100000):
+    def generate(self, model, max_episode_length=100000, print_actions=False):
         gpu_loader = GPULoader(model.config)
         trajectory = Trajectory(n_observation_frames=model.n_observation_frames)
         if self.replay_buffer:
@@ -131,6 +131,9 @@ class TrajectoryGenerator:
                                               iter_count=len(trajectory))
             trajectory.actions.append(action)
             obs, r, done, _ = self.env.step(action)
+            if print_actions:
+                print(action, ActionSpace.action_name(action),
+                      f'(equipped: {ActionSpace.equipped_item(current_state)})')
             trajectory.rewards.append(r)
             trajectory.done = done
             if self.replay_buffer:

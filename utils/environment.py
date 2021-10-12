@@ -206,6 +206,17 @@ class ActionSpace:
         action = np.random.choice(ActionSpace.actions())
         return action
 
+    def equipped_item(state):
+        environment = os.getenv('MINERL_ENVIRONMENT')
+        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                           'MineRLNavigateExtremeDense-v0']:
+            return 'No Item'
+        items = state[1]
+        _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
+        equipped_item_number = equipped_item.squeeze().nonzero()
+        equipped_item_name = ObservationSpace.items()[equipped_item_number.item()]
+        return equipped_item_name
+
     def one_hot_snowball():
         snowball_number = ObservationSpace.items().index('snowball')
         return F.one_hot(th.LongTensor([snowball_number]), len(ObservationSpace.items()))

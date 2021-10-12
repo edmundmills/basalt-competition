@@ -32,7 +32,8 @@ if __name__ == "__main__":
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
     generator = TrajectoryGenerator(env)
-    for _ in range(5):
-        trajectory = generator.generate(model, max_episode_length=2000)
+    for _ in range(3):
+        trajectory = generator.generate(model, max_episode_length=2000,
+                                        print_actions=True)
         trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
     env.close()
