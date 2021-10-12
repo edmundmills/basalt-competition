@@ -158,7 +158,7 @@ class CuriousIQ(IntrinsicCuriosityTraining):
                                                lr=config.method.iqlearn_lr)
         self._policy_loss = CuriousIQPolicyLoss(self.actor, self.online_q, self.iqlearn_q,
                                                 config)
-        if self.entropy_adjustment:
+        if self.entropy_tuning:
             self.initialize_alpha_optimization()
 
         kwargs = dict(

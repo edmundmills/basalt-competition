@@ -37,6 +37,7 @@ class SoftActorCritic(Algorithm):
         self.drq = method_config.drq
         self.target_update_interval = 1
         self.updates_per_step = 1
+        self.initial_alpha = config.alpha
 
         # Set up replay buffer
         if initial_replay_buffer is None:
@@ -66,9 +67,9 @@ class SoftActorCritic(Algorithm):
         # Loss functions
         self.initialize_loss_functions()
 
-        self.entropy_adjustment = method_config.entropy_adjustment
+        self.entropy_tuning = method_config.entropy_tuning
         self.target_entropy_ratio = method_config.target_entropy_ratio
-        if self.entropy_adjustment:
+        if self.entropy_tuning:
             self.initialize_alpha_optimization()
 
         # Optimizers
@@ -88,7 +89,8 @@ class SoftActorCritic(Algorithm):
         self._policy_loss.target_entropy = \
             -np.log(1.0 / len(ActionSpace.actions())) * self.target_entropy_ratio
         print('Target entropy: ', self._policy_loss.target_entropy)
-        self._policy_loss.log_alpha = th.zeros(1, device=self.device, requires_grad=True)
+        self._policy_loss.log_alpha = th.tensor(np.log(self.initial_alpha),
+                                                device=self.device, requires_grad=True)
         self.alpha_optimizer = th.optim.Adam([self._policy_loss.log_alpha],
                                              lr=self.entropy_lr)
 
@@ -116,7 +118,7 @@ class SoftActorCritic(Algorithm):
         self.policy_optimizer.zero_grad(set_to_none=True)
         policy_loss.backward()
         self.policy_optimizer.step()
-        if self.entropy_adjustment:
+        if self.entropy_tuning:
             self.alpha_optimizer.zero_grad(set_to_none=True)
             alpha_loss.backward()
             self.alpha_optimizer.step()

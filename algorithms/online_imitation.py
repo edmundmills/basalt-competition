@@ -36,6 +36,30 @@ class OnlineImitation(Algorithm):
         self.augmentation = DataAugmentation(config)
         self.cyclic_learning_rate = config.cyclic_learning_rate
         self.initialize_loss_function(model, config)
+        self.initial_alpha = config.alpha
+        self.entropy_tuning = config.method.entropy_tuning
+        self.target_entropy_ratio = config.method.target_entropy_ratio
+        self.entropy_lr = config.method.entropy_lr
+        if self.entropy_tuning:
+            self.initialize_alpha_optimization()
+
+    def initialize_replay_buffer(self):
+        initial_replay_buffer = self.initial_replay_buffer
+        if initial_replay_buffer is not None:
+            print((f'Using initial replay buffer'
+                   f' with {len(initial_replay_buffer)} steps'))
+        kwargs = dict(
+            expert_dataset=self.expert_dataset,
+            config=self.config,
+            batch_size=self.batch_size,
+            initial_replay_buffer=initial_replay_buffer
+        )
+        if self.config.lstm_layers == 0:
+            replay_buffer = MixedReplayBuffer(**kwargs)
+        else:
+            replay_buffer = MixedSegmentReplayBuffer(**kwargs)
+        self.replay_buffer = replay_buffer
+        return replay_buffer
 
     def curriculum_fraction(self, step):
         if not self.curriculum_training:
@@ -62,23 +86,18 @@ class OnlineImitation(Algorithm):
         elif config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(model, config)
 
-    def initialize_replay_buffer(self):
-        initial_replay_buffer = self.initial_replay_buffer
-        if initial_replay_buffer is not None:
-            print((f'Using initial replay buffer'
-                   f' with {len(initial_replay_buffer)} steps'))
-        kwargs = dict(
-            expert_dataset=self.expert_dataset,
-            config=self.config,
-            batch_size=self.batch_size,
-            initial_replay_buffer=initial_replay_buffer
-        )
-        if self.config.lstm_layers == 0:
-            replay_buffer = MixedReplayBuffer(**kwargs)
-        else:
-            replay_buffer = MixedSegmentReplayBuffer(**kwargs)
-        self.replay_buffer = replay_buffer
-        return replay_buffer
+    def initialize_alpha_optimization(self):
+        self.loss_function.target_entropy = \
+            -np.log(1.0 / len(ActionSpace.actions())) * self.target_entropy_ratio
+        print('Target entropy: ', self.loss_function.target_entropy)
+        self.loss_function.log_alpha = th.tensor(np.log(self.initial_alpha),
+                                                 device=self.device, requires_grad=True)
+        self.alpha_optimizer = th.optim.Adam([self.loss_function.log_alpha],
+                                             lr=self.entropy_lr)
+
+    def update_model_alphas(self):
+        alpha = self.loss_function.log_alpha.detach().exp()
+        self.model.alpha = alpha
 
     def train_one_batch(self, batch):
         (expert_batch, expert_idx), (replay_batch, replay_idx) = batch
@@ -87,10 +106,10 @@ class OnlineImitation(Algorithm):
         aug_expert_batch = self.augmentation(expert_batch)
         aug_replay_batch = self.augmentation(replay_batch)
         if self.drq:
-            loss, metrics, final_hidden = self.loss_function(
+            loss, alpha_loss, metrics, final_hidden = self.loss_function(
                 expert_batch, replay_batch, aug_expert_batch, aug_replay_batch)
         else:
-            loss, metrics, final_hidden = self.loss_function(
+            loss, alpha_loss, metrics, final_hidden = self.loss_function(
                 aug_expert_batch, aug_replay_batch)
 
         self.optimizer.zero_grad()
@@ -104,6 +123,12 @@ class OnlineImitation(Algorithm):
             final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
                                              expert_idx, final_hidden_expert)
+        if self.entropy_tuning:
+            self.alpha_optimizer.zero_grad(set_to_none=True)
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
+            self.update_model_alphas()
+            metrics['alpha'] = self.model.alpha
 
         if self.wandb:
             wandb.log(metrics, step=self.iter_count)

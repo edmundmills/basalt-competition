@@ -72,7 +72,7 @@ class SACPolicyLoss:
         self.policy = policy
         method_config = config.pretraining if pretraining else config.method
         self.discount_factor = method_config.discount_factor
-        self.entropy_adjustment = method_config.entropy_adjustment
+        self.entropy_tuning = method_config.entropy_tuning
         # self.double_q = method_config.double_q
 
     def __call__(self, step, batch):
@@ -89,7 +89,7 @@ class SACPolicyLoss:
 
         loss = -th.sum((Qs + self.policy.alpha * entropies)
                        * action_probabilities, dim=1, keepdim=True).mean()
-        if self.entropy_adjustment:
+        if self.entropy_tuning:
             alpha_loss = th.sum((-self.log_alpha *
                                  (self.target_entropy - entropies.detach())) *
                                 action_probabilities.detach(), dim=1, keepdim=True).mean()

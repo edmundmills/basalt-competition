@@ -15,7 +15,7 @@ policy_lr: 1e-4
 target_q: true  # for iqlearn q function
 tau: .05
 
-entropy_adjustment: false
+entropy_tuning: false
 target_entropy_ratio: 0.05
 entropy_lr: 1e-4
 

@@ -7,7 +7,7 @@ target_q: true  # for iqlearn q function
 
 online_curiosity_training: true
 normalize_reward: true  # for curiosity rewards
-entropy_adjustment: true
+entropy_tuning: true
 target_entropy_ratio: 0.1
 
 starting_steps: 10000
