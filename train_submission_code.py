@@ -3,6 +3,7 @@ from utils.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
 from networks.soft_q import SoftQNetwork
 from networks.termination_critic import TerminationCritic
 from utils.environment import start_env
+from utils.gpu import disable_gradients
 from utils.trajectories import TrajectoryGenerator
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
@@ -157,6 +158,7 @@ def main():
     if config.env.termination_critic:
         print('Training Termination Critic')
         model.termination_critic.train(expert_dataset)
+        disable_gradients(model.termination_critic)
         iter_count += model.termination_critic.steps_trained
         print('Trained Termination Critic')
 
