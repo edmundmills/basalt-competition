@@ -1,6 +1,6 @@
 name: MineRLBasaltCreateVillageAnimalPen-v0
 demo: MineRLBasaltCreateVillageAnimalPen-v0_1000
-max_training_episode_length: 6000
+max_training_episode_length: 4500
 training_timeout:  86400 # 24 hours
 training_steps: 300000
 curriculum_fraction_of_training: 0.5
