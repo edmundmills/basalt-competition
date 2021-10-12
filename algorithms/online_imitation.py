@@ -31,7 +31,7 @@ class OnlineImitation(Algorithm):
         self.drq = config.method.drq
         self.curriculum_training = config.curriculum_training
         self.initial_curriculum_size = config.initial_curriculum_size
-        self.curriculum_fraction_of_training = config.curriculum_fraction_of_training
+        self.curriculum_fraction_of_training = config.env.curriculum_fraction_of_training
         self.variable_training_episode_length = config.variable_training_episode_length
         self.augmentation = DataAugmentation(config)
         self.cyclic_learning_rate = config.cyclic_learning_rate
