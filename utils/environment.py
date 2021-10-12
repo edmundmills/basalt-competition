@@ -213,7 +213,7 @@ class ActionSpace:
             return 'No Item'
         items = state[1]
         _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
-        equipped_item_number = equipped_item.squeeze().nonzero()
+        equipped_item_number = equipped_item.reshape(-1).nonzero()
         equipped_item_name = ObservationSpace.items()[equipped_item_number.item()]
         return equipped_item_name
 
