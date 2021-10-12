@@ -14,6 +14,7 @@ class IQLearnLoss:
         self.discount_factor = config.method.discount_factor
         self.drq = config.method.drq
         self.n_observation_frames = config.n_observation_frames
+        self.entropy_tuning = config.method.entropy_tuning
 
     def __call__(self, expert_batch, replay_batch):
         expert_states, expert_actions, expert_next_states, \
@@ -35,6 +36,9 @@ class IQLearnLoss:
             batch_Vs = self.model.get_V(batch_Qs)
             V_expert, V_replay, V_next_expert, V_next_replay = th.split(
                 batch_Vs, state_lengths, dim=0)
+            with th.no_grad():
+                entropies = self.model.entropies(batch_Qs)
+                action_probabilities = self.model.action_probabilities(batch_Qs)
         else:
             current_states, current_state_lengths = cat_states((expert_states,
                                                                 replay_states))
@@ -55,6 +59,9 @@ class IQLearnLoss:
 
             V_expert, V_replay = th.split(current_Vs, current_state_lengths, dim=0)
             V_next_expert, V_next_replay = th.split(next_Vs, next_state_lengths, dim=0)
+            with th.no_grad():
+                entropies = self.model.entropies(current_Qs)
+                action_probabilities = self.model.action_probabilities(current_Qs)
 
         metrics = {}
 
@@ -105,12 +112,24 @@ class IQLearnLoss:
             loss += value_loss
             metrics['value_policy_loss'] = value_loss
 
+        if self.entropy_tuning:
+            alpha_loss = th.sum((-self.log_alpha *
+                                 (self.target_entropy - entropies.detach())) *
+                                action_probabilities.detach(), dim=1, keepdim=True).mean()
+        else:
+            alpha_loss = th.tensor([0])
+
+        entropy = th.sum(action_probabilities.detach() * entropies.detach(),
+                         dim=1, keepdim=True).mean()
+
         metrics.update({
             "total_loss": loss,
+            'alpha_loss': alpha_loss,
+            'entropy': entropy,
         })
         for k, v in iter(metrics.items()):
             metrics[k] = v.item()
-        return loss, metrics, final_hidden
+        return loss, alpha_loss, metrics, final_hidden
 
 
 class IQLearnLossDRQ(IQLearnLoss):
@@ -148,6 +167,9 @@ class IQLearnLossDRQ(IQLearnLoss):
             V_expert, V_replay, V_next_expert, V_next_replay, V_expert_aug, \
                 V_replay_aug, V_next_expert_aug, V_next_replay_aug = th.split(
                     batch_Vs, state_lengths, dim=0)
+            with th.no_grad():
+                entropies = self.model.entropies(batch_Qs)
+                action_probabilities = self.model.action_probabilities(batch_Qs)
         else:
             current_states, current_state_lengths = cat_states((expert_states,
                                                                 replay_states,
@@ -176,6 +198,9 @@ class IQLearnLossDRQ(IQLearnLoss):
                 current_Vs, current_state_lengths, dim=0)
             V_next_expert, V_next_replay, V_next_expert_aug, V_next_replay_aug = th.split(
                 next_Vs, next_state_lengths, dim=0)
+            with th.no_grad():
+                entropies = self.model.entropies(current_Qs)
+                action_probabilities = self.model.action_probabilities(current_Qs)
 
         metrics = {}
 
@@ -238,9 +263,21 @@ class IQLearnLossDRQ(IQLearnLoss):
             loss += value_loss
             metrics['value_policy_loss'] = value_loss
 
+        if self.entropy_tuning:
+            alpha_loss = th.sum((-self.log_alpha *
+                                 (self.target_entropy - entropies.detach())) *
+                                action_probabilities.detach(), dim=1, keepdim=True).mean()
+        else:
+            alpha_loss = th.tensor([0])
+
+        entropy = th.sum(action_probabilities.detach() * entropies.detach(),
+                         dim=1, keepdim=True).mean()
+
         metrics.update({
             "iqlearn_loss_total": loss,
+            'alpha_loss': alpha_loss,
+            'entropy': entropy,
         })
         for k, v in iter(metrics.items()):
             metrics[k] = v.item()
-        return loss, metrics, final_hidden
+        return loss, alpha_loss, metrics, final_hidden

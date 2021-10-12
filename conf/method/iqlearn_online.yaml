@@ -14,3 +14,7 @@ suppress_snowball_steps: 500
 
 learning_rate: 3e-4
 discount_factor: 0.99
+
+entropy_tuning: false
+target_entropy_ratio: 0.05
+entropy_lr: 1e-4
