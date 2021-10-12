@@ -8,5 +8,5 @@ training_steps: 150000
 
 
 # termination critic
-termination_critic: true
+termination_critic: false
 termination_critic_training_epochs: 30

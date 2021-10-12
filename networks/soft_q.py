@@ -15,6 +15,7 @@ class SoftQNetwork(Network):
         self.alpha = config.alpha
         self.termination_critic = TerminationCritic(config) \
             if config.env.termination_critic else None
+        self.termination_confidence_threshhold = config.termination_confidence_threshhold
 
     def get_Q(self, state):
         return self.forward(state)
@@ -41,9 +42,11 @@ class SoftQNetwork(Network):
             Q, hidden = self.get_Q(states)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
+        threw_snowball = ActionSpace.threw_snowball(states, action, device=self.device)
+        if self.config.wandb:
+            wandb.log({'TerminationCritic/use_action_prob': probabilities[11]},
+                      step=iter_count)
         if self.termination_critic is not None:
-            threw_snowball = ActionSpace.threw_snowball(states, action,
-                                                        device=self.device)
             while threw_snowball:
                 action = np.random.choice(self.actions, p=probabilities)
                 threw_snowball = ActionSpace.threw_snowball(states, action,
@@ -53,7 +56,7 @@ class SoftQNetwork(Network):
                 if self.config.wandb:
                     wandb.log({'TerminationCritic/state_eval': eval},
                               step=iter_count)
-                if eval > 0.65:
+                if eval > self.termination_confidence_threshhold:
                     print('termination_critic:', eval)
                     if ActionSpace.snowball_equipped(states, device=self.device):
                         action = ActionSpace.use_action()
@@ -61,6 +64,14 @@ class SoftQNetwork(Network):
                     else:
                         action = ActionSpace.equip_snowball_action()
                         print("Snowball equipped by termination_critic")
+        elif probabilities[11] < self.termination_confidence_threshhold:
+            while threw_snowball:
+                action = np.random.choice(self.actions, p=probabilities)
+                threw_snowball = ActionSpace.threw_snowball(states, action,
+                                                            device=self.device)
+                print('Tried to throw snowball, but only had a confidence of',
+                      probabilities[11])
+
         if hidden is not None:
             hidden = hidden.cpu().squeeze()
         return action, hidden
