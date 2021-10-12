@@ -62,7 +62,7 @@ def get_config(args):
         cfg = compose('config.yaml', overrides=args.overrides)
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
-    cfg.wandb = args.wandb if __name__ == "__main__" else False
+    cfg.wandb = args.wandb
     cfg.start_time = time.time()
     if args.profile:
         cfg.env.training_steps = 510
