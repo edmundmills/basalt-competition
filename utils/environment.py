@@ -300,10 +300,10 @@ class ActionSpace:
                                    'MineRLNavigateExtremeDense-v0'] \
                     and use_actions[i] == 1:
                 actions[i] = 11
-            elif environment not in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
-                                     'MineRLNavigateExtremeDense-v0'] \
-                    and equip_actions[i] in items:
-                actions[i] = 12 + items.index(equip_actions[i])
+            elif (environment not in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                                      'MineRLNavigateExtremeDense-v0']) \
+                    and equip_actions in items:
+                actions[i] = 12 + items.index(equip_actions)
             elif camera_actions[i][0] < -camera_margin:
                 actions[i] = 6
             elif camera_actions[i][0] > camera_margin:
