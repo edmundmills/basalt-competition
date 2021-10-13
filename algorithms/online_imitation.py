@@ -36,7 +36,9 @@ class OnlineImitation(Algorithm):
         self.augmentation = DataAugmentation(config)
         self.cyclic_learning_rate = config.cyclic_learning_rate
         self.initialize_loss_function(model, config)
+        self.decay_alpha = config.decay_alpha
         self.initial_alpha = config.alpha
+        self.final_alpha = config.final_alpha
         self.entropy_tuning = config.method.entropy_tuning
         self.target_entropy_ratio = config.method.target_entropy_ratio
         self.entropy_lr = config.method.entropy_lr
@@ -181,6 +183,14 @@ class OnlineImitation(Algorithm):
                               step=self.iter_count)
             if len(replay_buffer) >= replay_buffer.replay_batch_size:
                 self.train_one_batch(replay_buffer.sample(batch_size=self.batch_size))
+
+            if self.decay_alpha:
+                model.alpha = self.initial_alpha - ((step / self.training_steps)
+                                                    * (self.initial_alpha
+                                                       - self.final_alpha))
+                if self.wandb:
+                    wandb.log({'alpha': model.alpha},
+                              step=self.iter_count)
 
             self.log_step()
 
