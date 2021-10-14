@@ -43,7 +43,7 @@ class SoftQNetwork(Network):
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
         threw_snowball = ActionSpace.threw_snowball(states, action, device=self.device)
-        if self.config.wandb:
+        if self.config.wandb and len(probabilities) >= 12:
             wandb.log({'TerminationCritic/use_action_prob': probabilities[11]},
                       step=iter_count)
         if self.termination_critic is not None:
@@ -64,7 +64,8 @@ class SoftQNetwork(Network):
                     else:
                         action = ActionSpace.equip_snowball_action()
                         print("Snowball equipped by termination_critic")
-        elif probabilities[11] < self.termination_confidence_threshhold:
+        elif len(probabilities) >= 12 \
+                and probabilities[11] < self.termination_confidence_threshhold:
             while threw_snowball:
                 action = np.random.choice(self.actions, p=probabilities)
                 threw_snowball = ActionSpace.threw_snowball(states, action,

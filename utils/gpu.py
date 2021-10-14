@@ -66,6 +66,11 @@ class GPULoader:
                     3, 1, 1).tile((config.n_observation_frames, 1, 1)),
                 th.FloatTensor([43.07, 49.05, 72.84]).to(self.device).reshape(
                     3, 1, 1).tile((config.n_observation_frames, 1, 1))),
+            'MineRLTreechop-v0': (
+                th.FloatTensor([35.60, 51.53, 24.05]).to(self.device).reshape(
+                    3, 1, 1).tile((config.n_observation_frames, 1, 1)),
+                th.FloatTensor([29.58, 38.48, 25.91]).to(self.device).reshape(
+                    3, 1, 1).tile((config.n_observation_frames, 1, 1))),
             'MineRLNavigateDense-v0': (
                 th.FloatTensor([66.89, 76.77, 104.20]).to(self.device).reshape(
                     3, 1, 1).tile((config.n_observation_frames, 1, 1)),
