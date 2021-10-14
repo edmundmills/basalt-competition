@@ -1,6 +1,6 @@
 defaults:
   - method: iqlearn_online
-  - env: cave 
+  - env: cave
   - pretraining: none
   - _self_
 
