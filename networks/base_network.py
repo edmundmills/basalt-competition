@@ -15,7 +15,7 @@ class VisualFeatureExtractor(nn.Module):
         mobilenet_features = mobilenet_v3_large(
             pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
-            self.cnn = mobilenet_features
+            self.cnn = mobilenet_features[0:self.cnn_layers]
         else:
             self.cnn = nn.Sequential(
                 nn.Sequential(
