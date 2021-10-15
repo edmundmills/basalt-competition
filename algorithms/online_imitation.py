@@ -98,7 +98,7 @@ class OnlineImitation(Algorithm):
                                              lr=self.entropy_lr)
 
     def update_model_alphas(self):
-        alpha = min(self.loss_function.log_alpha.detach().exp(), self.initial_alpha)
+        alpha = self.loss_function.log_alpha.detach().exp()
         self.model.alpha = alpha
 
     def train_one_batch(self, batch):

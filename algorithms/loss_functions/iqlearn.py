@@ -113,7 +113,7 @@ class IQLearnLoss:
             metrics['value_policy_loss'] = value_loss
 
         if self.entropy_tuning:
-            alpha_loss = th.sum((-self.log_alpha *
+            alpha_loss = th.sum((-self.log_alpha.exp() *
                                  (self.target_entropy - entropies.detach())) *
                                 action_probabilities.detach(), dim=1, keepdim=True).mean()
         else:
@@ -264,7 +264,7 @@ class IQLearnLossDRQ(IQLearnLoss):
             metrics['value_policy_loss'] = value_loss
 
         if self.entropy_tuning:
-            alpha_loss = th.sum((-self.log_alpha *
+            alpha_loss = th.sum((-self.log_alpha.exp() *
                                  (self.target_entropy - entropies.detach())) *
                                 action_probabilities.detach(), dim=1, keepdim=True).mean()
         else:
