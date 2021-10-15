@@ -25,19 +25,20 @@ if __name__ == "__main__":
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     environment = cfg.env.name
-    training_run = 'MineRLBasaltMakeWaterfall-v0_iqlearn_online_1634000621'
+    training_run = 'MineRLBasaltCreateVillageAnimalPen-v0_iqlearn_online_1634114312'
     os.environ['MINERL_ENVIRONMENT'] = training_run.split('_')[0]
     env = start_env(debug_env=False)
     model = SoftQNetwork(cfg)
     model_file_name = training_run + '.pth'
     saved_model_path = Path('train') / model_file_name
     model.load_parameters(saved_model_path)
+    print('Model alpha:', model.alpha)
     eval_path = Path('eval')
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
     generator = TrajectoryGenerator(env)
-    for _ in range(3):
-        trajectory = generator.generate(model, max_episode_length=2000,
+    for _ in range(5):
+        trajectory = generator.generate(model,
                                         print_actions=True)
         trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
     env.close()
