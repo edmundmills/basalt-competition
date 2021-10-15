@@ -62,7 +62,7 @@ def get_config(args):
         cfg = compose('config.yaml', overrides=args.overrides)
 
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
-    cfg.wandb = args.wandb
+    cfg.wandb = False
     cfg.start_time = time.time()
     if args.profile:
         cfg.env.training_steps = 510
@@ -82,8 +82,6 @@ def main():
                            action='store_true', default=False)
     argparser.add_argument('--profile', dest='profile',
                            action='store_true', default=False)
-    argparser.add_argument('--wandb-false', dest='wandb',
-                           action='store_false', default=True)
     argparser.add_argument('--virtual-display-false', dest='virtual_display',
                            action='store_false', default=True)
     argparser.add_argument("overrides", nargs="*", default=[])
@@ -189,7 +187,7 @@ def main():
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
                 model, replay_buffer = training_algorithm(env, profiler=prof)
-            if args.wandb:
+            if config.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
                 for profile_file_path in Path(profile_dir).iterdir():
                     profile_art.add_file(profile_file_path)
@@ -199,7 +197,7 @@ def main():
     if not args.debug_env:
         model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
         model.save(model_save_path)
-        if args.wandb:
+        if config.wandb:
             model_art = wandb.Artifact("agent", type="model")
             model_art.add_file(model_save_path)
             model_art.save()
