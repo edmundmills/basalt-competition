@@ -1,6 +1,6 @@
 defaults:
   - method: iqlearn_online
-  - env: cave
+  - env: waterfall
   - pretraining: none
   - _self_
 
@@ -15,11 +15,11 @@ wandb: ???
 cyclic_learning_rate: true
 
 # model attributes
-cnn_layers: 12  # max is 17
+cnn_layers: 7  # max is 17
 linear_layer_size: 512
 n_observation_frames: 3  # includes current frame
 alpha: 1e-1
-decay_alpha: false
+decay_alpha: true
 final_alpha: 1e-2
 termination_confidence_threshhold: 0.15  # for either termination critic or action probability
 
@@ -27,7 +27,7 @@ termination_confidence_threshhold: 0.15  # for either termination critic or acti
 # set layers and hidden size to 0 to disable
 lstm_layers: 1
 lstm_hidden_size: 512
-lstm_segment_length: 10
+lstm_segment_length: 20
 
 # data augmentation
 normalize_obs: true

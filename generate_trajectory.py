@@ -11,9 +11,9 @@ from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 import torch as th
 
-display = Display(visible=0, size=(400, 300))
-display.start()
-        
+# display = Display(visible=0, size=(400, 300))
+# display.start()
+
 if __name__ == "__main__":
     with initialize(config_path='conf'):
         cfg = compose('config.yaml')
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     environment = cfg.env.name
-    training_run = 'MineRLBasaltMakeWaterfall-v0_iqlearn_online_1634000621'
+    training_run = 'MineRLBasaltMakeWaterfall-v0_iqlearn_online_1634184036'
     os.environ['MINERL_ENVIRONMENT'] = training_run.split('_')[0]
     env = start_env(debug_env=False)
     model = SoftQNetwork(cfg)
@@ -36,8 +36,8 @@ if __name__ == "__main__":
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
     generator = TrajectoryGenerator(env)
-    for _ in range(3):
-        trajectory = generator.generate(model, max_episode_length=2000,
+    for _ in range(5):
+        trajectory = generator.generate(model,
                                         print_actions=True)
         trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
     env.close()
