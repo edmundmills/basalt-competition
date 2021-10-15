@@ -32,7 +32,6 @@ if [[ " $@ " =~ " --nvidia " ]]; then
     --net=host \
     --ipc=host \
     --user 0 \
-    -e WANDB_API_KEY=${WANDB_API_KEY} \
     -v $(pwd):/home/aicrowd/code \
     -v /scr-ssd/divgarg/datasets/minerl:/home/aicrowd/data \
     -v $(pwd)/performance:/home/aicrowd/performance \
