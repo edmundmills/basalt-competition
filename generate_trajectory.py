@@ -32,12 +32,13 @@ if __name__ == "__main__":
     model_file_name = training_run + '.pth'
     saved_model_path = Path('train') / model_file_name
     model.load_parameters(saved_model_path)
+    print('Alpha:', model.alpha)
     eval_path = Path('eval')
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
     generator = TrajectoryGenerator(env)
-    for _ in range(3):
-        trajectory = generator.generate(model, max_episode_length=2000,
+    for _ in range(5):
+        trajectory = generator.generate(model,
                                         print_actions=True)
         trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
     env.close()
