@@ -21,7 +21,7 @@ n_observation_frames: 1  # includes current frame
 alpha: 1e-1
 decay_alpha: true
 final_alpha: 1e-2
-termination_confidence_threshhold: 0.1  # for either termination critic or action probability
+termination_confidence_threshhold: 0.12  # for either termination critic or action probability
 
 # lstm
 # set layers and hidden size to 0 to disable
