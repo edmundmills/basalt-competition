@@ -76,6 +76,17 @@ class SoftQNetwork(Network):
             hidden = hidden.cpu().squeeze()
         return action, hidden
 
+    def save(self, path):
+        state_dict = self.state_dict()
+        state_dict['alpha'] = self.alpha
+        th.save(state_dict, path)
+
+    def load_parameters(self, model_file_path):
+        state_dict = th.load(model_file_path, map_location=self.device)
+        if 'alpha' in list(state_dict.keys()):
+            self.alpha = state_dict['alpha']
+        self.load_state_dict(state_dict, strict=False)
+
 
 class TwinnedSoftQNetwork(nn.Module):
     def __init__(self, config):
