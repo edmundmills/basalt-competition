@@ -11,8 +11,8 @@ from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 import torch as th
 
-display = Display(visible=0, size=(400, 300))
-display.start()
+# display = Display(visible=0, size=(400, 300))
+# display.start()
 
 if __name__ == "__main__":
     with initialize(config_path='conf'):

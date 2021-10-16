@@ -1,7 +1,7 @@
 {
   "challenge_id": "neurips-2021-minerl-basalt-competition",
   "authors": ["edmund_mills"],
-  "description": "testing submission",
+  "description": "submission",
   "tags": "FindCave",
   "license": "MIT",
   "gpu": false

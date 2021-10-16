@@ -35,7 +35,6 @@ if [[ " $@ " =~ " --nvidia " ]]; then
     --net=host \
     --ipc=host \
     --user 0 \
-    -e WANDB_API_KEY=${WANDB_API_KEY} \
     -v /scr-ssd/divgarg/datasets/minerl:/home/aicrowd/data \
     -v $(pwd)/performance:/home/aicrowd/performance \
     -v $(pwd)/.gradle:/home/aicrowd/.gradle \
@@ -45,7 +44,6 @@ else
     echo "To run your submission with nvidia drivers locally, use \"--nvidia\" with this script"
     docker run \
     --net=host \
-    -e WANDB_API_KEY=${WANDB_API_KEY} \
     --mount src=$(pwd)/data,target=/home/aicrowd/data,type=bind \
     -v $(pwd)/performance:/home/aicrowd/performance \
     -v $(pwd)/.gradle:/home/aicrowd/.gradle \
