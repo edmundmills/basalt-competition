@@ -6,7 +6,7 @@ drq: true
 
 expert_dataset: true
 expert_sample_fraction: 0.5
-batch_size: 32
+batch_size: 8
 
 
 starting_steps: 10000

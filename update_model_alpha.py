@@ -19,7 +19,7 @@ if __name__ == "__main__":
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     environment = cfg.env.name
-    training_run = 'MineRLBasaltMakeWaterfall-v0_iqlearn_online_1634184036'
+    training_run = 'MineRLBasaltMakeWaterfall-v0_iqlearn_online_1634281958'
     os.environ['MINERL_ENVIRONMENT'] = training_run.split('_')[0]
     model = SoftQNetwork(cfg)
     model_file_name = training_run + '.pth'
