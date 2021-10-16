@@ -1,7 +1,7 @@
 name: MineRLBasaltBuildVillageHouse-v0
 demo: MineRLBasaltBuildVillageHouse-v0_1000
 max_training_episode_length: 14400
-training_timeout:  129600 # 36 hours
+training_timeout:  128400 # 36 hours
 training_steps: 450000
 curriculum_fraction_of_training: 0.4
 

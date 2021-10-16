@@ -26,6 +26,6 @@ if __name__ == "__main__":
     saved_model_path = Path('train') / model_file_name
     model.load_parameters(saved_model_path)
     print(model.alpha)
-    model.alpha = .04206
+    model.alpha = .043
     print(model.alpha)
     model.save(saved_model_path)
