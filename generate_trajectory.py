@@ -25,13 +25,14 @@ if __name__ == "__main__":
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     environment = cfg.env.name
-    training_run = 'MineRLBasaltFindCave-v0_iqlearn_online_1634137333'
+    training_run = 'MineRLBasaltFindCave-v0_iqlearn_online_1634170418'
     os.environ['MINERL_ENVIRONMENT'] = training_run.split('_')[0]
     env = start_env(debug_env=False)
     model = SoftQNetwork(cfg)
     model_file_name = training_run + '.pth'
     saved_model_path = Path('train') / model_file_name
     model.load_parameters(saved_model_path)
+    model.alpha = 0.06249
     eval_path = Path('eval')
     eval_path.mkdir(exist_ok=True)
     save_path = eval_path / training_run
