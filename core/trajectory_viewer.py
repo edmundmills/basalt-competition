@@ -22,6 +22,51 @@ class TrajectoryViewer:
         self.current_step = 0
         self.manual_control = False
 
+    def dataset_recent_frames(self, dataset, number_of_steps):
+        total_steps = len(dataset.step_lookup)
+        steps = min(number_of_steps, total_steps)
+        frame_skip = 2
+        frames = int(round(total_steps / (frame_skip + 1)))
+        step_rate = 20  # steps / second
+        frame_rate = int(round(step_rate / (frame_skip + 1)))
+        step_indices = [min(total_steps - steps + frame * (frame_skip + 1),
+                            total_steps - 1)
+                        for frame in range(frames)]
+        indices = [dataset.step_lookup[step_index] for step_index in step_indices]
+        images = [dataset.trajectories[trajectory_idx].get_pov(step_idx)
+                  for trajectory_idx, step_idx in indices]
+        images = [(image.numpy()).astype(np.uint8)
+                  for image in images]
+        images = np.stack(images, 0)
+        return images, frame_rate
+
+    def save_as_video(self, save_dir_path, filename):
+        save_dir_path = Path(save_dir_path)
+        save_dir_path.mkdir(exist_ok=True)
+        images, frame_rate = self.as_video_frames()
+        video_path = save_dir_path / f'{filename}.mp4'
+        frame_size = (64, 64)
+        out = cv2.VideoWriter(str(video_path),
+                              cv2.VideoWriter_fourcc(*'FMP4'),
+                              frame_rate, frame_size)
+        for img in images:
+            out.write(img)
+        out.release()
+        return video_path
+
+    def as_video_frames(self):
+        total_steps = len(self)
+        frame_skip = 2
+        frames = min(int(round(total_steps / (frame_skip + 1))), total_steps)
+        step_rate = 20  # steps / second
+        frame_rate = int(round(step_rate / (frame_skip + 1)))
+        duration = frames / frame_rate
+        step_indices = [frame * (frame_skip + 1) for frame in range(frames)]
+        images = [(self.get_pov(idx).numpy()).astype(
+            np.uint8).transpose(1, 2, 0)[..., ::-1]
+            for idx in step_indices]
+        return images, frame_rate
+
     def view(self):
         def play():
             if len(self.trajectory) > 1:
