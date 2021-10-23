@@ -1,6 +1,6 @@
 from core.datasets import TrajectoryStepDataset
 from core.trajectories import Trajectory
-from core.environment import ObservationSpace, ActionSpace
+from contexts.minerl.environment import MineRLContext, start_env
 
 import minerl
 
@@ -18,16 +18,20 @@ from torch.core.data import Dataset, DataLoader
 from torch.core.data.dataloader import default_collate
 
 
-class MinerlTrajectoryStepDataset(TrajectoryStepDataset):
-    def __init__(self, config, *args, **kwargs):
-        super().__init__(config, *args, **kwargs)
+class MineRLDatasetBuilder:
+    def __init__(self, config):
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = config.env.name
         self.context = MineRLContext(config)
         self.environment_path = self.data_root / self.environment
-        self.camera_margin = 5  # threshold to register a camera action from dataset
+        self.camera_margin = config.context.camera_margin
+        self.obs_processor = start_env(config, debug_env=True)
 
-    def dataset_action_to_action(self, dataset_action):
+    def _dataset_obs_to_state(self, dataset_obs):
+        state = self.obs_processor.observation(dataset_obs)
+        return state
+
+    def _dataset_action_to_action(self, dataset_action):
         camera_actions = dataset_actions["camera"].reshape((-1, 2))
         attack_actions = dataset_actions["attack"].reshape(-1)
         forward_actions = dataset_actions["forward"].reshape(-1)
@@ -73,7 +77,7 @@ class MinerlTrajectoryStepDataset(TrajectoryStepDataset):
                 actions[i] = -1
         return actions
 
-    def _load_data(self):
+    def load_data(self):
         data = minerl.data.make(self.environment)
         trajectories = []
         step_lookup = []
@@ -95,14 +99,16 @@ class MinerlTrajectoryStepDataset(TrajectoryStepDataset):
             trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
             step_idx = 0
             print(trajectory_path)
-            for obs, action, _, _, done in data.load_data(str(trajectory_path)):
+            for obs, action, reward, _next_obs, done \
+                    in data.load_data(str(trajectory_path)):
                 trajectory.done = done
-                action = self.dataset_action_to_action(action)[0]
+                action = self._dataset_action_to_action(action)[0]
                 if action == -1:
                     continue
-                trajectory.append_obs(obs, self.initial_hidden)
+                state = self._dataset_obs_to_state(obs)
+                trajectory.append_state(state)
                 trajectory.actions.append(action)
-                trajectory.rewards.append(0)
+                trajectory.rewards.append(reward)
                 step_lookup.append((trajectory_idx, step_idx))
                 step_idx += 1
             print(f'Loaded data from {trajectory_path.name} ({step_idx} steps)')

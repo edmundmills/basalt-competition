@@ -1,17 +1,11 @@
 from core.trajectories import Trajectory
-from core.environment import ObservationSpace, ActionSpace
+from contexts.minerl.dataset import MineRLDatasetBuilder
 
-import minerl
-
-from pathlib import Path
-import os
-import time
 from collections import deque
 
 import torch as th
 import math
 import random
-import numpy as np
 
 from torch.core.data import Dataset, DataLoader
 from torch.core.data.dataloader import default_collate
@@ -24,8 +18,9 @@ class TrajectoryStepDataset(Dataset):
         self.lstm_hidden_size = config.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if self.lstm_hidden_size > 0 else None
-
-        self.trajectories, self.step_lookup = self._load_data()
+        if config.context.name == 'MineRL':
+            dataset_builder = MineRLDatasetBuilder(config)
+        self.trajectories, self.step_lookup = dataset_builder.load_data()
         print(f'Expert dataset initialized with {len(self.step_lookup)} steps')
 
     def __len__(self):

@@ -1,3 +1,6 @@
+from core.state import State, Transition
+
+
 import gym
 import minerl
 
@@ -10,6 +13,30 @@ import numpy as np
 import torch as th
 import torch.nn.functional as F
 
+
+pov_normalization_factors = {
+    'MineRLBasaltBuildVillageHouse-v0': (
+        th.FloatTensor([109.01, 108.78, 95.13]),
+        th.FloatTensor([50.83, 56.32, 77.89])),
+    'MineRLBasaltCreateVillageAnimalPen-v0': (
+        th.FloatTensor([107.61, 125.33, 112.16]),
+        th.FloatTensor([43.69, 50.70, 93.10])),
+    'MineRLBasaltFindCave-v0': (
+        th.FloatTensor([106.44, 127.52, 126.61]),
+        th.FloatTensor([45.06, 54.25, 97.68])),
+    'MineRLBasaltMakeWaterfall-v0': (
+        th.FloatTensor([109.11, 117.04, 131.58]),
+        th.FloatTensor([51.78, 60.46, 85.87])),
+    'MineRLNavigateExtremeDense-v0': (
+        th.FloatTensor([70.69, 71.73, 88.11]),
+        th.FloatTensor([43.07, 49.05, 72.84])),
+    'MineRLTreechop-v0': (
+        th.FloatTensor([35.60, 51.53, 24.05]),
+        th.FloatTensor([29.58, 38.48, 25.91])),
+    'MineRLNavigateDense-v0': (
+        th.FloatTensor([66.89, 76.77, 104.20]),
+        th.FloatTensor([54.26, 60.83, 88.11])),
+}
 
 environment_items = {'MineRLBasaltBuildVillageHouse-v0': OrderedDict([
     ("acacia_door", 64),
@@ -56,6 +83,17 @@ environment_items = {'MineRLBasaltBuildVillageHouse-v0': OrderedDict([
 }
 
 
+def start_env(config, debug_env=False):
+    if debug_env:
+        env = DebugEnv(config)
+    else:
+        environment = config.env.name
+        env = gym.make(environment)
+    env = ActionShaping(env, config)
+    env = ObservationWrapper(env, config)
+    return env
+
+
 class MinerlDebugEnv:
     def __init__(self, config):
         self.context = MineRLContext(config)
@@ -84,6 +122,7 @@ class MineRLContext:
     def __init__(config):
         self.environment = config.env.name
         self.frame_shape = (3, 64, 64)
+        self.spatial_normalization = all_pov_normalization_factors[self.environment]
         self.items = list(environment_items[environment].keys())
         self.starting_inventory = environment_items[environment]
         self.action_name_list = ['Forward',  # 0
@@ -107,56 +146,18 @@ class MineRLContext:
             self.action_name_list = self.action_name_list[:-2]
             self.actions = list(range(len(self.action_name_list)))
             self.use_action = -1
-            self.equip_snowball_action = -1
             self.n_non_equip_actions = len(self.actions)
         else:
             self.items_available = True
             self.use_action = 11
-            self.snowball_number = self.items.index('snowball')
-            self.one_hot_snowball = F.one_hot(th.LongTensor([snowball_number]),
-                                              len(self.items))
-            self.equip_snowball_action = len(self.actions) - 1 + self.snowball_number
-            n_non_equip_actions = len(self.action_name_list) - 1
             self.n_non_equip_actions = len(self.action_name_list) - 1
-
-    def obs_to_pov(self, obs):
-        pov = obs['pov'].copy()
-        if isinstance(pov, np.ndarray):
-            pov = th.from_numpy(pov).to(th.uint8)
-        return pov.permute(2, 0, 1)
-
-    def obs_to_equipped_item(self, obs):
-        equipped_item = obs['equipped_items']['mainhand']['type']
-        equipped = th.zeros(len(self.items), dtype=th.uint8)
-        if equipped_item in items:
-            equipped[items.index(equipped_item)] = 1
-        return equipped
-
-    def obs_to_inventory(self, obs):
-        inventory = obs['inventory']
-        first_item = list(inventory.values())[0]
-        if isinstance(first_item, np.ndarray):
-            inventory = {k: th.from_numpy(v).unsqueeze(0).to(th.uint8)
-                         for k, v in inventory.items()}
-        elif isinstance(first_item, (int, np.int32, np.int64)):
-            inventory = {k: th.tensor([v], dtype=th.uint8) for k, v in inventory.items()}
-        inventory = [inventory[item_name] for item_name in self.items]
-        inventory = th.cat(inventory, dim=0)
-        return inventory
-
-    def obs_to_items(self, obs):
-        if self.environment == 'MineRLTreechop-v0':
-            items = th.zeros(2, dtype=th.uint8)
-        elif self.environment in ['MineRLNavigateDense-v0',
-                                  'MineRLNavigateExtremeDense-v0']:
-            if 'compassAngle' in obs.keys():
-                items = th.FloatTensor([obs['compassAngle'], 0])
-            else:
-                items = th.FloatTensor([float(obs['compass']['angle']), 0])
-        else:
-            items = th.cat((self.obs_to_inventory(obs),
-                            self.obs_to_equipped_item(obs)), dim=0)
-        return items
+        starting_count = th.FloatTensor(
+            list(self.context.starting_inventory.values())).reshape(1, -1)
+        ones = th.ones(starting_count.size())
+        self.nonspatial_normalization = th.cat((starting_count, ones), dim=1)
+        self.lstm_hidden_size = config.lstm_hidden_size
+        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
+            if self.lstm_hidden_size > 0 else None
 
     def action_name(self, action_number):
         if action_number >= self.n_non_equip_actions:
@@ -165,10 +166,6 @@ class MineRLContext:
         else:
             action_name = self.action_name_list[action_number]
         return action_name
-
-    def random_action(self):
-        action = np.random.choice(self.actions)
-        return action
 
     def equipped_item_name(self, state):
         if not self.items_available:
@@ -181,44 +178,97 @@ class MineRLContext:
         equipped_item_name = self.items[equipped_item_number.item()]
         return equipped_item_name
 
+
+class SnowballHelper:
+    def __init__(config):
+        self.context = MineRLContext(config)
+        if self.context.items_available:
+            self.snowball_number = self.items.index('snowball')
+            self.one_hot_snowball = F.one_hot(th.LongTensor([snowball_number]),
+                                              len(self.items))
+            self.equip_snowball_action = len(self.actions) - 1 + self.snowball_number
+        else:
+            self.equip_snowball_action = -1
+
     def snowball_equipped(self, state, device='cpu'):
-        if not self.items_available:
+        if not self.context.items_available:
             return False
-        items = state[1]
-        _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
-        snowball_equipped = th.all(th.eq(equipped_item,
-                                         ActionSpace.one_hot_snowball().to(device)))
+        nonspatial = state.nonspatial
+        _inventory, equipped_item = th.chunk(nonspatial.reshape(1, -1), 2, dim=1)
+        snowball_equipped = th.all(th.eq(equipped_item, self.one_hot_snowball.to(device)))
         return snowball_equipped.item()
 
-    def threw_snowball(self, obs_or_state, action, device='cpu'):
-        if not self.items_available:
-            return False
-        if isinstance(obs_or_state, dict):
-            equipped_item = obs_or_state['equipped_items']['mainhand']['type']
-        else:
-            items = obs_or_state[1]
-            _inventory, equipped_item = th.chunk(items.reshape(1, -1), 2, dim=1)
-            if th.all(th.eq(equipped_item, ActionSpace.one_hot_snowball().to(device))):
-                equipped_item = 'snowball'
-        return action == 11 and equipped_item == 'snowball'
+    def threw_snowball(self, state, action, device='cpu'):
+        return self.snowball_equipped(state, device) and action == self.context.use_action
 
-    def threw_snowball_list(self, obs, actions):
-        if not self.items_available:
-            return [False for action in actions]
-        equipped_items = obs['equipped_items']['mainhand']['type']
-        if isinstance(actions, th.Tensor):
-            actions = actions.squeeze().tolist()
-        return [item == 'snowball' and action == 11
-                for item, action in zip(equipped_items, actions)]
+    # def threw_snowball_list(self, obs, actions):
+    #     if not self.context.items_available:
+    #         return [False for action in actions]
+    #     equipped_items = obs['equipped_items']['mainhand']['type']
+    #     if isinstance(actions, th.Tensor):
+    #         actions = actions.squeeze().tolist()
+    #     return [item == 'snowball' and action == 11
+    #             for item, action in zip(equipped_items, actions)]
 
     def threw_snowball_tensor(self, states, actions, device='cpu'):
-        use_actions = th.eq(actions, 11).reshape(-1, 1)
+        use_actions = th.eq(actions, self.context.use_action).reshape(-1, 1)
         batch_size = use_actions.size()[0]
         snowball_tensor = self.one_hot_snowball.repeat(batch_size, 1).to(device)
-        snowball_equipped = th.all(
-            th.eq(th.chunk(states[1], 2, dim=1)[1], snowball_tensor), dim=1, keepdim=True)
+        _items, equipped = th.chunk(states[1], 2, dim=1)
+        snowball_equipped = th.all(th.eq(equipped, snowball_tensor), dim=1, keepdim=True)
         threw_snowball = use_actions * snowball_equipped
         return threw_snowball.type(th.uint8)
+
+
+class ObservationWrapper(gym.ObservationWrapper):
+    def __init__(self, env, config):
+        super().__init__(env)
+        self.context = MineRLContext(config)
+
+    def _obs_to_spatial(self, obs):
+        pov = obs['pov'].copy()
+        if isinstance(pov, np.ndarray):
+            pov = th.from_numpy(pov).to(th.uint8)
+        return pov.permute(2, 0, 1)
+
+    def _obs_to_equipped_item(self, obs):
+        equipped_item = obs['equipped_items']['mainhand']['type']
+        equipped = th.zeros(len(self.context.items), dtype=th.uint8)
+        if equipped_item in self.context.items:
+            equipped[self.context.items.index(equipped_item)] = 1
+        return equipped
+
+    def _obs_to_inventory(self, obs):
+        inventory = obs['inventory']
+        first_item = list(inventory.values())[0]
+        if isinstance(first_item, np.ndarray):
+            inventory = {k: th.from_numpy(v).unsqueeze(0).to(th.uint8)
+                         for k, v in inventory.items()}
+        elif isinstance(first_item, (int, np.int32, np.int64)):
+            inventory = {k: th.tensor([v], dtype=th.uint8) for k, v in inventory.items()}
+        inventory = [inventory[item_name] for item_name in self.context.items]
+        inventory = th.cat(inventory, dim=0)
+        return inventory
+
+    def _obs_to_nonspatial(self, obs):
+        if self.context.environment == 'MineRLTreechop-v0':
+            items = th.zeros(2, dtype=th.uint8)
+        elif self.context.environment in ['MineRLNavigateDense-v0',
+                                          'MineRLNavigateExtremeDense-v0']:
+            if 'compassAngle' in obs.keys():
+                nonspatial = th.FloatTensor([obs['compassAngle'], 0])
+            else:
+                nonspatial = th.FloatTensor([float(obs['compass']['angle']), 0])
+        else:
+            nonspatial = th.cat((self._obs_to_inventory(obs),
+                                 self._obs_to_equipped_item(obs)), dim=0)
+        return nonspatial
+
+    def observation(self, obs):
+        state = State(self._obs_to_spatial(obs),
+                      self._obs_to_nonspatial(obs),
+                      self.context.initial_hidden)
+        return state
 
 
 class ActionShaping(gym.ActionWrapper):

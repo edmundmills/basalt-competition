@@ -1,9 +1,11 @@
-
+name: MineRL
 
 # Action Discretization
+camera_margin: 5  # threshold to register a camera action from dataset
 camera_angle: 10  # angle to move camera
 camera_noise: 0.5  # camera noise added to each action
 
 # Data Augmentation
+random_translate_pixels: 4
 inventory_noise: 0.1  # scale of gaussian noise added to inventory
 mirror_augment: false  # leave off
