@@ -1,5 +1,7 @@
 from collections import namedtuple
 
+import torch as th
+
 State = namedtuple('State', 'spatial nonspatial hidden')
 Transition = namedtuple('Transition', 'state action reward next_state done')
 Sequence = namedtuple('Sequence', 'states actions rewards dones')

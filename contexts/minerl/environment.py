@@ -119,12 +119,12 @@ class MinerlDebugEnv:
 
 
 class MineRLContext:
-    def __init__(config):
+    def __init__(self, config):
         self.environment = config.env.name
         self.frame_shape = (3, 64, 64)
-        self.spatial_normalization = all_pov_normalization_factors[self.environment]
-        self.items = list(environment_items[environment].keys())
-        self.starting_inventory = environment_items[environment]
+        self.spatial_normalization = pov_normalization_factors[self.environment]
+        self.items = list(environment_items[self.environment].keys())
+        self.starting_inventory = environment_items[self.environment]
         self.action_name_list = ['Forward',  # 0
                                  'Back',  # 1
                                  'Left',  # 2
@@ -139,8 +139,8 @@ class MineRLContext:
                                  'Use',  # 11
                                  'Equip']  # 12
         self.actions = list(range(len(self.action_name_list) - 1 + len(self.items)))
-        if environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
-                           'MineRLNavigateExtremeDense-v0']:
+        if self.environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
+                                'MineRLNavigateExtremeDense-v0']:
             # no use or equip actions
             self.items_available = False
             self.action_name_list = self.action_name_list[:-2]
@@ -152,9 +152,10 @@ class MineRLContext:
             self.use_action = 11
             self.n_non_equip_actions = len(self.action_name_list) - 1
         starting_count = th.FloatTensor(
-            list(self.context.starting_inventory.values())).reshape(1, -1)
+            list(self.starting_inventory.values())).reshape(1, -1)
         ones = th.ones(starting_count.size())
         self.nonspatial_normalization = th.cat((starting_count, ones), dim=1)
+        self.nonspatial_size = self.nonspatial_normalization.size()[1]
         self.lstm_hidden_size = config.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if self.lstm_hidden_size > 0 else None
