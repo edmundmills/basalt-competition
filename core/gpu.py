@@ -1,4 +1,5 @@
-from core.state import State, Transition, Sequence cat_states, cat_transitions
+from core.state import State, Transition, Sequence, cat_states, cat_transitions, \
+    sequence_to_transitions
 from contexts.minerl.environment import MineRLContext
 
 import torch as th
@@ -35,12 +36,6 @@ class GPULoader:
         state[1] /= self.nonspatial_normalization
         return State(*state)
 
-    def states_from_sequence(self, sequence):
-        states = sequence.states
-        current_states = [state_component[:, :-1, ...] for state_component in states]
-        next_states = [state_component[:, 1:, ...] for state_component in states]
-        return State(*current_states), State(*next_states)
-
     def state_to_device(self, state):
         state = [state_component.unsqueeze(0).to(self.device, dtype=th.float)
                  for state_component in state]
@@ -51,13 +46,6 @@ class GPULoader:
         return State(*state)
 
     def states_to_device(self, tuple_of_states):
-        # # this is slower, but may be better for larger batch sizes?
-        # state_lengths = [states[0].size()[0] for states in tuple_of_states]
-        # all_states = [th.cat(state_component, dim=0).to(device) for state_component
-        #               in zip(*tuple_of_states)]
-        # list_of_states = zip(*[th.split(state_component, state_lengths, dim=0)
-        #                        for state_component in all_states])
-        # return tuple(list_of_states)
         states = []
         for state in tuple_of_states:
             if len(state) != 0:
@@ -70,13 +58,9 @@ class GPULoader:
 
     def transitions_to_device(self, transitions):
         if self.load_sequences:
-            states, actions, rewards, dones = transitions
-            next_states = []
-        else:
-            states, actions, rewards, next_states, dones = transitions
+            transitions = sequence_to_transitions(transitions)
+        states, actions, rewards, next_states, dones = transitions
         states, next_states = self.states_to_device((states, next_states))
-        if self.load_sequences:
-            states, next_states = self.states_from_sequence(states)
         actions = actions.unsqueeze(-1).to(self.device)
         rewards = rewards.float().unsqueeze(-1).to(self.device)
         dones = th.as_tensor(dones).unsqueeze(-1).float().to(self.device)

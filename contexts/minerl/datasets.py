@@ -106,7 +106,7 @@ class MineRLDatasetBuilder:
                 if action == -1:
                     continue
                 state = self._dataset_obs_to_state(obs)
-                trajectory.append_state(state)
+                trajectory.states.append(state)
                 trajectory.actions.append(action)
                 trajectory.rewards.append(reward)
                 step_lookup.append((trajectory_idx, step_idx))

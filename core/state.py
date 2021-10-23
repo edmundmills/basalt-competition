@@ -2,7 +2,7 @@ from collections import namedtuple
 
 State = namedtuple('State', 'spatial nonspatial hidden')
 Transition = namedtuple('Transition', 'state action reward next_state done')
-Sequence = namedtuple('Sequence', 'state action reward done')
+Sequence = namedtuple('Sequence', 'states actions rewards dones')
 
 
 def cat_states(tuple_of_states):
@@ -20,3 +20,14 @@ def cat_transitions(tuple_of_transitions):
     next_states, _ = cat_states(next_states)
     dones = th.cat(dones, dim=0)
     return Transition(states, actions, rewards, next_states, dones)
+
+
+def sequence_to_transitions(sequence):
+    states = sequence.states
+    current_states = [state_component[:, :-1, ...] for state_component in states]
+    next_states = [state_component[:, 1:, ...] for state_component in states]
+    return Transition(State(*current_states),
+                      sequence.actions,
+                      sequence.rewards,
+                      State(*next_states)
+                      sequence.dones)

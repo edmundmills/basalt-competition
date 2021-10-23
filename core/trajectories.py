@@ -14,8 +14,6 @@ import cv2
 
 class Trajectory:
     def __init__(self, n_observation_frames):
-        self.n_observation_frames = n_observation_frames
-        self.framestack = deque(maxlen=self.n_observation_frames)
         self.states = []
         self.actions = []
         self.rewards = []
@@ -36,18 +34,6 @@ class Trajectory:
         reward = self.rewards[idx]
         return Transition(self.states[idx], self.actions[idx], reward, next_state, done)
 
-    def append_state(self, state):
-        pov = state.spatial
-        # initialize framestack
-        while len(self.framestack) < self.n_observation_frames:
-            self.framestack.append(pov)
-        self.framestack.append(pov)
-        spatial = th.cat(list(self.framestack), dim=0)
-        state = list(state)
-        state[0] = spatial
-        state = State(*state)
-        self.states.append(state)
-
     def current_state(self):
         return self.states[-1]
 
@@ -62,17 +48,14 @@ class Trajectory:
 
     def get_sequence(self, last_step_idx, sequence_length):
         is_last_step = last_step_idx + 1 == len(self)
-        done = th.zeros(sequence_length)
-        done[-1] = 1 if is_last_step and self.done else 0
+        dones = th.zeros(sequence_length)
+        dones[-1] = 1 if is_last_step and self.done else 0
         actions = th.LongTensor(
             self.actions[last_step_idx - sequence_length:last_step_idx])
         states = self.states[last_step_idx - sequence_length:last_step_idx + 1]
         states = State(*[th.stack(state_component) for state_component in zip(*states)])
         rewards = self.rewards[last_step_idx - sequence_length:last_step_idx]
-        return Sequence(states, actions, rewards, done)
-
-    def get_pov(self, idx):
-        return self.states[idx].spatial[-3:, :, :]
+        return Sequence(states, actions, rewards, dones)
 
 
 class TrajectoryGenerator:
@@ -94,7 +77,7 @@ class TrajectoryGenerator:
         state = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
-            trajectory.append_state(state)
+            trajectory.states.append(state)
             current_state = trajectory.current_state()
             action, hidden = model.get_action(gpu_loader.state_to_device(current_state),
                                               iter_count=len(trajectory))
@@ -116,7 +99,7 @@ class TrajectoryGenerator:
         if len(replay_buffer.current_trajectory()) > 0:
             replay_buffer.new_trajectory()
         state = env.reset() if reset_env else current_state
-        replay_buffer.current_trajectory().append_state(state)
+        replay_buffer.current_trajectory().states.append(state)
         return replay_buffer.current_state()
 
     def start_new_trajectory(self, **kwargs):
@@ -143,7 +126,7 @@ class TrajectoryGenerator:
             else:
                 state, reward, done, _ = self.env.step(action)
 
-            self.replay_buffer.current_trajectory().append_state(state)
+            self.replay_buffer.current_trajectory().states.append(state)
             self.replay_buffer.current_trajectory().actions.append(action)
             self.replay_buffer.current_trajectory().rewards.append(reward)
             self.replay_buffer.current_trajectory().done = done

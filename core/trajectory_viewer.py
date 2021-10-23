@@ -22,6 +22,9 @@ class TrajectoryViewer:
         self.current_step = 0
         self.manual_control = False
 
+    def get_pov(state):
+        return state.spatial[-3:, :, :]
+
     def dataset_recent_frames(self, dataset, number_of_steps):
         total_steps = len(dataset.step_lookup)
         steps = min(number_of_steps, total_steps)
