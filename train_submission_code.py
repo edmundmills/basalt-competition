@@ -8,7 +8,7 @@ from core.trajectories import TrajectoryGenerator
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
-
+from utility.get_config import get_config, parse_args
 import torch as th
 import numpy as np
 
@@ -57,45 +57,19 @@ parser = Parser(
 os.environ["MINERL_DATA_ROOT"] = MINERL_DATA_ROOT
 
 
-def get_config(args):
-    with initialize(config_path='conf'):
-        cfg = compose('config.yaml', overrides=args.overrides)
-
-    cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
-    cfg.wandb = args.wandb
-    cfg.start_time = time.time()
-    if args.profile:
-        cfg.env.training_steps = 510
-    cfg.hydra_base_dir = os.getcwd()
-    print(OmegaConf.to_yaml(cfg))
-    return cfg
-
-
 def main():
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
     aicrowd_helper.training_start()
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument('--debug-env', dest='debug_env',
-                           action='store_true', default=False)
-    argparser.add_argument('--profile', dest='profile',
-                           action='store_true', default=False)
-    argparser.add_argument('--wandb-false', dest='wandb',
-                           action='store_false', default=True)
-    argparser.add_argument('--virtual-display-false', dest='virtual_display',
-                           action='store_false', default=True)
-    argparser.add_argument("overrides", nargs="*", default=[])
-
-    args = argparser.parse_args()
+    args = parse_args()
 
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
 
     config = get_config(args)
     environment = config.env.name
-    os.environ['MINERL_ENVIRONMENT'] = environment
 
     if config.wandb:
         wandb.init(
