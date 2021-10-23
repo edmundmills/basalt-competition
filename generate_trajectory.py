@@ -1,6 +1,6 @@
 from networks.soft_q import SoftQNetwork
-from utils.trajectories import Trajectory, TrajectoryGenerator
-from utils.environment import start_env
+from core.trajectories import Trajectory, TrajectoryGenerator
+from core.environment import start_env
 from pyvirtualdisplay import Display
 
 import os
@@ -13,7 +13,7 @@ import torch as th
 
 display = Display(visible=0, size=(400, 300))
 display.start()
-        
+
 if __name__ == "__main__":
     with initialize(config_path='conf'):
         cfg = compose('config.yaml')

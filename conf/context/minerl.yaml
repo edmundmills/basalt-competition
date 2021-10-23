@@ -1,0 +1,9 @@
+
+
+# Action Discretization
+camera_angle: 10  # angle to move camera
+camera_noise: 0.5  # camera noise added to each action
+
+# Data Augmentation
+inventory_noise: 0.1  # scale of gaussian noise added to inventory
+mirror_augment: false  # leave off

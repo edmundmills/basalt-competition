@@ -1,6 +1,6 @@
-from utils.environment import ObservationSpace, ActionSpace
-from utils.gpu import GPULoader
-from utils.trajectories import TrajectoryGenerator
+from core.environment import ObservationSpace, ActionSpace
+from core.gpu import GPULoader
+from core.trajectories import TrajectoryGenerator
 
 import time
 import os

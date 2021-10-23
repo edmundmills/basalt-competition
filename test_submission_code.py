@@ -1,7 +1,7 @@
 from networks.soft_q import SoftQNetwork
-from utils.environment import ObservationSpace, ActionSpace
-from utils.environment import ActionShaping
-from utils.trajectories import TrajectoryGenerator
+from core.environment import ObservationSpace, ActionSpace
+from core.environment import ActionShaping
+from core.trajectories import TrajectoryGenerator
 
 import os
 import time

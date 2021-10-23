@@ -1,4 +1,4 @@
-from utils.environment import ActionSpace, ObservationSpace
+from core.environment import ActionSpace, ObservationSpace
 
 import torch as th
 

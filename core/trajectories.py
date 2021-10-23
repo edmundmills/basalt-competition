@@ -1,5 +1,5 @@
-from utils.environment import ObservationSpace, ActionSpace
-from utils.gpu import GPULoader
+from core.environment import ObservationSpace, ActionSpace
+from core.gpu import GPULoader
 
 import math
 from pathlib import Path

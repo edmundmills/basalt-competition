@@ -1,4 +1,4 @@
-from utils.environment import ObservationSpace, ActionSpace
+from core.environment import ObservationSpace, ActionSpace
 from networks.base_network import Network
 import torch as th
 import torch.nn.functional as F

@@ -1,10 +1,10 @@
-from algorithms.algorithm import Algorithm
+from core.algorithm import Algorithm
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 # from algorithms.loss_functions.sqil import SqilLoss
-from utils.environment import ObservationSpace, ActionSpace
-from utils.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
-from utils.data_augmentation import DataAugmentation
-from utils.trajectories import TrajectoryGenerator
+from core.environment import ObservationSpace, ActionSpace
+from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
+from core.data_augmentation import DataAugmentation
+from core.trajectories import TrajectoryGenerator
 
 import numpy as np
 import torch as th

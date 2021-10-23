@@ -1,5 +1,5 @@
-from utils.trajectories import Trajectory
-from utils.environment import ObservationSpace, ActionSpace
+from core.trajectories import Trajectory
+from core.environment import ObservationSpace, ActionSpace
 
 import minerl
 
@@ -13,66 +13,20 @@ import math
 import random
 import numpy as np
 
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.dataloader import default_collate
+from torch.core.data import Dataset, DataLoader
+from torch.core.data.dataloader import default_collate
 
 
 class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
         self.n_observation_frames = config.n_observation_frames
         self.debug_dataset = debug_dataset
-        self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
-        self.environment = os.getenv('MINERL_ENVIRONMENT')
-        self.environment_path = self.data_root / self.environment
         self.lstm_hidden_size = config.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if self.lstm_hidden_size > 0 else None
 
         self.trajectories, self.step_lookup = self._load_data()
         print(f'Expert dataset initialized with {len(self.step_lookup)} steps')
-
-    def _load_data(self):
-        data = minerl.data.make(self.environment)
-        trajectories = []
-        step_lookup = []
-
-        trajectory_paths = list(self.environment_path.iterdir())
-        if self.environment == 'MineRLBasaltCreateVillageAnimalPen-v0':
-            animal_pen_plains_path = \
-                self.environment_path / 'MineRLBasaltCreateAnimalPenPlains-v0'
-            trajectory_paths.extend(list(animal_pen_plains_path.iterdir()))
-        trajectory_idx = 0
-        for trajectory_path in trajectory_paths:
-            if not trajectory_path.is_dir():
-                continue
-            if trajectory_path.name in [
-                    'v3_villainous_black_eyed_peas_loch_ness_monster-2_95372-97535',
-                    'MineRLBasaltCreateAnimalPenPlains-v0']:
-                continue
-
-            trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
-            step_idx = 0
-            print(trajectory_path)
-            for obs, action, _, _, done in data.load_data(str(trajectory_path)):
-                trajectory.done = done
-                action = ActionSpace.dataset_action_batch_to_actions(action)[0]
-                if action == -1:
-                    continue
-                trajectory.append_obs(obs, self.initial_hidden)
-                trajectory.actions.append(action)
-                trajectory.rewards.append(0)
-                step_lookup.append((trajectory_idx, step_idx))
-                step_idx += 1
-            print(f'Loaded data from {trajectory_path.name} ({step_idx} steps)')
-            trajectories.append(trajectory)
-            trajectory_idx += 1
-            if self.debug_dataset and trajectory_idx >= 2:
-                break
-            if self.environment in ['MineRLTreechop-v0', 'MineRLNavigateDense-v0',
-                                    'MineRLNavigateExtremeDense-v0'] \
-                    and trajectory_idx >= 80:
-                break
-        return trajectories, step_lookup
 
     def __len__(self):
         return len(self.step_lookup)
@@ -204,30 +158,6 @@ class ReplayBuffer:
         batch = default_collate(replay_batch)
         return batch
 
-    def update_rewards(self, rewards):
-        assert(len(rewards) == len(self.step_lookup))
-        for idx, (trajectory_idx, step_idx) in enumerate(self.step_lookup):
-            self.trajectories[trajectory_idx].rewards[step_idx] = rewards[idx]
-        print(f'{len(rewards)} replay steps labeled with rewards')
-
-    def recent_frames(self, number_of_steps):
-        total_steps = len(self.step_lookup)
-        steps = min(number_of_steps, total_steps)
-        frame_skip = 2
-        frames = int(round(total_steps / (frame_skip + 1)))
-        step_rate = 20  # steps / second
-        frame_rate = int(round(step_rate / (frame_skip + 1)))
-        step_indices = [min(total_steps - steps + frame * (frame_skip + 1),
-                            total_steps - 1)
-                        for frame in range(frames)]
-        indices = [self.step_lookup[step_index] for step_index in step_indices]
-        images = [self.trajectories[trajectory_idx].get_pov(step_idx)
-                  for trajectory_idx, step_idx in indices]
-        images = [(image.numpy()).astype(np.uint8)
-                  for image in images]
-        images = np.stack(images, 0)
-        return images, frame_rate
-
 
 class SegmentReplayBuffer(ReplayBuffer):
     def __init__(self, config):
@@ -307,17 +237,6 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def sample(self, batch_size, include_idx=False):
         return self.sample_expert(), self.sample_replay()
-
-    def update_rewards(self, replay_rewards, expert_rewards):
-        super().update_rewards(replay_rewards)
-        rewards_idx = 0
-        for _, (trajectory_idx, step_idx) in enumerate(self.expert_dataset.step_lookup):
-            if self.expert_dataset.trajectories[trajectory_idx].actions[step_idx] == -1:
-                continue
-            self.expert_dataset.trajectories[trajectory_idx].rewards[step_idx] = \
-                expert_rewards[rewards_idx]
-            rewards_idx += 1
-        print(f'{len(expert_rewards)} expert steps labeled with rewards')
 
     def update_curriculum(self, step, curriculum_fraction):
         self.curriculum_fraction = curriculum_fraction

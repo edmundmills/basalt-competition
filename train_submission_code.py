@@ -1,10 +1,10 @@
-from utils.datasets import ReplayBuffer, SegmentReplayBuffer
-from utils.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
+from core.datasets import ReplayBuffer, SegmentReplayBuffer
+from core.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
 from networks.soft_q import SoftQNetwork
 from networks.termination_critic import TerminationCritic
-from utils.environment import start_env
-from utils.gpu import disable_gradients
-from utils.trajectories import TrajectoryGenerator
+from core.environment import start_env
+from core.gpu import disable_gradients
+from core.trajectories import TrajectoryGenerator
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
