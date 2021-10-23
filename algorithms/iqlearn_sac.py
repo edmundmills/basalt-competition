@@ -1,8 +1,8 @@
 from algorithms.sac import SoftActorCritic
-from utils.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
+from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from algorithms.loss_functions.sac import SACPolicyLoss
-from utils.gpu import cat_batches
+from core.gpu import cat_batches
 
 
 class IQLearnSAC(SoftActorCritic):

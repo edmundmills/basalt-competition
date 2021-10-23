@@ -1,14 +1,13 @@
 from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
-from algorithms.algorithm import Algorithm
+from core.algorithm import Algorithm
 from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
     SACPolicyLoss, CuriousIQPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
-from utils.environment import ObservationSpace, ActionSpace
-from utils.datasets import ReplayBuffer, MixedReplayBuffer
-from utils.trajectories import TrajectoryGenerator
-from utils.gpu import disable_gradients, cat_batches
-from utils.data_augmentation import DataAugmentation
+from core.datasets import ReplayBuffer, MixedReplayBuffer
+from core.trajectories import TrajectoryGenerator
+from core.gpu import disable_gradients, cat_batches
+from core.data_augmentation import DataAugmentation
 
 import numpy as np
 import torch as th

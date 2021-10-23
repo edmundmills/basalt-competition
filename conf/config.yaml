@@ -1,6 +1,7 @@
 defaults:
-  - method: iqlearn_online
+  - context: minerl
   - env: cave
+  - method: iqlearn_online
   - pretraining: none
   - _self_
 
@@ -31,9 +32,7 @@ lstm_segment_length: 10
 
 # data augmentation
 normalize_obs: true
-inventory_noise: 0.1  # scale of gaussian noise added to inventory
 random_translate: true
-mirror_augment: false  # leave off
 
 # curriculum learning
 curriculum_training: true

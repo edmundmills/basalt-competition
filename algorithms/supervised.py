@@ -1,6 +1,5 @@
-from algorithms.algorithm import Algorithm
-from utils.environment import ObservationSpace, ActionSpace
-from utils.data_augmentation import DataAugmentation
+from core.algorithm import Algorithm
+from core.data_augmentation import DataAugmentation
 
 import os
 import wandb

@@ -1,9 +1,13 @@
-from utils.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large
 
 import numpy as np
 import torch as th
 from torch import nn
+
+
+def disable_gradients(network):
+    for param in network.parameters():
+        param.requires_grad = False
 
 
 class VisualFeatureExtractor(nn.Module):

@@ -1,7 +1,6 @@
-from networks.soft_q import SoftQNetwork
-from utils.environment import ObservationSpace, ActionSpace
-from utils.environment import ActionShaping
-from utils.trajectories import TrajectoryGenerator
+from agents.soft_q import SoftQNetwork
+from contexts.minerl.environment import MineRLContext
+from core.trajectories import TrajectoryGenerator
 
 import os
 import time

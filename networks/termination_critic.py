@@ -1,7 +1,6 @@
-from utils.environment import ObservationSpace, ActionSpace
 from networks.base_network import Network
 from algorithms.supervised import SupervisedLearning
-from utils.gpu import GPULoader
+from core.gpu import GPULoader
 
 import os
 import time
