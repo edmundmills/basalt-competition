@@ -1,6 +1,6 @@
-from core.environment import ObservationSpace, ActionSpace
 from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
-from core.gpu import GPULoader, cat_states
+from core.gpu import GPULoader
+from core.state import cat_states
 
 import numpy as np
 import torch as th

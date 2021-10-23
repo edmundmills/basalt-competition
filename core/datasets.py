@@ -7,8 +7,8 @@ import torch as th
 import math
 import random
 
-from torch.core.data import Dataset, DataLoader
-from torch.core.data.dataloader import default_collate
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.dataloader import default_collate
 
 
 class TrajectoryStepDataset(Dataset):

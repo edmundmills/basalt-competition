@@ -1,4 +1,3 @@
-from core.environment import ObservationSpace, ActionSpace
 from networks.base_network import Network
 from algorithms.supervised import SupervisedLearning
 from core.gpu import GPULoader
@@ -11,7 +10,7 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
-from torch.core.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 
 class TerminateEpisodeDataset(Dataset):

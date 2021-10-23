@@ -1,7 +1,6 @@
 from core.algorithm import Algorithm
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 # from algorithms.loss_functions.sqil import SqilLoss
-from core.environment import ObservationSpace, ActionSpace
 from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from core.data_augmentation import DataAugmentation
 from core.trajectories import TrajectoryGenerator

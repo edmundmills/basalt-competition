@@ -1,5 +1,4 @@
-from core.environment import ObservationSpace, ActionSpace
-from core.gpu import cat_states
+from core.state import cat_states
 
 import torch as th
 import torch.nn.functional as F

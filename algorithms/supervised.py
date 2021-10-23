@@ -1,12 +1,11 @@
-from algorithms.algorithm import Algorithm
-from core.environment import ObservationSpace, ActionSpace
+from core.algorithm import Algorithm
 from core.data_augmentation import DataAugmentation
 
 import os
 import wandb
 
 import torch as th
-from torch.core.data import DataLoader
+from torch.utils.data import DataLoader
 
 
 class SupervisedLearning(Algorithm):

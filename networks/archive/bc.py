@@ -1,5 +1,4 @@
 from networks.base_network import Network
-from core.environment import ObservationSpace, ActionSpace
 
 import os
 import time
@@ -8,7 +7,7 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
-from torch.core.data import DataLoader
+from torch.utils.data import DataLoader
 
 # Currently non-functional
 

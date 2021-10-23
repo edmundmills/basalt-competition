@@ -1,6 +1,5 @@
 from networks.base_network import Network
 from networks.termination_critic import TerminationCritic
-from core.environment import ActionSpace
 
 import torch as th
 from torch import nn

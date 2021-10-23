@@ -29,5 +29,5 @@ def sequence_to_transitions(sequence):
     return Transition(State(*current_states),
                       sequence.actions,
                       sequence.rewards,
-                      State(*next_states)
+                      State(*next_states),
                       sequence.dones)

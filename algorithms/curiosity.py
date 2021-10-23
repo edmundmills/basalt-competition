@@ -3,7 +3,6 @@ from algorithms.sac import SoftActorCritic
 from algorithms.loss_functions.sac import CuriousIQPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
-from core.environment import ObservationSpace, ActionSpace
 from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from core.gpu import disable_gradients, cat_batches
 
@@ -11,7 +10,7 @@ import numpy as np
 import torch as th
 from torch import nn
 import torch.nn.functional as F
-from torch.core.data import DataLoader
+from torch.utils.data import DataLoader
 
 from collections import deque
 import wandb
