@@ -155,6 +155,7 @@ class MineRLContext:
             list(self.starting_inventory.values())).reshape(1, -1)
         ones = th.ones(starting_count.size())
         self.nonspatial_normalization = th.cat((starting_count, ones), dim=1)
+        self.nonspatial_size = self.nonspatial_normalization.size()[1]
         self.lstm_hidden_size = config.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if self.lstm_hidden_size > 0 else None
