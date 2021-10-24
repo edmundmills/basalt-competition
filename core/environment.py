@@ -12,7 +12,7 @@ def start_env(config, debug_env=False):
     if context == 'MineRL':
         env = minerl_env.start_env(config, debug_env)
     if config.n_observation_frames > 1:
-        env = FrameStack(env)
+        env = FrameStack(env, config)
     return env
 
 
@@ -22,7 +22,7 @@ class FrameStack(gym.ObservationWrapper):
         self.n_observation_frames = config.n_observation_frames
         self.framestack = deque(maxlen=self.n_observation_frames)
 
-    def observation(state):
+    def observation(self, state):
         pov = state.spatial
         while len(self.framestack) < self.n_observation_frames:
             self.framestack.append(pov)

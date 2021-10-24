@@ -1,10 +1,10 @@
-from networks.soft_q import SoftQNetwork
+from agents.soft_q import SoftQNetwork
 from algorithms.sac import SoftActorCritic
 from algorithms.loss_functions.sac import CuriousIQPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
 from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
-from core.gpu import disable_gradients, cat_batches
+from core.state import cat_transitions
 
 import numpy as np
 import torch as th

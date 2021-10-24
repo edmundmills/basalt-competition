@@ -1,14 +1,12 @@
 from core.state import State, Transition
 
+from collections import OrderedDict
+import copy
+import os
+import random
 
 import gym
 import minerl
-
-import os
-import copy
-from collections import OrderedDict
-import random
-
 import numpy as np
 import torch as th
 import torch.nn.functional as F
@@ -85,16 +83,16 @@ environment_items = {'MineRLBasaltBuildVillageHouse-v0': OrderedDict([
 
 def start_env(config, debug_env=False):
     if debug_env:
-        env = DebugEnv(config)
+        env = MineRLDebugEnv(config)
     else:
         environment = config.env.name
         env = gym.make(environment)
-    env = ActionShaping(env, config)
+        env = ActionShaping(env, config)
     env = ObservationWrapper(env, config)
     return env
 
 
-class MinerlDebugEnv:
+class MineRLDebugEnv(gym.Env):
     def __init__(self, config):
         self.context = MineRLContext(config)
         self.action_list = self.context.actions
@@ -320,8 +318,8 @@ class ActionShaping(gym.ActionWrapper):
     def __init__(self, env, config):
         super().__init__(env)
         self.context = MineRLContext(config)
-        self.camera_angle = config.env.camera_angle
-        self.camera_noise = config.env.camera_noise
+        self.camera_angle = config.context.camera_angle
+        self.camera_noise = config.context.camera_noise
         self._actions = [
             [('forward', 1)],  # 0
             [('back', 1)],  # 1

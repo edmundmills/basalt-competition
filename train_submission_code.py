@@ -1,33 +1,31 @@
-from core.datasets import ReplayBuffer, SegmentReplayBuffer
-from core.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
-from networks.soft_q import SoftQNetwork
-from networks.termination_critic import TerminationCritic
-from core.environment import start_env
-from core.gpu import disable_gradients
-from core.trajectories import TrajectoryGenerator
+from agents.soft_q import SoftQNetwork
+import aicrowd_helper
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
-from utility.get_config import get_config, parse_args
-import torch as th
-import numpy as np
-
-
-from pyvirtualdisplay import Display
-import hydra
-from hydra import compose, initialize
-from omegaconf import DictConfig, OmegaConf
-from flatten_dict import flatten
-import wandb
-from pathlib import Path
-import argparse
-import logging
-from torch.profiler import profile, record_function, ProfilerActivity, schedule
-import os
-import time
-import aicrowd_helper
+from core.datasets import ReplayBuffer, SegmentReplayBuffer
+from core.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
+from core.environment import start_env
+from core.networks import disable_gradients
+from core.trajectories import TrajectoryGenerator
+from networks.termination_critic import TerminationCritic
+from utility.config import get_config, parse_args
 from utility.parser import Parser
+
+import logging
+import os
+from pathlib import Path
+import time
+
 import coloredlogs
+from flatten_dict import flatten
+from omegaconf import DictConfig, OmegaConf
+from pyvirtualdisplay import Display
+import numpy as np
+import torch as th
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
+import wandb
+
 coloredlogs.install(logging.DEBUG)
 
 
@@ -57,18 +55,20 @@ parser = Parser(
 os.environ["MINERL_DATA_ROOT"] = MINERL_DATA_ROOT
 
 
-def main():
+def main(args=None, config=None):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
     aicrowd_helper.training_start()
-    args = parse_args()
-
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
 
-    config = get_config(args)
+    if not args:
+        args = parse_args()
+    if not config:
+        config = get_config(args)
+
     environment = config.env.name
 
     if config.wandb:
@@ -91,7 +91,7 @@ def main():
             print('Starting Debug Env')
         else:
             print(f'Starting Env: {environment}')
-        env = start_env(debug_env=args.debug_env)
+        env = start_env(config, debug_env=args.debug_env)
     else:
         env = None
 
@@ -100,8 +100,7 @@ def main():
     iter_count = 0
     if config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, replay_buffer).random_trajectories(
-                config.method.starting_steps, lstm_hidden_size=config.lstm_hidden_size)
+            env, replay_buffer).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
 
     if config.pretraining.name == 'curiosity_pretraining':

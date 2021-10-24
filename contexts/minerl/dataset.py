@@ -1,21 +1,11 @@
-from core.datasets import TrajectoryStepDataset
 from core.trajectories import Trajectory
 from contexts.minerl.environment import MineRLContext, start_env
 
-import minerl
-
-from pathlib import Path
 import os
-import time
-from collections import deque
+from pathlib import Path
 
-import torch as th
-import math
-import random
+import minerl
 import numpy as np
-
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.dataloader import default_collate
 
 
 class MineRLDatasetBuilder:
@@ -25,7 +15,6 @@ class MineRLDatasetBuilder:
         self.context = MineRLContext(config)
         self.environment_path = self.data_root / self.environment
         self.camera_margin = config.context.camera_margin
-        self.obs_processor = start_env(config, debug_env=True)
 
     def _dataset_obs_to_state(self, dataset_obs):
         state = self.obs_processor.observation(dataset_obs)
@@ -96,7 +85,7 @@ class MineRLDatasetBuilder:
                     'MineRLBasaltCreateAnimalPenPlains-v0']:
                 continue
 
-            trajectory = Trajectory(n_observation_frames=self.n_observation_frames)
+            trajectory = Trajectory()
             step_idx = 0
             print(trajectory_path)
             for obs, action, reward, _next_obs, done \

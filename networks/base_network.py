@@ -5,11 +5,6 @@ import torch as th
 from torch import nn
 
 
-def disable_gradients(network):
-    for param in network.parameters():
-        param.requires_grad = False
-
-
 class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()

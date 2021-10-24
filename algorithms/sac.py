@@ -1,24 +1,22 @@
-from networks.soft_q import SoftQNetwork, TwinnedSoftQNetwork
-from core.algorithm import Algorithm
+from agents.soft_q import SoftQNetwork, TwinnedSoftQNetwork
+from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
     SACPolicyLoss, CuriousIQPolicyLoss
-from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
-from networks.intrinsic_curiosity import CuriosityModule
-from core.datasets import ReplayBuffer, MixedReplayBuffer
-from core.trajectories import TrajectoryGenerator
-from core.gpu import disable_gradients, cat_batches
+from core.algorithm import Algorithm
 from core.data_augmentation import DataAugmentation
+from core.datasets import ReplayBuffer, MixedReplayBuffer
+from core.state import cat_transitions
+from core.trajectories import TrajectoryGenerator
+from networks.intrinsic_curiosity import CuriosityModule
+
+from collections import deque
+import os
+from pathlib import Path
 
 import numpy as np
 import torch as th
-from torch import nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
-
-from collections import deque
 import wandb
-import os
-from pathlib import Path
 
 
 class SoftActorCritic(Algorithm):
