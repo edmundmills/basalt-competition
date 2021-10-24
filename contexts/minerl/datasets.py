@@ -44,7 +44,7 @@ class MineRLDatasetBuilder:
             use_actions = dataset_actions["use"].reshape(-1)
 
         batch_size = len(attack_actions)
-        actions = np.zeros((batch_size,), dtype=np.int)
+        actions = np.zeros((batch_size,), dtype=np.int32)
 
         for i in range(batch_size):
             if not self.context.items_available and use_actions[i] == 1:

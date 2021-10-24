@@ -33,7 +33,7 @@ class GPULoader:
                 + self.mobilenet_normalization[0]
         else:
             state[0] /= 255.0
-        state[1] /= self.nonspatial_normalization
+        state[1] /= self.context.nonspatial_normalization
         return State(*state)
 
     def state_to_device(self, state):
