@@ -14,6 +14,7 @@ wandb: ???
 
 # training params
 cyclic_learning_rate: true
+training_timeout:  43200 # 12 hours
 
 # model attributes
 cnn_layers: 12  # max is 17
@@ -36,14 +37,20 @@ random_translate: true
 
 # curriculum learning
 curriculum_training: true
+curriculum_fraction_of_training: 0.4
 initial_curriculum_size: 100
 curriculum_refresh_steps: 2000
 variable_training_episode_length: true
-min_training_episode_length: 500
 emphasize_new_samples: false
 emphasized_fraction: 0.15
 emphasis_relative_sample_frequency: 3
 extracurricular_sparsity: 100
+
+
+# termination critic
+termination_critic: false
+termination_critic_training_epochs: 30
+
 
 # record keeping
 seed: 0

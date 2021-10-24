@@ -33,3 +33,9 @@ def sequence_to_transitions(sequence):
                       sequence.rewards,
                       State(*next_states),
                       sequence.dones)
+
+
+def update_hidden(state, hidden):
+    state = list(state)
+    state[2] = hidden
+    state = State(*state)

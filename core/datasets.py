@@ -135,10 +135,10 @@ class ReplayBuffer:
         self.trajectories.append(Trajectory(
             n_observation_frames=self.n_observation_frames))
 
-    def append_step(self, action, hidden, reward, next_obs, done):
+    def append_step(self, action, reward, next_state, done):
         self.current_trajectory().actions.append(action)
         self.current_trajectory().rewards.append(reward)
-        self.current_trajectory().append_obs(next_obs, hidden)
+        self.current_trajectory().states.append(next_state)
         self.current_trajectory().done = done
         self.increment_step()
 
