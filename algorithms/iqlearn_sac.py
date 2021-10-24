@@ -1,7 +1,7 @@
 from algorithms.sac import SoftActorCritic
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from algorithms.loss_functions.sac import SACPolicyLoss
-from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
+from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
 from core.state import cat_transitions
 
 
@@ -16,7 +16,7 @@ class IQLearnSAC(SoftActorCritic):
         if self.config.lstm_layers == 0:
             self.replay_buffer = MixedReplayBuffer(**kwargs)
         else:
-            self.replay_buffer = MixedSegmentReplayBuffer(**kwargs)
+            self.replay_buffer = MixedSequenceReplayBuffer(**kwargs)
 
     def initialize_loss_functions(self):
         if self.drq:

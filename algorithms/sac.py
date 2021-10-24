@@ -1,4 +1,4 @@
-from agents.soft_q import SoftQNetwork, TwinnedSoftQNetwork
+from agents.soft_q import SoftQAgent, TwinnedSoftQAgent
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
     SACPolicyLoss, CuriousIQPolicyLoss
@@ -48,15 +48,15 @@ class SoftActorCritic(Algorithm):
         if actor is not None:
             self.actor = actor.to(self.device)
         else:
-            self.actor = SoftQNetwork(config).to(self.device)
+            self.actor = SoftQAgent(config).to(self.device)
 
         # Set up networks - critic
         # if self.double_q:
-        #     self.online_q = TwinnedSoftQNetwork(config).to(self.device)
-        #     self.target_q = TwinnedSoftQNetwork(config).to(self.device)
+        #     self.online_q = TwinnedSoftQAgent(config).to(self.device)
+        #     self.target_q = TwinnedSoftQAgent(config).to(self.device)
         # else:
-        self.online_q = SoftQNetwork(config).to(self.device)
-        self.target_q = SoftQNetwork(config).to(self.device)
+        self.online_q = SoftQAgent(config).to(self.device)
+        self.target_q = SoftQAgent(config).to(self.device)
         self.target_q.load_state_dict(self.online_q.state_dict())
         disable_gradients(self.target_q)
 

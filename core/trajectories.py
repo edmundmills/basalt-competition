@@ -13,7 +13,7 @@ import cv2
 
 
 class Trajectory:
-    def __init__(self, n_observation_frames):
+    def __init__(self):
         self.states = []
         self.actions = []
         self.rewards = []
@@ -66,11 +66,11 @@ class TrajectoryGenerator:
         if config is not None:
             if config.context.name == 'MineRL':
                 self.context = MineRLContext(config)
-                self.snowball_helper = SnowballHelper(config)
+                self.snowball_helper = self.context.snowball_helper
 
     def generate(self, model, max_episode_length=100000, print_actions=False):
         gpu_loader = GPULoader(model.config)
-        trajectory = Trajectory(n_observation_frames=model.n_observation_frames)
+        trajectory = Trajectory()
         if self.replay_buffer:
             self.replay_buffer.trajectories.append(trajectory)
 

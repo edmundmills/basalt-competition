@@ -1,10 +1,10 @@
-from agents.soft_q import SoftQNetwork
+from agents.soft_q import SoftQAgent
 import aicrowd_helper
 from algorithms.online_imitation import OnlineImitation
 from algorithms.iqlearn_sac import IQLearnSAC
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
-from core.datasets import ReplayBuffer, SegmentReplayBuffer
-from core.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
+from core.datasets import ReplayBuffer, SequenceReplayBuffer
+from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset
 from core.environment import start_env
 from core.networks import disable_gradients
 from core.trajectories import TrajectoryGenerator
@@ -96,11 +96,12 @@ def main(args=None, config=None):
         env = None
 
     replay_buffer = ReplayBuffer(config) if config.lstm_layers == 0 \
-        else SegmentReplayBuffer(config)
+        else SequenceReplayBuffer(config)
     iter_count = 0
     if config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, replay_buffer).random_trajectories(config.method.starting_steps)
+            env, replay_buffer,
+            config=config).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
 
     if config.pretraining.name == 'curiosity_pretraining':
@@ -120,20 +121,20 @@ def main(args=None, config=None):
             expert_dataset = TrajectoryStepDataset(config,
                                                    debug_dataset=args.debug_env)
         else:
-            expert_dataset = TrajectorySegmentDataset(config,
+            expert_dataset = TrajectorySequenceDataset(config,
                                                       debug_dataset=args.debug_env)
 
     if pretrained_model is not None:
         model = pretrained_model
     elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
-        model = SoftQNetwork(config)
+        model = SoftQAgent(config)
 
-    if config.env.termination_critic:
-        print('Training Termination Critic')
-        model.termination_critic.train(expert_dataset)
-        disable_gradients(model.termination_critic)
-        iter_count += model.termination_critic.steps_trained
-        print('Trained Termination Critic')
+    # if config.env.termination_critic:
+    #     print('Training Termination Critic')
+    #     model.termination_critic.train(expert_dataset)
+    #     disable_gradients(model.termination_critic)
+    #     iter_count += model.termination_critic.steps_trained
+    #     print('Trained Termination Critic')
 
     if config.method.algorithm == 'curious_IQ':
         training_algorithm = CuriousIQ(expert_dataset, config,

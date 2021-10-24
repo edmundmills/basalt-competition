@@ -3,7 +3,7 @@
 class CurriculumScheduler:
     def __init__(self, config):
         self.initial_curriculum_size = config.initial_curriculum_size
-        self.curriculum_fraction_of_training = config.env.curriculum_fraction_of_training
+        self.curriculum_fraction_of_training = config.curriculum_fraction_of_training
         self.variable_training_episode_length = config.variable_training_episode_length
 
     def curriculum_fraction(self, algorithm, step):

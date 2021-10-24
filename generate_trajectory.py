@@ -1,6 +1,6 @@
 import ast
 import glob
-from networks.soft_q import SoftQNetwork
+from networks.soft_q import SoftQAgent
 from core.trajectories import Trajectory, TrajectoryGenerator
 from core.environment import start_env
 from pyvirtualdisplay import Display
@@ -50,7 +50,7 @@ print(training_run)
 ​
 os.environ['MINERL_ENVIRONMENT'] = environment
 env = start_env(debug_env=False)
-model = SoftQNetwork(cfg)
+model = SoftQAgent(cfg)
 model_file_name = training_run + '.pth'
 saved_model_path = model_file_name
 model.load_parameters(saved_model_path)

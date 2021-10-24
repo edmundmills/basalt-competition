@@ -1,4 +1,4 @@
-from networks.soft_q import SoftQNetwork
+from networks.soft_q import SoftQAgent
 
 import os
 import time
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     environment = cfg.env.name
     training_run = 'MineRLBasaltFindCave-v0_curious_IQ_1633367363'
     os.environ['MINERL_ENVIRONMENT'] = training_run.split('_')[0]
-    model = SoftQNetwork(cfg)
+    model = SoftQAgent(cfg)
     model_file_name = training_run + '.pth'
     saved_model_path = Path('train') / model_file_name
     model.load_parameters(saved_model_path)

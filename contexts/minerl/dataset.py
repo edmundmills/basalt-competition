@@ -1,5 +1,6 @@
+from core.environment import start_env
 from core.trajectories import Trajectory
-from contexts.minerl.environment import MineRLContext, start_env
+from contexts.minerl.environment import MineRLContext
 
 import os
 from pathlib import Path
@@ -9,36 +10,38 @@ import numpy as np
 
 
 class MineRLDatasetBuilder:
-    def __init__(self, config):
+    def __init__(self, config, debug_dataset=False):
         self.data_root = Path(os.getenv('MINERL_DATA_ROOT'))
         self.environment = config.env.name
         self.context = MineRLContext(config)
         self.environment_path = self.data_root / self.environment
+        self.debug_dataset = debug_dataset
         self.camera_margin = config.context.camera_margin
+        self.obs_processor = start_env(config, debug_env=True)
 
     def _dataset_obs_to_state(self, dataset_obs):
         state = self.obs_processor.observation(dataset_obs)
         return state
 
     def _dataset_action_to_action(self, dataset_action):
-        camera_actions = dataset_actions["camera"].reshape((-1, 2))
-        attack_actions = dataset_actions["attack"].reshape(-1)
-        forward_actions = dataset_actions["forward"].reshape(-1)
-        back_actions = dataset_actions["back"].reshape(-1)
-        left_actions = dataset_actions["left"].reshape(-1)
-        right_actions = dataset_actions["right"].reshape(-1)
-        jump_actions = dataset_actions["jump"].reshape(-1)
-        if not self.context.items_available:
-            equip_actions = dataset_actions["equip"]
-            use_actions = dataset_actions["use"].reshape(-1)
+        camera_actions = dataset_action["camera"].reshape((-1, 2))
+        attack_actions = dataset_action["attack"].reshape(-1)
+        forward_actions = dataset_action["forward"].reshape(-1)
+        back_actions = dataset_action["back"].reshape(-1)
+        left_actions = dataset_action["left"].reshape(-1)
+        right_actions = dataset_action["right"].reshape(-1)
+        jump_actions = dataset_action["jump"].reshape(-1)
+        if self.context.items_available:
+            equip_actions = dataset_action["equip"]
+            use_actions = dataset_action["use"].reshape(-1)
 
         batch_size = len(attack_actions)
         actions = np.zeros((batch_size,), dtype=np.int32)
 
         for i in range(batch_size):
-            if not self.context.items_available and use_actions[i] == 1:
+            if self.context.items_available and use_actions[i] == 1:
                 actions[i] = self.context.action_name_list.index('Use')
-            elif self.items_available and equip_actions in self.items:
+            elif self.context.items_available and equip_actions in self.context.items:
                 actions[i] = len(self.actions) - 1 + self.items.index(equip_actions)
             elif camera_actions[i][0] < -self.camera_margin:
                 actions[i] = self.context.action_name_list.index('Look Up')

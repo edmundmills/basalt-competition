@@ -13,13 +13,12 @@ from torch.utils.data.dataloader import default_collate
 
 class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
-        self.n_observation_frames = config.n_observation_frames
         self.debug_dataset = debug_dataset
         self.lstm_hidden_size = config.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if self.lstm_hidden_size > 0 else None
         if config.context.name == 'MineRL':
-            dataset_builder = MineRLDatasetBuilder(config)
+            dataset_builder = MineRLDatasetBuilder(config, debug_dataset)
         self.trajectories, self.step_lookup = dataset_builder.load_data()
         print(f'Expert dataset initialized with {len(self.step_lookup)} steps')
 
@@ -32,13 +31,13 @@ class TrajectoryStepDataset(Dataset):
         return sample, idx
 
 
-class TrajectorySegmentDataset(TrajectoryStepDataset):
+class TrajectorySequenceDataset(TrajectoryStepDataset):
     def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
-        self.segment_length = config.lstm_segment_length
-        self.segment_lookup = self._identify_segments()
-        print(f'Identified {len(self.segment_lookup)} sub-segments'
-              f' of {self.segment_length} steps')
+        self.sequence_length = config.lstm_sequence_length
+        self.sequence_lookup = self._identify_sequences()
+        print(f'Identified {len(self.sequence_lookup)} sub-sequences'
+              f' of {self.sequence_length} steps')
         self.curriculum_training = config.curriculum_training
         self.initial_curriculum_size = config.initial_curriculum_size
         self.emphasize_new_samples = config.emphasize_new_samples
@@ -53,14 +52,14 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
             self.update_curriculum(0)
             self.lookup = self.filtered_lookup
         else:
-            self.lookup = self.segment_lookup
+            self.lookup = self.sequence_lookup
 
-    def _identify_segments(self):
-        segments = []
+    def _identify_sequences(self):
+        sequences = []
         for trajectory_idx, step_idx in self.step_lookup:
-            if step_idx > self.segment_length + 1:
-                segments.append((trajectory_idx, step_idx))
-        return segments
+            if step_idx > self.sequence_length + 1:
+                sequences.append((trajectory_idx, step_idx))
+        return sequences
 
     def __len__(self):
         return len(self.lookup)
@@ -68,23 +67,23 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
     def __getitem__(self, idx):
         trajectory_idx, last_step_idx = self.lookup[idx]
         master_idx = self.cross_lookup[idx] if self.curriculum_training else idx
-        sample = self.trajectories[trajectory_idx].get_segment(last_step_idx,
-                                                               self.segment_length)
+        sample = self.trajectories[trajectory_idx].get_sequence(last_step_idx,
+                                                                self.sequence_length)
         return sample, master_idx
 
     def update_hidden(self, indices, hidden):
-        for segment_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
-            trajectory_idx, step_idx = self.segment_lookup[segment_idx]
+        for sequence_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
+            trajectory_idx, step_idx = self.sequence_lookup[sequence_idx]
             self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
 
     def update_curriculum(self, curriculum_fraction):
         random_seed = random.randint(0, self.extracurricular_sparsity - 1)
         self.filtered_lookup, master_indices = \
-            zip(*[[(t_idx, segment_idx), master_idx]
-                  for master_idx, (t_idx, segment_idx) in enumerate(self.segment_lookup)
-                  if (segment_idx <= (len(self.trajectories[t_idx]) * curriculum_fraction)
-                      or segment_idx < self.initial_curriculum_size
-                      or (segment_idx + random_seed) % self.extracurricular_sparsity == 0)
+            zip(*[[(t_idx, sequence_idx), master_idx]
+                  for master_idx, (t_idx, sequence_idx) in enumerate(self.sequence_lookup)
+                  if (sequence_idx <= (len(self.trajectories[t_idx]) * curriculum_fraction)
+                      or sequence_idx < self.initial_curriculum_size
+                      or (sequence_idx + random_seed) % self.extracurricular_sparsity == 0)
                   ])
         self.filtered_lookup = list(self.filtered_lookup)
         master_indices = list(master_indices)
@@ -93,28 +92,27 @@ class TrajectorySegmentDataset(TrajectoryStepDataset):
                 and curriculum_fraction < self.final_curriculum_fraction:
             for i in range(self.emphasis_relative_sample_frequency - 1):
                 emphasis_lookup, emphasis_master_indices = \
-                    zip(*[[(t_idx, segment_idx), master_idx]
-                          for master_idx, (t_idx, segment_idx)
-                          in enumerate(self.segment_lookup)
-                          if (segment_idx <=
+                    zip(*[[(t_idx, sequence_idx), master_idx]
+                          for master_idx, (t_idx, sequence_idx)
+                          in enumerate(self.sequence_lookup)
+                          if (sequence_idx <=
                               (len(self.trajectories[t_idx]) * curriculum_fraction)
-                              and segment_idx > (len(self.trajectories[t_idx])
-                                                 * (curriculum_fraction
-                                                    - self.emphasized_fraction)))])
+                              and sequence_idx > (len(self.trajectories[t_idx])
+                                                  * (curriculum_fraction
+                                                     - self.emphasized_fraction)))])
                 self.filtered_lookup.extend(emphasis_lookup)
                 print(f'{len(emphasis_lookup)} samples emphasized')
                 master_indices.extend(emphasis_master_indices)
         self.cross_lookup = {filtered_idx: master_idx
                              for filtered_idx, master_idx in enumerate(master_indices)}
         print(f'Expert curriculum updated, including {self.current_curriculum_length}'
-              f' / {len(self.segment_lookup)} segments')
+              f' / {len(self.sequence_lookup)} sequences')
         self.lookup = self.filtered_lookup
 
 
 class ReplayBuffer:
     def __init__(self, config):
-        self.n_observation_frames = config.n_observation_frames
-        self.trajectories = [Trajectory(n_observation_frames=self.n_observation_frames)]
+        self.trajectories = [Trajectory()]
         self.step_lookup = []
 
     def __len__(self):
@@ -132,8 +130,7 @@ class ReplayBuffer:
         return self.current_trajectory().current_state()
 
     def new_trajectory(self):
-        self.trajectories.append(Trajectory(
-            n_observation_frames=self.n_observation_frames))
+        self.trajectories.append(Trajectory())
 
     def append_step(self, action, reward, next_state, done):
         self.current_trajectory().actions.append(action)
@@ -154,37 +151,38 @@ class ReplayBuffer:
         return batch
 
 
-class SegmentReplayBuffer(ReplayBuffer):
+class SequenceReplayBuffer(ReplayBuffer):
     def __init__(self, config):
         super().__init__(config)
-        self.segment_lookup = []
-        self.segment_length = config.lstm_segment_length
+        self.sequence_lookup = []
+        self.sequence_length = config.lstm_sequence_length
 
     def __len__(self):
-        return len(self.segment_lookup)
+        return len(self.sequence_lookup)
 
     def __getitem__(self, idx):
-        trajectory_idx, segment_idx = self.segment_lookup[idx]
-        sample = self.trajectories[trajectory_idx].get_segment(segment_idx,
-                                                               self.segment_length)
+        trajectory_idx, sequence_idx = self.sequence_lookup[idx]
+        sample = self.trajectories[trajectory_idx].get_sequence(sequence_idx,
+                                                                self.sequence_length)
         return sample, idx
 
     def increment_step(self):
         super().increment_step()
-        if len(self.current_trajectory()) > self.segment_length + 1:
-            self.segment_lookup.append(
+        if len(self.current_trajectory()) > self.sequence_length + 1:
+            self.sequence_lookup.append(
                 (len(self.trajectories) - 1, len(self.current_trajectory().actions) - 1))
 
     def sample(self, batch_size):
-        replay_batch_size = min(batch_size, len(self.segment_lookup))
-        sample_indices = random.sample(range(len(self.segment_lookup)), replay_batch_size)
+        replay_batch_size = min(batch_size, len(self.sequence_lookup))
+        sample_indices = random.sample(
+            range(len(self.sequence_lookup)), replay_batch_size)
         replay_batch = [self[idx] for idx in sample_indices]
         batch = default_collate(replay_batch)
         return batch
 
     def update_hidden(self, indices, hidden):
-        for segment_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
-            trajectory_idx, step_idx = self.segment_lookup[segment_idx]
+        for sequence_idx, hidden in zip(indices.tolist(), hidden.unbind(dim=0)):
+            trajectory_idx, step_idx = self.sequence_lookup[sequence_idx]
             self.trajectories[trajectory_idx].update_hidden(step_idx, hidden)
             _, _, next_state, _, _ = self.trajectories[trajectory_idx][step_idx]
 
@@ -236,22 +234,22 @@ class MixedReplayBuffer(ReplayBuffer):
     def update_curriculum(self, step, curriculum_fraction):
         self.curriculum_fraction = curriculum_fraction
         current_curriculum_inclusion = self.expert_dataset.current_curriculum_length / \
-            len(self.expert_dataset.segment_lookup)
+            len(self.expert_dataset.sequence_lookup)
         if step % self.curriculum_refresh_steps == 0 and self.curriculum_fraction \
                 < self.expert_dataset.final_curriculum_fraction:
             self.expert_dataset.update_curriculum(self.curriculum_fraction)
             self.expert_dataloader = self._initialize_dataloader()
         curriculum_inclusion = self.expert_dataset.current_curriculum_length / \
-            len(self.expert_dataset.segment_lookup)
+            len(self.expert_dataset.sequence_lookup)
         return curriculum_inclusion
 
 
-class MixedSegmentReplayBuffer(MixedReplayBuffer, SegmentReplayBuffer):
+class MixedSequenceReplayBuffer(MixedReplayBuffer, SequenceReplayBuffer):
     def __init__(self, expert_dataset, config,
                  batch_size, initial_replay_buffer=None):
         super().__init__(expert_dataset, config, batch_size, initial_replay_buffer)
         if initial_replay_buffer is not None:
-            self.segment_lookup = initial_replay_buffer.segment_lookup
+            self.sequence_lookup = initial_replay_buffer.sequence_lookup
 
     def update_hidden(self, replay_indices, replay_hidden, expert_indices, expert_hidden):
         super().update_hidden(replay_indices, replay_hidden)

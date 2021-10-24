@@ -1,4 +1,5 @@
 import aicrowd_helper
+from core.environment import create_context
 from core.gpu import GPULoader
 from core.trajectories import TrajectoryGenerator
 
@@ -22,10 +23,7 @@ class Algorithm:
         self.environment = config.env.name
         self.algorithm_name = config.method.name
         self.name = f'{self.environment}_{self.algorithm_name}_{int(round(time.time()))}'
-
-        # context
-        if config.context.name == 'MineRL':
-            self.context = MineRLContext(config)
+        self.context = create_context(config)
 
         self.start_time = config.start_time
         self.training_timeout = config.training_timeout

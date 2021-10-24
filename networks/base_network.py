@@ -1,18 +1,19 @@
-from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from core.environment import create_context
 
 import numpy as np
 import torch as th
 from torch import nn
+from torchvision.models.mobilenetv3 import mobilenet_v3_large
 
 
 class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
+        context = create_context(config)
         self.n_observation_frames = config.n_observation_frames
-        self.frame_shape = ObservationSpace.frame_shape
+        self.frame_shape = context.frame_shape
         self.cnn_layers = config.cnn_layers
-        mobilenet_features = mobilenet_v3_large(
-            pretrained=True, progress=True).features
+        mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
             self.cnn = mobilenet_features[0:self.cnn_layers]
         else:
@@ -27,11 +28,11 @@ class VisualFeatureExtractor(nn.Module):
             )
         self.feature_dim = self._visual_features_dim()
 
-    def forward(self, pov):
-        *n, c, h, w = pov.size()
-        pov = pov.reshape(-1, c, h, w)
-        features = self.cnn(pov)
-        return self.cnn(pov).reshape(*n, -1)
+    def forward(self, spatial):
+        *n, c, h, w = spatial.size()
+        spatial = spatial.reshape(-1, c, h, w)
+        features = self.cnn(spatial)
+        return self.cnn(spatial).reshape(*n, -1)
 
     def _visual_features_dim(self):
         with th.no_grad():
@@ -83,13 +84,14 @@ class Network(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        context = create_context(config)
         self.n_observation_frames = config.n_observation_frames
-        self.actions = ActionSpace.actions()
-        self.item_dim = 2 * len(ObservationSpace.items())
+        self.actions = context.actions
+        self.nonspatial_size = context.nonspatial_size
         self.output_dim = len(self.actions)
         self.visual_feature_extractor = VisualFeatureExtractor(config)
         linear_input_dim = sum([self.visual_feature_extractor.feature_dim,
-                                self.item_dim])
+                                self.nonspatial_size])
         if config.lstm_layers > 0:
             self.lstm = LSTMLayer(linear_input_dim, config)
             linear_input_dim = self.lstm.hidden_size
@@ -105,16 +107,14 @@ class Network(nn.Module):
         return initial_hidden
 
     def forward(self, state):
-        if self.lstm is not None:
-            pov, items, hidden = state
+        spatial, nonspatial, hidden = state
+        if hidden is not None:
             # only use initial hidden state
             hidden = hidden[:, 0, :].squeeze(dim=1)
             # add dimension D for non-bidirectional
             hidden = hidden.unsqueeze(0)
-        else:
-            pov, items = state
-        visual_features = self.visual_feature_extractor(pov)
-        features = th.cat((visual_features, items), dim=-1)
+        visual_features = self.visual_feature_extractor(spatial)
+        features = th.cat((visual_features, nonspatial), dim=-1)
         if self.lstm is not None:
             features, hidden = self.lstm(features, hidden)
         else:

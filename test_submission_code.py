@@ -1,4 +1,4 @@
-from agents.soft_q import SoftQNetwork
+from agents.soft_q import SoftQAgent
 from contexts.minerl.environment import MineRLContext
 from core.trajectories import TrajectoryGenerator
 
@@ -68,7 +68,7 @@ class MineRLAgent():
         environment = cfg.env.name
         os.environ['MINERL_ENVIRONMENT'] = environment
 
-        self.model = SoftQNetwork(cfg)
+        self.model = SoftQAgent(cfg)
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
             if saved_agent_path.suffix == '.pth' and environment in saved_agent_path.name:
                 print(f'Loading {saved_agent_path.name} as agent')

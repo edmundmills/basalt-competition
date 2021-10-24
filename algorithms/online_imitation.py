@@ -1,7 +1,7 @@
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from core.algorithm import Algorithm
 from core.data_augmentation import DataAugmentation
-from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
+from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
 from core.state import update_hidden
 from core.trajectories import TrajectoryGenerator
 from modules.alpha_tuning import AlphaTuner
@@ -33,12 +33,13 @@ class OnlineImitation(Algorithm):
         # modules
         self.alpha_tuner = AlphaTuner([self.model], config, self.context)
 
+        self.curriculum_training = config.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
-            if config.curriculum_training else None
+            if self.curriculum_training else None
 
         # context
         if config.context.name == 'MineRL':
-            self.snowball_helper = SnowballHelper(config)
+            self.snowball_helper = self.context.snowball_helper
         else:
             self.snowball_helper = None
 
@@ -55,7 +56,7 @@ class OnlineImitation(Algorithm):
         if self.config.lstm_layers == 0:
             replay_buffer = MixedReplayBuffer(**kwargs)
         else:
-            replay_buffer = MixedSegmentReplayBuffer(**kwargs)
+            replay_buffer = MixedSequenceReplayBuffer(**kwargs)
         self.replay_buffer = replay_buffer
         return replay_buffer
 
@@ -128,7 +129,7 @@ class OnlineImitation(Algorithm):
             metrics = {}
             current_state = replay_buffer.current_state()
             action, hidden = model.get_action(
-                self.gpu_loader.state_to_device(current_state), self.iter_count)
+                self.gpu_loader.state_to_device(current_state))
 
             suppressed_snowball = self.snowball_helper.suppressed_snowball(
                 step, current_state, action) if self.snowball_helper else False

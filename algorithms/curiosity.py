@@ -1,9 +1,9 @@
-from agents.soft_q import SoftQNetwork
+from agents.soft_q import SoftQAgent
 from algorithms.sac import SoftActorCritic
 from algorithms.loss_functions.sac import CuriousIQPolicyLoss
 from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
 from networks.intrinsic_curiosity import CuriosityModule
-from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
+from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
 from core.state import cat_transitions
 
 import numpy as np
@@ -139,9 +139,9 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         super().__init__(config, pretraining=False, **kwargs)
         self.online_curiosity_training = config.method.online_curiosity_training
         self.initial_curiosity_fraction = config.method.initial_curiosity_fraction
-        self.iqlearn_q = SoftQNetwork(config).to(self.device)
+        self.iqlearn_q = SoftQAgent(config).to(self.device)
         if config.method.target_q:
-            self.iqlearn_target_q = SoftQNetwork(config).to(self.device)
+            self.iqlearn_target_q = SoftQAgent(config).to(self.device)
             self.iqlearn_target_q.load_state_dict(self.iqlearn_q.state_dict())
             disable_gradients(self.iqlearn_target_q)
             print('IQLearn Target Network Initialized')
@@ -168,7 +168,7 @@ class CuriousIQ(IntrinsicCuriosityTraining):
         if self.config.lstm_layers == 0:
             self.replay_buffer = MixedReplayBuffer(**kwargs)
         else:
-            self.replay_buffer = MixedSegmentReplayBuffer(**kwargs)
+            self.replay_buffer = MixedSequenceReplayBuffer(**kwargs)
 
     def update_model_alphas(self):
         alpha = self._policy_loss.log_alpha.detach().exp().item()

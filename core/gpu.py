@@ -39,11 +39,12 @@ class GPULoader:
     def state_to_device(self, state):
         state = [state_component.unsqueeze(0).to(self.device, dtype=th.float)
                  for state_component in state]
-        state = self.normalize_state(state)
         # add sequence dimension
         if self.load_sequences:
             state = [state_component.unsqueeze(0) for state_component in state]
-        return State(*state)
+        state = State(*state)
+        state = self.normalize_state(state)
+        return state
 
     def states_to_device(self, tuple_of_states):
         states = []
@@ -51,8 +52,8 @@ class GPULoader:
             if len(state) != 0:
                 state = [state_component.to(self.device, dtype=th.float)
                          for state_component in state]
-                state = self.normalize_state(state)
                 state = State(*state)
+                state = self.normalize_state(state)
             states.append(state)
         return tuple(states)
 
@@ -62,6 +63,6 @@ class GPULoader:
         states, actions, rewards, next_states, dones = transitions
         states, next_states = self.states_to_device((states, next_states))
         actions = actions.unsqueeze(-1).to(self.device)
-        rewards = rewards.float().unsqueeze(-1).to(self.device)
+        rewards = th.as_tensor(rewards).unsqueeze(-1).float().to(self.device)
         dones = th.as_tensor(dones).unsqueeze(-1).float().to(self.device)
         return Transition(states, actions, rewards, next_states, dones)

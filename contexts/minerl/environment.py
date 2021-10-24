@@ -1,6 +1,6 @@
 from core.state import State, Transition
 
-from collections import OrderedDict
+from collections import OrderedDict, deque
 import copy
 import os
 import random
@@ -157,6 +157,7 @@ class MineRLContext:
         self.lstm_hidden_size = config.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
             if self.lstm_hidden_size > 0 else None
+        self.snowball_helper = SnowballHelper(self, config)
 
     def action_name(self, action_number):
         if action_number >= self.n_non_equip_actions:
@@ -179,13 +180,14 @@ class MineRLContext:
 
 
 class SnowballHelper:
-    def __init__(config):
-        self.context = MineRLContext(config)
+    def __init__(self, context, config):
+        self.context = context
         if self.context.items_available:
-            self.snowball_number = self.items.index('snowball')
-            self.one_hot_snowball = F.one_hot(th.LongTensor([snowball_number]),
-                                              len(self.items))
-            self.equip_snowball_action = len(self.actions) - 1 + self.snowball_number
+            self.snowball_number = self.context.items.index('snowball')
+            self.one_hot_snowball = F.one_hot(th.LongTensor([self.snowball_number]),
+                                              len(self.context.items))
+            self.equip_snowball_action = len(self.context.actions) - 1 \
+                + self.snowball_number
         else:
             self.equip_snowball_action = -1
         self.suppress_snowball_steps = config.context.suppress_snowball_steps
@@ -222,7 +224,7 @@ class SnowballHelper:
     def suppressed_snowball(self, step, state, action):
         if step == 0 and self.suppress_snowball_steps > 0:
             print(('Suppressing throwing snowball for'
-                   f' {min(self.training_steps, self.suppress_snowball_steps)} steps'))
+                   f' {self.suppress_snowball_steps} steps'))
         elif step == self.suppress_snowball_steps and step != 0:
             print('No longer suppressing snowball')
         suppressed_snowball = step < self.suppress_snowball_steps \
@@ -236,6 +238,8 @@ class ObservationWrapper(gym.ObservationWrapper):
     def __init__(self, env, config):
         super().__init__(env)
         self.context = MineRLContext(config)
+        self.n_observation_frames = config.n_observation_frames
+        self.framestack = deque(maxlen=self.n_observation_frames)
 
     def _obs_to_spatial(self, obs):
         pov = obs['pov'].copy()
@@ -280,6 +284,14 @@ class ObservationWrapper(gym.ObservationWrapper):
         state = State(self._obs_to_spatial(obs),
                       self._obs_to_nonspatial(obs),
                       self.context.initial_hidden)
+        pov = state.spatial
+        while len(self.framestack) < self.n_observation_frames:
+            self.framestack.append(pov)
+        self.framestack.append(pov)
+        spatial = th.cat(list(self.framestack), dim=0)
+        state = list(state)
+        state[0] = spatial
+        state = State(*state)
         return state
 
 
