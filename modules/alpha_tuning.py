@@ -43,10 +43,11 @@ class AlphaTuner:
         for model in self.models:
             model.alpha = self.current_alpha(step)
 
-    def update_alpha(self, loss):
-        if self.entropy_tuning:
-            self.optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            self.optimizer.step()
-            self.update_model_alphas()
-        return self.current_alpha()
+    def update_alpha(self, entropy):
+        loss = (-self.log_alpha.exp() * (self.target_entropy - entropy)).mean()
+        self.optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        self.optimizer.step()
+        self.update_model_alphas()
+        metrics = {'alpha': self.current_alpha(), 'alpha_loss': loss.detach()}
+        return metrics

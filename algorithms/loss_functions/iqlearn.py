@@ -1,19 +1,15 @@
 from core.state import cat_states
 
 import torch as th
-import torch.nn.functional as F
 
 
 class IQLearnLoss:
     def __init__(self, model, config, target_q=None):
-        self.config = config
         self.model = model
+        self.config = config
         self.target_q = target_q
-        self.actions = ActionSpace.actions()
         self.discount_factor = config.method.discount_factor
         self.drq = config.method.drq
-        self.n_observation_frames = config.n_observation_frames
-        self.entropy_tuning = config.method.entropy_tuning
 
     def __call__(self, expert_batch, replay_batch):
         expert_states, expert_actions, expert_next_states, \
@@ -111,24 +107,16 @@ class IQLearnLoss:
             loss += value_loss
             metrics['value_policy_loss'] = value_loss
 
-        if self.entropy_tuning:
-            alpha_loss = th.sum((-self.log_alpha.exp() *
-                                 (self.target_entropy - entropies.detach())) *
-                                action_probabilities.detach(), dim=1, keepdim=True).mean()
-        else:
-            alpha_loss = th.tensor([0])
-
         entropy = th.sum(action_probabilities.detach() * entropies.detach(),
                          dim=1, keepdim=True).mean()
 
         metrics.update({
             "total_loss": loss,
-            'alpha_loss': alpha_loss,
             'entropy': entropy,
         })
         for k, v in iter(metrics.items()):
             metrics[k] = v.item()
-        return loss, alpha_loss, metrics, final_hidden
+        return loss, metrics, final_hidden
 
 
 class IQLearnLossDRQ(IQLearnLoss):
@@ -262,21 +250,13 @@ class IQLearnLossDRQ(IQLearnLoss):
             loss += value_loss
             metrics['value_policy_loss'] = value_loss
 
-        if self.entropy_tuning:
-            alpha_loss = th.sum((-self.log_alpha.exp() *
-                                 (self.target_entropy - entropies.detach())) *
-                                action_probabilities.detach(), dim=1, keepdim=True).mean()
-        else:
-            alpha_loss = th.tensor([0])
-
         entropy = th.sum(action_probabilities.detach() * entropies.detach(),
                          dim=1, keepdim=True).mean()
 
         metrics.update({
             "iqlearn_loss_total": loss,
-            'alpha_loss': alpha_loss,
             'entropy': entropy,
         })
         for k, v in iter(metrics.items()):
             metrics[k] = v.item()
-        return loss, alpha_loss, metrics, final_hidden
+        return loss, metrics, final_hidden

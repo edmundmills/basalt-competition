@@ -1,15 +1,15 @@
+import aicrowd_helper
 from core.gpu import GPULoader
 from core.trajectories import TrajectoryGenerator
 
-import time
-import os
-import wandb
-from pathlib import Path
 from collections import deque
-import aicrowd_helper
+import os
+from pathlib import Path
+import time
 
-import torch as th
 import numpy as np
+import torch as th
+import wandb
 
 
 class Algorithm:

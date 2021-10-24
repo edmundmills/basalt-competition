@@ -1,21 +1,13 @@
-from core.algorithm import Algorithm
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
-# from algorithms.loss_functions.sqil import SqilLoss
-from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
+from core.algorithm import Algorithm
 from core.data_augmentation import DataAugmentation
-from core.trajectories import TrajectoryGenerator
-from modules.curriculum import CurriculumScheduler
-from modules.alpha_tuning import AlphaTuner
+from core.datasets import MixedReplayBuffer, MixedSegmentReplayBuffer
 from core.state import update_hidden
+from core.trajectories import TrajectoryGenerator
+from modules.alpha_tuning import AlphaTuner
+from modules.curriculum import CurriculumScheduler
 
-import numpy as np
 import torch as th
-from torch import nn
-import torch.nn.functional as F
-import time
-
-import wandb
-import os
 
 
 class OnlineImitation(Algorithm):
@@ -83,10 +75,10 @@ class OnlineImitation(Algorithm):
         aug_replay_batch = self.augmentation(replay_batch)
 
         if self.drq:
-            loss, alpha_loss, metrics, final_hidden = self.loss_function(
+            loss, metrics, final_hidden = self.loss_function(
                 expert_batch, replay_batch, aug_expert_batch, aug_replay_batch)
         else:
-            loss, alpha_loss, metrics, final_hidden = self.loss_function(
+            loss, metrics, final_hidden = self.loss_function(
                 aug_expert_batch, aug_replay_batch)
 
         self.optimizer.zero_grad()
@@ -103,7 +95,8 @@ class OnlineImitation(Algorithm):
                                              expert_idx, final_hidden_expert)
 
         if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
-            metrics['alpha'] = self.alpha_tuner.update_alpha(alpha_loss)
+            alpha_tuning_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
+            metrics = {**metrics, **alpha_tuning_metrics}
 
         return metrics
 
