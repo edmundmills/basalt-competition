@@ -1,23 +1,19 @@
-from torchvision.models.mobilenetv3 import mobilenet_v3_large
+from core.environment import create_context
 
 import numpy as np
 import torch as th
 from torch import nn
-
-
-def disable_gradients(network):
-    for param in network.parameters():
-        param.requires_grad = False
+from torchvision.models.mobilenetv3 import mobilenet_v3_large
 
 
 class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.n_observation_frames = config.n_observation_frames
-        self.frame_shape = ObservationSpace.frame_shape
-        self.cnn_layers = config.cnn_layers
-        mobilenet_features = mobilenet_v3_large(
-            pretrained=True, progress=True).features
+        context = create_context(config)
+        self.n_observation_frames = config.model.n_observation_frames
+        self.frame_shape = context.frame_shape
+        self.cnn_layers = config.model.cnn_layers
+        mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
             self.cnn = mobilenet_features[0:self.cnn_layers]
         else:
@@ -32,11 +28,11 @@ class VisualFeatureExtractor(nn.Module):
             )
         self.feature_dim = self._visual_features_dim()
 
-    def forward(self, pov):
-        *n, c, h, w = pov.size()
-        pov = pov.reshape(-1, c, h, w)
-        features = self.cnn(pov)
-        return self.cnn(pov).reshape(*n, -1)
+    def forward(self, spatial):
+        *n, c, h, w = spatial.size()
+        spatial = spatial.reshape(-1, c, h, w)
+        features = self.cnn(spatial)
+        return self.cnn(spatial).reshape(*n, -1)
 
     def _visual_features_dim(self):
         with th.no_grad():
@@ -49,11 +45,11 @@ class VisualFeatureExtractor(nn.Module):
 class LSTMLayer(nn.Module):
     def __init__(self, input_dim, config):
         super().__init__()
-        self.hidden_size = config.lstm_hidden_size
+        self.hidden_size = config.model.lstm_hidden_size
         self.initial_hidden = th.zeros(self.hidden_size * 2)
         self.lstm = nn.LSTM(input_size=input_dim,
                             hidden_size=self.hidden_size,
-                            num_layers=config.lstm_layers, batch_first=True)
+                            num_layers=config.model.lstm_layers, batch_first=True)
 
     def forward(self, features, hidden):
         hidden, cell = th.chunk(hidden, 2, dim=-1)
@@ -68,7 +64,7 @@ class LinearLayers(nn.Module):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.layer_size = config.linear_layer_size
+        self.layer_size = config.model.linear_layer_size
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Flatten(),
@@ -88,14 +84,15 @@ class Network(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.n_observation_frames = config.n_observation_frames
-        self.actions = ActionSpace.actions()
-        self.item_dim = 2 * len(ObservationSpace.items())
+        context = create_context(config)
+        self.n_observation_frames = config.model.n_observation_frames
+        self.actions = context.actions
+        self.nonspatial_size = context.nonspatial_size
         self.output_dim = len(self.actions)
         self.visual_feature_extractor = VisualFeatureExtractor(config)
         linear_input_dim = sum([self.visual_feature_extractor.feature_dim,
-                                self.item_dim])
-        if config.lstm_layers > 0:
+                                self.nonspatial_size])
+        if config.model.lstm_layers > 0:
             self.lstm = LSTMLayer(linear_input_dim, config)
             linear_input_dim = self.lstm.hidden_size
         else:
@@ -106,24 +103,21 @@ class Network(nn.Module):
         self.to(self.device)
 
     def initial_hidden(self):
-        initial_hidden = self.lstm.initial_hidden if self.lstm else None
+        initial_hidden = self.lstm.initial_hidden if self.lstm else th.zeros(0)
         return initial_hidden
 
     def forward(self, state):
+        spatial, nonspatial, hidden = state
+        visual_features = self.visual_feature_extractor(spatial)
+        features = th.cat((visual_features, nonspatial), dim=-1)
         if self.lstm is not None:
-            pov, items, hidden = state
             # only use initial hidden state
             hidden = hidden[:, 0, :].squeeze(dim=1)
             # add dimension D for non-bidirectional
             hidden = hidden.unsqueeze(0)
-        else:
-            pov, items = state
-        visual_features = self.visual_feature_extractor(pov)
-        features = th.cat((visual_features, items), dim=-1)
-        if self.lstm is not None:
             features, hidden = self.lstm(features, hidden)
         else:
-            hidden = None
+            hidden = th.zeros(0)
         return self.linear(features), hidden
 
     def print_model_param_count(self):

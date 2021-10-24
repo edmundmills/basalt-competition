@@ -1,282 +1,153 @@
-from core.state import cat_states
+from core.state import cat_states, cat_transitions
 
 import torch as th
-import torch.nn.functional as F
 
 
 class IQLearnLoss:
     def __init__(self, model, config, target_q=None):
-        self.config = config
         self.model = model
+        self.online_q = model
+        self.config = config
         self.target_q = target_q
-        self.actions = ActionSpace.actions()
         self.discount_factor = config.method.discount_factor
         self.drq = config.method.drq
-        self.n_observation_frames = config.n_observation_frames
-        self.entropy_tuning = config.method.entropy_tuning
+        self.loss_type = config.method.loss
+        self.online = config.method.online
 
-    def __call__(self, expert_batch, replay_batch):
-        expert_states, expert_actions, expert_next_states, \
-            expert_done, _expert_rewards = expert_batch
-        replay_states, replay_actions, replay_next_states, \
-            replay_done, _replay_rewards = replay_batch
+    def distance_function(self, x):
+        return x - 1/2 * x**2
 
-        if self.target_q is None:
-            batch_states = expert_states, replay_states, \
-                expert_next_states, replay_next_states
-            batch_states, state_lengths = cat_states(batch_states)
+    def average_across_augmentation(self, tensor):
+        aug, no_aug = tensor.chunk(2, dim=0)
+        avg = (aug + no_aug) / 2
+        return th.cat((avg, avg), dim=0)
+
+    def __call__(self, expert, policy=None, expert_aug=None, policy_aug=None):
+        if self.drq:
+            expert = cat_transitions((expert, expert_aug))
+            if self.online:
+                policy = cat_transitions((policy, policy_aug))
+
+        expert_states, expert_actions, _expert_rewards, expert_next_states, \
+            expert_done = expert
+        if self.online:
+            policy_states, policy_actions, _policy_rewards, policy_next_states, \
+                policy_done = policy
+
+        if not self.online:
+            batch_states, state_lengths = cat_states((expert_states,
+                                                      expert_next_states))
             batch_Qs, final_hidden = self.model.get_Q(batch_states)
-            if final_hidden is not None:
+            if final_hidden.size()[0] != 0:
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
-            Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)
 
-            predicted_Q_expert = th.gather(Q_expert, -1, expert_actions)
+            current_Qs_expert, _ = th.split(batch_Qs, state_lengths, dim=0)
 
             batch_Vs = self.model.get_V(batch_Qs)
-            V_expert, V_replay, V_next_expert, V_next_replay = th.split(
+            V_expert, V_next_expert = th.split(batch_Vs, state_lengths, dim=0)
+        elif self.target_q:
+            # get current Q, V with online q
+            current_states, current_state_lengths = cat_states((expert_states,
+                                                                policy_states))
+            current_Qs, final_hidden = self.online_q.get_Q(current_states)
+            current_Qs_expert, current_Qs_policy = th.split(
+                current_Qs, current_state_lengths, dim=0)
+
+            current_Vs = self.online_q.get_V(current_Qs)
+            V_expert, V_policy = th.split(current_Vs, current_state_lengths, dim=0)
+
+            # get next Q, V with online q
+            next_states, next_state_lengths = cat_states((expert_next_states,
+                                                          policy_next_states))
+            with th.no_grad():
+                next_Qs, _ = self.target_q.get_Q(next_states)
+                next_Vs = self.target_q.get_V(next_Qs)
+
+            V_next_expert, V_next_policy = th.split(next_Vs, next_state_lengths, dim=0)
+            batch_Qs = th.cat((current_Qs, next_Qs))
+
+        else:
+            # standard online IQ-Learn
+            batch_states, state_lengths = cat_states((expert_states, policy_states,
+                                                      expert_next_states,
+                                                      policy_next_states))
+            batch_Qs, final_hidden = self.model.get_Q(batch_states)
+            if final_hidden.size()[0] != 0:
+                final_hidden, _ = final_hidden.chunk(2, dim=0)
+
+            current_Qs_expert, current_Qs_policy, _, _ = \
+                th.split(batch_Qs, state_lengths, dim=0)
+
+            batch_Vs = self.model.get_V(batch_Qs)
+            V_expert, V_policy, V_next_expert, V_next_policy = th.split(
                 batch_Vs, state_lengths, dim=0)
-            with th.no_grad():
-                entropies = self.model.entropies(batch_Qs)
-                action_probabilities = self.model.action_probabilities(batch_Qs)
-        else:
-            current_states, current_state_lengths = cat_states((expert_states,
-                                                                replay_states))
-            current_Qs, final_hidden = self.model.get_Q(current_states)
-            current_Vs = self.model.get_V(current_Qs)
-            current_Qs_expert, current_Qs_replay = th.split(
-                current_Qs, current_state_lengths, dim=0)
-            predicted_Q_expert = th.gather(current_Qs_expert, dim=-1,
-                                           index=expert_actions)
-            predicted_Q_replay = th.gather(current_Qs_replay, dim=-1,
-                                           index=replay_actions)
 
-            next_states, next_state_lengths = cat_states((expert_next_states,
-                                                          replay_next_states))
-            with th.no_grad():
-                next_Qs, _ = self.target_q.get_Q(next_states)
-                next_Vs = self.target_q.get_V(next_Qs)
+        Q_s_a_expert = th.gather(current_Qs_expert, dim=-1, index=expert_actions)
+        target_Q_expert = (1 - expert_done) * self.discount_factor * V_next_expert
+        if self.drq:
+            target_Q_expert = self.average_across_augmentation(target_Q_expert)
 
-            V_expert, V_replay = th.split(current_Vs, current_state_lengths, dim=0)
-            V_next_expert, V_next_replay = th.split(next_Vs, next_state_lengths, dim=0)
-            with th.no_grad():
-                entropies = self.model.entropies(current_Qs)
-                action_probabilities = self.model.action_probabilities(current_Qs)
+        if self.online:
+            Q_s_a_policy = th.gather(current_Qs_policy, dim=-1, index=policy_actions)
+            target_Q_policy = (1 - policy_done) * self.discount_factor * V_next_policy
+            if self.drq:
+                target_Q_policy = self.average_across_augmentation(target_Q_policy)
 
         metrics = {}
-
-        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert
-        target_Q_rep = (1 - replay_done) * self.discount_factor * V_next_replay
+        loss = 0
 
         # keep track of v0
         v0 = V_expert.mean()
         metrics['v0'] = v0
 
-        def distance_function(x):
-            return x - 1/2 * x**2
+        # keep track of entropy
+        with th.no_grad():
+            entropies = self.model.entropies(batch_Qs)
+            action_probabilities = self.model.action_probabilities(batch_Qs)
+            entropy = th.sum(action_probabilities.detach() * entropies.detach(),
+                             dim=1, keepdim=True).mean()
+        metrics['entropy'] = entropy
 
-        loss_expert = -th.mean(distance_function(predicted_Q_expert - target_Q_exp))
+        # calculate loss
+        loss_expert = -th.mean(self.distance_function(Q_s_a_expert - target_Q_expert))
+        # Use an additional regularization term if using target updates
         if self.target_q is not None:
-            loss_expert += -th.mean(-1/2*(predicted_Q_replay - target_Q_rep)**2)
+            loss_expert += -th.mean(-1/2*(Q_s_a_policy - target_Q_policy)**2)
 
-        loss = loss_expert
+        loss += loss_expert
         metrics['softq_loss'] = loss_expert
 
-        if self.config.method.loss == "v0":
-            # calculate 2nd term for our loss
-            # (1-γ)E_(ρ0)[V(s0)]
-            v0_loss = (1 - self.discount_factor) * v0
-            v0_loss += (1 - self.discount_factor) * v0_aug
-            loss += v0_loss
-            metrics['v0_loss'] = v0_loss
-
-        elif self.config.method.loss == "value":
-            # alternative 2nd term for our loss (use expert and policy states)
-            # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(th.cat((V_replay, V_expert), dim=0) -
-                                 th.cat((target_Q_rep, target_Q_exp), dim=0))
-            loss += value_loss
-            metrics['value_loss'] = value_loss
-
-        elif self.config.method.loss == "value_expert":
-            # alternative 2nd term for our loss (use expert and policy states)
-            # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(V_expert - target_Q_exp)
-            loss += value_loss
-            metrics['value_loss'] = value_loss
-
-        elif self.config.method.loss == "value_policy":
-            # alternative 2nd term for our loss (use only policy states)
-            # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(V_replay - target_Q_rep)
-            loss += value_loss
-            metrics['value_policy_loss'] = value_loss
-
-        if self.entropy_tuning:
-            alpha_loss = th.sum((-self.log_alpha.exp() *
-                                 (self.target_entropy - entropies.detach())) *
-                                action_probabilities.detach(), dim=1, keepdim=True).mean()
-        else:
-            alpha_loss = th.tensor([0])
-
-        entropy = th.sum(action_probabilities.detach() * entropies.detach(),
-                         dim=1, keepdim=True).mean()
-
-        metrics.update({
-            "total_loss": loss,
-            'alpha_loss': alpha_loss,
-            'entropy': entropy,
-        })
-        for k, v in iter(metrics.items()):
-            metrics[k] = v.item()
-        return loss, alpha_loss, metrics, final_hidden
-
-
-class IQLearnLossDRQ(IQLearnLoss):
-    def __init__(self, model, config, target_q=None):
-        super().__init__(model, config, target_q=target_q)
-
-    def __call__(self, expert_batch, replay_batch, aug_exp_batch, aug_rep_batch):
-        expert_states, expert_actions, expert_next_states, \
-            expert_done, _expert_rewards = expert_batch
-        replay_states, replay_actions, replay_next_states, \
-            replay_done, _replay_rewards = replay_batch
-        expert_states_aug, expert_actions_aug, expert_next_states_aug, \
-            _expert_done_aug, _expert_rewards = expert_batch
-        replay_states_aug, replay_actions_aug, replay_next_states_aug, \
-            _replay_done_aug, _replay_rewards = replay_batch
-
-        if self.target_q is None:
-            batch_states = expert_states, replay_states, \
-                expert_next_states, replay_next_states, \
-                expert_states_aug, replay_states_aug, \
-                expert_next_states_aug, replay_next_states_aug
-
-            batch_states, state_lengths = cat_states(batch_states)
-            batch_Qs, final_hidden = self.model.get_Q(batch_states)
-            if final_hidden is not None:
-                final_hidden, _, _, _ = final_hidden.chunk(4, dim=0)
-            Q_expert, _, _, _, Q_expert_aug, _, _, _ = th.split(batch_Qs,
-                                                                state_lengths, dim=0)
-
-            predicted_Q_expert = th.gather(Q_expert, -1, expert_actions)
-            predicted_Q_expert_aug = th.gather(Q_expert_aug, -1, expert_actions_aug)
-
-            batch_Vs = self.model.get_V(batch_Qs)
-
-            V_expert, V_replay, V_next_expert, V_next_replay, V_expert_aug, \
-                V_replay_aug, V_next_expert_aug, V_next_replay_aug = th.split(
-                    batch_Vs, state_lengths, dim=0)
-            with th.no_grad():
-                entropies = self.model.entropies(batch_Qs)
-                action_probabilities = self.model.action_probabilities(batch_Qs)
-        else:
-            current_states, current_state_lengths = cat_states((expert_states,
-                                                                replay_states,
-                                                                expert_states_aug,
-                                                                replay_states_aug))
-            current_Qs, final_hidden = self.model.get_Q(current_states)
-            if final_hidden is not None:
-                final_hidden, _ = final_hidden.chunk(2, dim=0)
-            current_Vs = self.model.get_V(current_Qs)
-            Q_expert, Q_replay, Q_expert_aug, Q_replay_aug = th.split(
-                current_Qs, current_state_lengths, dim=0)
-            predicted_Q_expert = th.gather(Q_expert, -1, expert_actions)
-            predicted_Q_expert_aug = th.gather(Q_expert_aug, -1, expert_actions_aug)
-            predicted_Q_replay = th.gather(Q_replay, -1, replay_actions)
-            predicted_Q_replay_aug = th.gather(Q_replay_aug, -1, replay_actions_aug)
-
-            next_states, next_state_lengths = cat_states((expert_next_states,
-                                                          replay_next_states,
-                                                          expert_next_states_aug,
-                                                          replay_next_states_aug))
-            with th.no_grad():
-                next_Qs, _ = self.target_q.get_Q(next_states)
-                next_Vs = self.target_q.get_V(next_Qs)
-
-            V_expert, V_replay, V_expert_aug, V_replay_aug = th.split(
-                current_Vs, current_state_lengths, dim=0)
-            V_next_expert, V_next_replay, V_next_expert_aug, V_next_replay_aug = th.split(
-                next_Vs, next_state_lengths, dim=0)
-            with th.no_grad():
-                entropies = self.model.entropies(current_Qs)
-                action_probabilities = self.model.action_probabilities(current_Qs)
-
-        metrics = {}
-
-        # keep track of v0
-        v0 = V_expert.mean()
-        metrics['v0'] = v0
-        v0_aug = V_expert_aug.mean()
-        metrics['v0_aug'] = v0_aug
-
-        def distance_function(x):
-            return x - 1/2 * x**2
-
-        target_Q_exp = (1 - expert_done) * self.discount_factor * V_next_expert
-        target_Q_exp_aug = (1 - expert_done) * self.discount_factor * V_next_expert_aug
-        target_Q_exp = (target_Q_exp + target_Q_exp_aug) / 2
-
-        target_Q_rep = (1 - replay_done) * self.discount_factor * V_next_replay
-        target_Q_rep_aug = (1 - replay_done) * self.discount_factor * V_next_replay_aug
-        target_Q_rep = (target_Q_rep + target_Q_rep_aug) / 2
-
-        loss_expert = -th.mean(distance_function(predicted_Q_expert - target_Q_exp))
-        loss_expert += -th.mean(distance_function(predicted_Q_expert_aug - target_Q_exp))
-        if self.target_q is not None:
-            loss_expert += -th.mean(-1/2*(predicted_Q_replay - target_Q_rep)**2)
-            loss_expert += -th.mean(-1/2*(predicted_Q_replay_aug - target_Q_rep)**2)
-
-        loss = loss_expert
-        metrics['softq_loss'] = loss_expert
-
-        if self.config.method.loss == "v0":
+        if self.loss_type == "v0":
             # calculate 2nd term for our loss
             # (1-γ)E_(ρ0)[V(s0)]
             v0_loss = (1 - self.discount_factor) * v0
             loss += v0_loss
             metrics['v0_loss'] = v0_loss
 
-        elif self.config.method.loss == "value":
+        elif self.loss_type == "value":
             # alternative 2nd term for our loss (use expert and policy states)
             # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(th.cat((V_replay, V_expert), dim=0) -
-                                 th.cat((target_Q_rep, target_Q_exp), dim=0))
-            value_loss += th.mean(th.cat((V_replay_aug, V_expert_aug), dim=0) -
-                                  th.cat((target_Q_rep, target_Q_exp), dim=0))
+            value_loss = th.mean(th.cat((V_policy, V_expert), dim=0) -
+                                 th.cat((target_Q_policy, target_Q_expert), dim=0))
             loss += value_loss
             metrics['value_loss'] = value_loss
 
-        elif self.config.method.loss == "value_expert":
+        elif self.loss_type == "value_expert":
             # alternative 2nd term for our loss (use expert and policy states)
             # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(V_expert - target_Q_exp)
-            value_loss += th.mean(V_expert_aug - target_Q_exp)
+            value_loss = th.mean(V_expert - target_Q_expert)
             loss += value_loss
             metrics['value_loss'] = value_loss
 
-        elif self.config.method.loss == "value_policy":
+        elif self.loss_type == "value_policy":
             # alternative 2nd term for our loss (use only policy states)
             # E_(ρ)[Q(s,a) - γV(s')]
-            value_loss = th.mean(V_replay - target_Q_rep)
-            value_loss += th.mean(V_replay_aug - target_Q_rep)
+            value_loss = th.mean(V_policy - target_Q_policy)
             loss += value_loss
             metrics['value_policy_loss'] = value_loss
 
-        if self.entropy_tuning:
-            alpha_loss = th.sum((-self.log_alpha.exp() *
-                                 (self.target_entropy - entropies.detach())) *
-                                action_probabilities.detach(), dim=1, keepdim=True).mean()
-        else:
-            alpha_loss = th.tensor([0])
-
-        entropy = th.sum(action_probabilities.detach() * entropies.detach(),
-                         dim=1, keepdim=True).mean()
-
-        metrics.update({
-            "iqlearn_loss_total": loss,
-            'alpha_loss': alpha_loss,
-            'entropy': entropy,
-        })
+        metrics["total_loss"] = loss
         for k, v in iter(metrics.items()):
             metrics[k] = v.item()
-        return loss, alpha_loss, metrics, final_hidden
+
+        return loss, metrics, final_hidden

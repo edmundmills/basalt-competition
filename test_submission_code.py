@@ -1,6 +1,6 @@
-from agents.soft_q import SoftQNetwork
+from agents.soft_q import SoftQAgent
 from contexts.minerl.environment import MineRLContext
-from core.trajectories import TrajectoryGenerator
+from core.trajectory_generator import TrajectoryGenerator
 
 import os
 import time
@@ -68,7 +68,7 @@ class MineRLAgent():
         environment = cfg.env.name
         os.environ['MINERL_ENVIRONMENT'] = environment
 
-        self.model = SoftQNetwork(cfg)
+        self.model = SoftQAgent(cfg)
         for saved_agent_path in reversed(sorted(Path('train/').iterdir())):
             if saved_agent_path.suffix == '.pth' and environment in saved_agent_path.name:
                 print(f'Loading {saved_agent_path.name} as agent')
@@ -89,5 +89,4 @@ class MineRLAgent():
         """
         # An implementation of a random agent
         # YOUR CODE GOES HERE
-        generator = TrajectoryGenerator(single_episode_env)
-        trajectory = generator.generate(self.model)
+        TrajectoryGenerator(single_episode_env, self.model, self.model.config).generate()

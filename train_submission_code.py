@@ -1,33 +1,33 @@
-from core.datasets import ReplayBuffer, SegmentReplayBuffer
-from core.datasets import TrajectoryStepDataset, TrajectorySegmentDataset
-from networks.soft_q import SoftQNetwork
-from networks.termination_critic import TerminationCritic
-from core.environment import start_env
-from core.gpu import disable_gradients
-from core.trajectories import TrajectoryGenerator
-from algorithms.online_imitation import OnlineImitation
-from algorithms.iqlearn_sac import IQLearnSAC
-from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
-from utility.get_config import get_config, parse_args
-import torch as th
-import numpy as np
-
-
-from pyvirtualdisplay import Display
-import hydra
-from hydra import compose, initialize
-from omegaconf import DictConfig, OmegaConf
-from flatten_dict import flatten
-import wandb
-from pathlib import Path
-import argparse
-import logging
-from torch.profiler import profile, record_function, ProfilerActivity, schedule
-import os
-import time
+from agents.bc import BCAgent
+from agents.soft_q import SoftQAgent
 import aicrowd_helper
+from algorithms.offline import SupervisedLearning
+from algorithms.online_imitation import OnlineImitation
+from algorithms.sac_iqlearn import IQLearnSAC
+from algorithms.sac_curiosity import CuriositySAC
+from algorithms.curious_iq import CuriousIQ
+from core.datasets import ReplayBuffer, SequenceReplayBuffer
+from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset
+from core.environment import start_env
+from core.trajectory_generator import TrajectoryGenerator
+from modules.termination_critic import TerminationCritic
+from utility.config import get_config, parse_args
 from utility.parser import Parser
+
+import logging
+import os
+from pathlib import Path
+import time
+
 import coloredlogs
+from flatten_dict import flatten
+from omegaconf import DictConfig, OmegaConf
+from pyvirtualdisplay import Display
+import numpy as np
+import torch as th
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
+import wandb
+
 coloredlogs.install(logging.DEBUG)
 
 
@@ -57,18 +57,20 @@ parser = Parser(
 os.environ["MINERL_DATA_ROOT"] = MINERL_DATA_ROOT
 
 
-def main():
+def main(args=None, config=None):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     """
     aicrowd_helper.training_start()
-    args = parse_args()
-
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
 
-    config = get_config(args)
+    if not args:
+        args = parse_args()
+    if not config:
+        config = get_config(args)
+
     environment = config.env.name
 
     if config.wandb:
@@ -91,69 +93,51 @@ def main():
             print('Starting Debug Env')
         else:
             print(f'Starting Env: {environment}')
-        env = start_env(debug_env=args.debug_env)
+        env = start_env(config, debug_env=args.debug_env)
     else:
         env = None
 
-    replay_buffer = ReplayBuffer(config) if config.lstm_layers == 0 \
-        else SegmentReplayBuffer(config)
+    replay_buffer = ReplayBuffer(config) if config.model.lstm_layers == 0 \
+        else SequenceReplayBuffer(config)
     iter_count = 0
-    if config.method.starting_steps > 0:
+    if config.method.online and config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, replay_buffer).random_trajectories(
-                config.method.starting_steps, lstm_hidden_size=config.lstm_hidden_size)
+            env, None, config, replay_buffer,
+        ).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
 
-    if config.pretraining.name == 'curiosity_pretraining':
-        print('Starting Pretraining')
-        pretraining_algorithm = IntrinsicCuriosityTraining(
-            config, initial_replay_buffer=replay_buffer, initial_iter_count=iter_count)
-        pretrained_model, replay_buffer = pretraining_algorithm(env)
-        iter_count = pretraining_algorithm.iter_count
-        print('Pretraining Completed')
-    else:
-        print('No Pretraining')
-        pretrained_model = None
-
-    # initialize dataset, model, algorithm
+    # initialize dataset, agent, algorithm
     if config.method.expert_dataset:
-        if config.lstm_layers == 0:
+        if config.model.lstm_layers == 0:
             expert_dataset = TrajectoryStepDataset(config,
                                                    debug_dataset=args.debug_env)
         else:
-            expert_dataset = TrajectorySegmentDataset(config,
-                                                      debug_dataset=args.debug_env)
+            expert_dataset = TrajectorySequenceDataset(config,
+                                                       debug_dataset=args.debug_env)
 
-    if pretrained_model is not None:
-        model = pretrained_model
-    elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
-        model = SoftQNetwork(config)
+    if config.method.loss_function == 'iqlearn':
+        agent = SoftQAgent(config)
+    elif config.method.loss_function == 'bc':
+        agent = BCAgent(config)
 
-    if config.env.termination_critic:
-        print('Training Termination Critic')
-        model.termination_critic.train(expert_dataset)
-        disable_gradients(model.termination_critic)
-        iter_count += model.termination_critic.steps_trained
-        print('Trained Termination Critic')
-
-    if config.method.algorithm == 'curious_IQ':
-        training_algorithm = CuriousIQ(expert_dataset, config,
-                                       initial_replay_buffer=replay_buffer,
-                                       initial_iter_count=iter_count)
-    elif config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
+    # if config.method.algorithm == 'curious_IQ':
+    #     training_algorithm = CuriousIQ(expert_dataset, config,
+    #                                    initial_replay_buffer=replay_buffer,
+    #                                    initial_iter_count=iter_count)
+    if config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
         training_algorithm = IQLearnSAC(expert_dataset, config,
                                         initial_replay_buffer=replay_buffer,
                                         initial_iter_count=iter_count)
-    elif config.method.algorithm == 'online_imitation':
-        training_algorithm = OnlineImitation(expert_dataset, model, config,
+    if config.method.algorithm == 'online_imitation':
+        training_algorithm = OnlineImitation(expert_dataset, agent, config,
                                              initial_replay_buffer=replay_buffer,
                                              initial_iter_count=iter_count)
     elif config.method.algorithm == 'supervised_learning':
-        training_algorithm = SupervisedLearning(expert_dataset, model, config)
+        training_algorithm = SupervisedLearning(expert_dataset, agent, config)
 
     # run algorithm
     if not args.profile:
-        model, replay_buffer = training_algorithm(env)
+        agent, replay_buffer = training_algorithm(env)
     else:
         print('Training with profiler')
         profile_dir = f'./logs/{training_algorithm.name}/'
@@ -162,7 +146,7 @@ def main():
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                model, replay_buffer = training_algorithm(env, profiler=prof)
+                agent, replay_buffer = training_algorithm(env, profiler=prof)
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
                 for profile_file_path in Path(profile_dir).iterdir():
@@ -171,11 +155,11 @@ def main():
 
     # save model
     if not args.debug_env:
-        model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
-        model.save(model_save_path)
+        agent_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
+        agent.save(agent_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
-            model_art.add_file(model_save_path)
+            model_art.add_file(agent_save_path)
             model_art.save()
 
     # Training 100% Completed

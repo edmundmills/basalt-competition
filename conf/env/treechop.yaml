@@ -1,12 +1,5 @@
 name: MineRLTreechop-v0
 demo: MineRLTreechop-v0_1000
+
+min_training_episode_length: 500
 max_training_episode_length: 3000
-training_timeout:  86400 # 24 hours
-training_steps: 100000
-curriculum_fraction_of_training: 0.5
-
-# learn_steps: 1e5
-# eval_interval: 1e3
-
-# termination critic
-termination_critic: false

@@ -4,17 +4,25 @@ loss_function: 'iqlearn'
 loss: 'value'
 drq: true
 
+online: true
 expert_dataset: true
 expert_sample_fraction: 0.5
 batch_size: 32
+
 
 discount_factor: 0.99
 q_lr: 3e-4
 policy_lr: 1e-4
 
+updates_per_step: 1
+target_update_interval: 1
 target_q: true  # for iqlearn q function
 tau: .05
+double_q: false  # not implemented
 
+alpha: 1e-1
+decay_alpha: false
+final_alpha: 1e-2
 entropy_tuning: false
 target_entropy_ratio: 0.05
 entropy_lr: 1e-4
