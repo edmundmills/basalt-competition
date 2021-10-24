@@ -61,18 +61,6 @@ class Algorithm:
         rate = iterations / duration
         return rate
 
-    def suppressed_snowball(self, step, current_state, action):
-        if step == 0 and self.suppress_snowball_steps > 0:
-            print(('Suppressing throwing snowball for'
-                   f' {min(self.training_steps, self.suppress_snowball_steps)} steps'))
-        elif step == self.suppress_snowball_steps and step != 0:
-            print('No longer suppressing snowball')
-        suppressed_snowball = step < self.suppress_snowball_steps \
-            and ActionSpace.threw_snowball(current_state, action)
-        if suppressed_snowball:
-            print('Suppressed Snowball')
-        return suppressed_snowball
-
     def save_checkpoint(self, replay_buffer=None, model=None):
         if replay_buffer is not None and self.wandb and self.save_gifs:
             images, frame_rate = replay_buffer.recent_frames(

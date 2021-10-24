@@ -9,3 +9,7 @@ camera_noise: 0.5  # camera noise added to each action
 random_translate_pixels: 4
 inventory_noise: 0.1  # scale of gaussian noise added to inventory
 mirror_augment: false  # leave off
+
+
+# Misc
+suppress_snowball_steps: 1000

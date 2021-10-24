@@ -190,6 +190,7 @@ class SnowballHelper:
             self.equip_snowball_action = len(self.actions) - 1 + self.snowball_number
         else:
             self.equip_snowball_action = -1
+        self.suppress_snowball_steps = config.context.suppress_snowball_steps
 
     def snowball_equipped(self, state, device='cpu'):
         if not self.context.items_available:
@@ -219,6 +220,18 @@ class SnowballHelper:
         snowball_equipped = th.all(th.eq(equipped, snowball_tensor), dim=1, keepdim=True)
         threw_snowball = use_actions * snowball_equipped
         return threw_snowball.type(th.uint8)
+
+    def suppressed_snowball(self, step, state, action):
+        if step == 0 and self.suppress_snowball_steps > 0:
+            print(('Suppressing throwing snowball for'
+                   f' {min(self.training_steps, self.suppress_snowball_steps)} steps'))
+        elif step == self.suppress_snowball_steps and step != 0:
+            print('No longer suppressing snowball')
+        suppressed_snowball = step < self.suppress_snowball_steps \
+            and self.threw_snowball(state, action)
+        if suppressed_snowball:
+            print('Suppressed Snowball')
+        return suppressed_snowball
 
 
 class ObservationWrapper(gym.ObservationWrapper):
