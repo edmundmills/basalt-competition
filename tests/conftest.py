@@ -61,6 +61,19 @@ def transition():
 
 
 @pytest.fixture
+def transition_batch():
+    return Transition(State(spatial.repeat(9, 1, 1, 1),
+                            nonspatial.unsqueeze(0).repeat(9, 1),
+                            hidden.unsqueeze(0).repeat(9, 1)),
+                      action_batch,
+                      reward_batch,
+                      State(spatial.repeat(9, 1, 1, 1),
+                            nonspatial.unsqueeze(0).repeat(9, 1),
+                            hidden.unsqueeze(0).repeat(9, 1)),
+                      done_batch)
+
+
+@pytest.fixture
 def sequence():
     return Sequence(state_sequence,
                     action_sequence,
