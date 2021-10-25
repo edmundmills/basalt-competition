@@ -9,21 +9,21 @@ import torch as th
 
 
 class OnlineImitation(OnlineTraining):
-    def __init__(self, expert_dataset, model, config,
+    def __init__(self, expert_dataset, agent, config,
                  initial_replay_buffer=None, **kwargs):
         super().__init__(config, expert_dataset=expert_dataset,
                          initial_replay_buffer=initial_replay_buffer, **kwargs)
-        self.model = model
+        self.agent = agent
 
         self.drq = config.method.drq
         if config.method.loss_function == 'sqil':
-            self.loss_function = SQILLoss(model, config)
+            self.loss_function = SQILLoss(agent, config)
         elif config.method.loss_function == 'iqlearn' and self.drq:
-            self.loss_function = IQLearnLossDRQ(model, config)
+            self.loss_function = IQLearnLossDRQ(agent, config)
         elif config.method.loss_function == 'iqlearn':
-            self.loss_function = IQLearnLoss(model, config)
+            self.loss_function = IQLearnLoss(agent, config)
 
-        self.optimizer = th.optim.AdamW(model.parameters(), lr=self.lr)
+        self.optimizer = th.optim.AdamW(agent.parameters(), lr=self.lr)
 
         self.cyclic_learning_rate = config.cyclic_learning_rate
         if self.cyclic_learning_rate:
@@ -36,7 +36,7 @@ class OnlineImitation(OnlineTraining):
                                                             step_size_up=2000,
                                                             cycle_momentum=False)
 
-        self.alpha_tuner = AlphaTuner([self.model], config, self.context)
+        self.alpha_tuner = AlphaTuner([self.agent], config, self.context)
 
         self.curriculum_training = config.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
@@ -67,7 +67,7 @@ class OnlineImitation(OnlineTraining):
 
         if self.alpha_tuner:
             self.alpha_tuner.update_model_alpha(step)
-            metrics['alpha'] = model.alpha
+            metrics['alpha'] = agent.alpha
         return metrics
 
     def train_one_batch(self, batch):

@@ -1,6 +1,6 @@
 from agents.soft_q import SoftQAgent
 from contexts.minerl.environment import MineRLContext
-from core.trajectories import TrajectoryGenerator
+from core.trajectory_generator import TrajectoryGenerator
 
 import os
 import time

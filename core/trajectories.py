@@ -50,7 +50,7 @@ class Trajectory:
         self.rewards.append(reward)
         self.states.append(next_state)
         self.done = done
-        for k, v in kwargs:
+        for k, v in kwargs.items():
             if k not in self.additional_step_data.keys():
                 self.additional_step_data[k] = []
             self.additional_step_data[k].append(v)

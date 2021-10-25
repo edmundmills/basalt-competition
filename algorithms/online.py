@@ -1,6 +1,6 @@
 from core.algorithm import Algorithm
 from core.datasets import ReplayBuffer, SequenceReplayBuffer
-from core.trajectories import TrajectoryGenerator
+from core.trajectory_generator import TrajectoryGenerator
 
 from collections import deque
 from pathlib import Path
@@ -129,7 +129,7 @@ class OnlineTraining(Algorithm):
 
         for step in range(self.training_steps):
 
-            action_metrics = self.trajectory_generator.env_interaction_step()
+            action_metrics = self.trajectory_generator.env_interaction_step(step)
 
             pretrain_metrics = self.pre_train_step_modules(step)
 

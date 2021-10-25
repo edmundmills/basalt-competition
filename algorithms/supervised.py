@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 
 
 class SupervisedLearning(Algorithm):
-    def __init__(self, model, train_dataset, config, test_dataset=None):
+    def __init__(self, train_dataset, agent, config, test_dataset=None):
         super().__init__(config)
         self.lr = config.method.learning_rate
         self.epochs = config.method.epochs
@@ -27,18 +27,18 @@ class SupervisedLearning(Algorithm):
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
 
-        self.model = model
+        self.agent = agent
 
         if config.method.loss_function == 'bc':
-            self.loss_function = BCLoss(model, config)
+            self.loss_function = BCLoss(agent, config)
         elif config.method.loss_function == 'sqil':
-            self.loss_function = SqilLoss(model, config)
+            self.loss_function = SqilLoss(agent, config)
         elif config.method.loss_function == 'iqlearn' and self.drq:
-            self.loss_function = IQLearnLossDRQ(model, config)
+            self.loss_function = IQLearnLossDRQ(agent, config)
         elif config.method.loss_function == 'iqlearn':
-            self.loss_function = IQLearnLoss(model, config)
+            self.loss_function = IQLearnLoss(agent, config)
 
-        self.optimizer = th.optim.AdamW(model.parameters(), lr=self.lr)
+        self.optimizer = th.optim.AdamW(agent.parameters(), lr=self.lr)
 
         if self.cyclic_learning_rate:
             decay_factor = .25**(1/(self.training_steps/4))
@@ -51,7 +51,7 @@ class SupervisedLearning(Algorithm):
                                                             cycle_momentum=False)
 
         # modules
-        self.alpha_tuner = AlphaTuner([self.model], config, self.context)
+        self.alpha_tuner = AlphaTuner([self.agent], config, self.context)
 
         self.curriculum_training = config.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
@@ -94,7 +94,7 @@ class SupervisedLearning(Algorithm):
         return metrics
 
     def eval(self):
-        model = self.model
+        agent = self.agent
         test_dataset = self.test_dataset
         if test_dataset is not None and self.wandb:
             test_losses = []
@@ -116,7 +116,7 @@ class SupervisedLearning(Algorithm):
     def __call__(self, _env=None, profiler=None):
         print((f'{self.algorithm_name}: Starting training'
                f' for {self.training_steps} steps (iteration {self.iter_count})'))
-        model = self.model
+        agent = self.agent
 
         train_dataset = self.train_dataset
         test_dataset = self.test_dataset
@@ -138,10 +138,10 @@ class SupervisedLearning(Algorithm):
                 if self.shutdown_time_reached():
                     break
 
-                self.save_checkpoint(model=model)
+                self.save_checkpoint(agent=agent)
 
             print(f'Epoch #{epoch + 1} completed')
             self.eval()
 
         print(f'{self.algorithm_name}: Training complete')
-        return model, None
+        return agent, None

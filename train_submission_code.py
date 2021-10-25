@@ -6,8 +6,7 @@ from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
 from core.datasets import ReplayBuffer, SequenceReplayBuffer
 from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset
 from core.environment import start_env
-from core.networks import disable_gradients
-from core.trajectories import TrajectoryGenerator
+from core.trajectory_generator import TrajectoryGenerator
 from networks.termination_critic import TerminationCritic
 from utility.config import get_config, parse_args
 from utility.parser import Parser
@@ -104,7 +103,7 @@ def main(args=None, config=None):
         ).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
 
-    # initialize dataset, model, algorithm
+    # initialize dataset, agent, algorithm
     if config.method.expert_dataset:
         if config.lstm_layers == 0:
             expert_dataset = TrajectoryStepDataset(config,
@@ -113,18 +112,18 @@ def main(args=None, config=None):
             expert_dataset = TrajectorySequenceDataset(config,
                                                        debug_dataset=args.debug_env)
 
-    elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
+    if config.method.algorithm in ['online_imitation', 'supervised_learning']:
         agent = SoftQAgent(config)
 
-    if config.method.algorithm == 'curious_IQ':
-        training_algorithm = CuriousIQ(expert_dataset, config,
-                                       initial_replay_buffer=replay_buffer,
-                                       initial_iter_count=iter_count)
-    elif config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
-        training_algorithm = IQLearnSAC(expert_dataset, config,
-                                        initial_replay_buffer=replay_buffer,
-                                        initial_iter_count=iter_count)
-    elif config.method.algorithm == 'online_imitation':
+    # if config.method.algorithm == 'curious_IQ':
+    #     training_algorithm = CuriousIQ(expert_dataset, config,
+    #                                    initial_replay_buffer=replay_buffer,
+    #                                    initial_iter_count=iter_count)
+    # if config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
+    #     training_algorithm = IQLearnSAC(expert_dataset, config,
+    #                                     initial_replay_buffer=replay_buffer,
+    #                                     initial_iter_count=iter_count)
+    if config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, agent, config,
                                              initial_replay_buffer=replay_buffer,
                                              initial_iter_count=iter_count)
@@ -133,7 +132,7 @@ def main(args=None, config=None):
 
     # run algorithm
     if not args.profile:
-        model, replay_buffer = training_algorithm(env)
+        agent, replay_buffer = training_algorithm(env)
     else:
         print('Training with profiler')
         profile_dir = f'./logs/{training_algorithm.name}/'
@@ -142,7 +141,7 @@ def main(args=None, config=None):
                      schedule=schedule(skip_first=32, wait=5,
                      warmup=1, active=3, repeat=2)) as prof:
             with record_function("model_inference"):
-                model, replay_buffer = training_algorithm(env, profiler=prof)
+                agent, replay_buffer = training_algorithm(env, profiler=prof)
             if args.wandb:
                 profile_art = wandb.Artifact("trace", type="profile")
                 for profile_file_path in Path(profile_dir).iterdir():
@@ -151,11 +150,11 @@ def main(args=None, config=None):
 
     # save model
     if not args.debug_env:
-        model_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
-        model.save(model_save_path)
+        agent_save_path = os.path.join('train', f'{training_algorithm.name}.pth')
+        agent.save(agent_save_path)
         if args.wandb:
             model_art = wandb.Artifact("agent", type="model")
-            model_art.add_file(model_save_path)
+            model_art.add_file(agent_save_path)
             model_art.save()
 
     # Training 100% Completed

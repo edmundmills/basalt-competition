@@ -1,4 +1,5 @@
 import aicrowd_helper
+from core.data_augmentation import DataAugmentation
 from core.environment import create_context
 from core.gpu import GPULoader
 

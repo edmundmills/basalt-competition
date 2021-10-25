@@ -1,5 +1,6 @@
 from contexts.minerl.environment import MineRLContext
 from core.gpu import GPULoader
+from core.state import update_hidden
 
 import numpy as np
 
@@ -34,7 +35,7 @@ class TrajectoryGenerator:
         action = np.random.choice(self.context.actions)
         return action
 
-    def env_interaction_step(self, trajectory=None, random_action=False):
+    def env_interaction_step(self, step, trajectory=None, random_action=False):
         metrics = {}
         current_state = self.replay_buffer.current_state() \
             if trajectory is None else trajectory.current_state()
@@ -69,8 +70,10 @@ class TrajectoryGenerator:
         state = self.env.reset()
         trajectory.states.append(state)
 
+        step = 0
         while not trajectory.done and len(trajectory) < max_episode_length:
-            self.env_interaction_step(trajectory)
+            self.env_interaction_step(step, trajectory=trajectory)
+            step += 1
 
         return trajectory
 
@@ -80,7 +83,7 @@ class TrajectoryGenerator:
 
         # generate random trajectories
         for step in range(steps):
-            self.env_interaction_step(random_action=True)
+            self.env_interaction_step(step, random_action=True)
             current_trajectory = self.replay_buffer.current_trajectory()
             if current_trajectory.done or len(current_trajectory) > 1000:
                 self.start_new_trajectory()
