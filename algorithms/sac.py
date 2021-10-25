@@ -11,7 +11,7 @@ import torch as th
 
 
 class SoftActorCritic(OnlineTraining):
-    def __init__(self, config, actor=None, **kwargs):
+    def __init__(self, config, agent=None, **kwargs):
         super().__init__(config, **kwargs)
         self.drq = config.method.drq
         self.cyclic_learning_rate = config.cyclic_learning_rate
@@ -20,10 +20,10 @@ class SoftActorCritic(OnlineTraining):
         self.target_update_interval = config.method.target_update_interval
 
         # Set up networks - actor
-        if actor is not None:
-            self.actor = actor.to(self.device)
+        if agent is not None:
+            self.agent = agent.to(self.device)
         else:
-            self.actor = SoftQAgent(config).to(self.device)
+            self.agent = SoftQAgent(config).to(self.device)
 
         # Set up networks - critic
         if self.double_q:
@@ -40,12 +40,12 @@ class SoftActorCritic(OnlineTraining):
             self._q_loss = SACQLossDRQ(self.online_q, self.target_q, self.config)
         else:
             self._q_loss = SACQLoss(self.online_q, self.target_q, self.config)
-        self._policy_loss = SACPolicyLoss(self.actor, self.online_q, self.config)
+        self._policy_loss = SACPolicyLoss(self.agent, self.online_q, self.config)
 
         # Optimizers
         self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
                                          lr=config.method.q_lr)
-        self.policy_optimizer = th.optim.Adam(self.actor.parameters(),
+        self.policy_optimizer = th.optim.Adam(self.agent.parameters(),
                                               lr=config.method.policy_lr)
 
         if self.cyclic_learning_rate:
@@ -59,7 +59,7 @@ class SoftActorCritic(OnlineTraining):
                                                             cycle_momentum=False)
 
         # Modules
-        self.alpha_tuner = AlphaTuner([self.actor, self.online_q, self.target_q],
+        self.alpha_tuner = AlphaTuner([self.agent, self.online_q, self.target_q],
                                       config, self.context)
 
         self.curriculum_training = config.curriculum_training

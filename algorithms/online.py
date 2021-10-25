@@ -10,7 +10,7 @@ import wandb
 
 
 class OnlineTraining(Algorithm):
-    def __init__(self, config, initial_replay_buffer=None, **kwargs):
+    def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
         self.starting_steps = config.method.starting_steps
         self.training_steps = config.method.training_steps
@@ -24,8 +24,7 @@ class OnlineTraining(Algorithm):
 
         self.rewards_window = deque(maxlen=10)  # last N rewards
         self.steps_window = deque(maxlen=10)  # last N episode steps
-        self.replay_buffer = self.initialize_replay_buffer(initial_replay_buffer,
-                                                           **kwargs)
+        self.replay_buffer = self.initialize_replay_buffer(**kwargs)
 
     def initialize_replay_buffer(self, initial_replay_buffer=None, **kwargs):
         if initial_replay_buffer is not None:
@@ -119,11 +118,10 @@ class OnlineTraining(Algorithm):
         if self.wandb:
             wandb.log({'Rewards/eval': rewards/self.eval_episodes}, step=self.iter_count)
 
-    def __call__(self, env, actor, profiler=None):
-        print((f'{self.algorithm_name}: training actor / critic'
-               f' for {self.training_steps}'))
+    def __call__(self, env, profiler=None):
+        print((f'{self.algorithm_name}: training for {self.training_steps}'))
 
-        self.trajectory_generator = TrajectoryGenerator(env, actor,
+        self.trajectory_generator = TrajectoryGenerator(env, self.agent,
                                                         self.config, self.replay_buffer)
         self.trajectory_generator.start_new_trajectory()
 
@@ -149,10 +147,10 @@ class OnlineTraining(Algorithm):
             if self.shutdown_time_reached():
                 break
 
-            self.save_checkpoint(replay_buffer=self.replay_buffer, model=actor)
+            self.save_checkpoint(replay_buffer=self.replay_buffer, model=self.agent)
 
             self.conditionally_increment_episode(step,
                                                  self.replay_buffer.current_trajectory())
 
         print(f'{self.algorithm_name}: Training complete')
-        return actor, self.replay_buffer
+        return self.agent, self.replay_buffer

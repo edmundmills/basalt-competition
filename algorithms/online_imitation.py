@@ -42,7 +42,8 @@ class OnlineImitation(OnlineTraining):
         self.curriculum_scheduler = CurriculumScheduler(config) \
             if self.curriculum_training else None
 
-    def initialize_replay_buffer(self, expert_dataset, initial_replay_buffer=None):
+    def initialize_replay_buffer(self, expert_dataset=None,
+                                 initial_replay_buffer=None, **kwargs):
         if initial_replay_buffer is not None:
             print((f'Using initial replay buffer'
                    f' with {len(initial_replay_buffer)} steps'))
@@ -67,7 +68,7 @@ class OnlineImitation(OnlineTraining):
 
         if self.alpha_tuner:
             self.alpha_tuner.update_model_alpha(step)
-            metrics['alpha'] = agent.alpha
+            metrics['alpha'] = self.agent.alpha
         return metrics
 
     def train_one_batch(self, batch):
