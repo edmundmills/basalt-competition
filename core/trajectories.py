@@ -18,6 +18,7 @@ class Trajectory:
         self.actions = []
         self.rewards = []
         self.done = False
+        self.additional_step_data = {}
 
     def __len__(self):
         return max(0, len(self.states) - 1)
@@ -55,21 +56,18 @@ class Trajectory:
 
 
 class TrajectoryGenerator:
-    def __init__(self, env, replay_buffer=None, config=None):
+    def __init__(self, env, actor, config, replay_buffer=None):
         self.env = env
+        self.actor = actor
         self.replay_buffer = replay_buffer
         self.config = config
-        if config is not None:
-            if config.context.name == 'MineRL':
-                self.context = MineRLContext(config)
-                self.snowball_helper = self.context.snowball_helper
+        self.gpu_loader = GPULoader(config)
+        if config.context.name == 'MineRL':
+            self.context = MineRLContext(config)
+            self.snowball_helper = self.context.snowball_helper
 
-    def generate(self, model, max_episode_length=100000, print_actions=False):
-        gpu_loader = GPULoader(model.config)
+    def generate(self, max_episode_length=100000, print_actions=False):
         trajectory = Trajectory()
-        if self.replay_buffer:
-            self.replay_buffer.trajectories.append(trajectory)
-
         state = self.env.reset()
 
         while not trajectory.done and len(trajectory) < max_episode_length:
@@ -117,16 +115,12 @@ class TrajectoryGenerator:
             suppressed_snowball = self.snowball_helper.threw_snowball(current_state,
                                                                       action)
             if suppressed_snowball:
-                state, _reward, done, _ = self.env.step(-1)
+                next_state, _reward, done, _ = self.env.step(-1)
                 reward = -1
             else:
-                state, reward, done, _ = self.env.step(action)
+                next_state, reward, done, _ = self.env.step(action)
 
-            self.replay_buffer.current_trajectory().states.append(state)
-            self.replay_buffer.current_trajectory().actions.append(action)
-            self.replay_buffer.current_trajectory().rewards.append(reward)
-            self.replay_buffer.current_trajectory().done = done
-            self.replay_buffer.increment_step()
+            self.replay_buffer.append_step(action, reward, next_state, done)
 
             current_state = self.replay_buffer.current_state()
 
@@ -140,3 +134,23 @@ class TrajectoryGenerator:
         trajectory_count = len(self.replay_buffer.trajectories)
         print(f'Finished generating {trajectory_count} random trajectories')
         return self.replay_buffer
+
+        def env_interaction_step(self):
+            metrics = {}
+            current_state = self.replay_buffer.current_state()
+            action, hidden = self.actor.get_action(
+                self.gpu_loader.state_to_device(current_state))
+
+            suppressed_snowball = self.snowball_helper.suppressed_snowball(
+                step, current_state, action) if self.snowball_helper else False
+
+            if suppressed_snowball:
+                next_state, reward, done, _ = self.env.step(-1)
+            else:
+                next_state, reward, done, _ = self.env.step(action)
+
+            update_hidden(next_state, hidden)
+            metrics['Rewards/ground_truth_reward'] = reward
+            self.replay_buffer.append_step(action, reward, next_state, done,
+                                           suppressed_snowball=suppressed_snowball)
+            return metrics

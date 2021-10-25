@@ -67,9 +67,12 @@ class TrajectorySequenceDataset(TrajectoryStepDataset):
 
 
 class ReplayBuffer:
-    def __init__(self, config):
+    def __init__(self, config, initial_replay_buffer=None):
         self.trajectories = [Trajectory()]
         self.step_lookup = []
+        if initial_replay_buffer is not None:
+            self.trajectories = initial_replay_buffer.trajectories
+            self.step_lookup = initial_replay_buffer.step_lookup
 
     def __len__(self):
         return len(self.step_lookup)
@@ -88,11 +91,16 @@ class ReplayBuffer:
     def new_trajectory(self):
         self.trajectories.append(Trajectory())
 
-    def append_step(self, action, reward, next_state, done):
-        self.current_trajectory().actions.append(action)
-        self.current_trajectory().rewards.append(reward)
-        self.current_trajectory().states.append(next_state)
-        self.current_trajectory().done = done
+    def append_step(self, action, reward, next_state, done, **kwargs):
+        current_trajectory = self.current_trajectory()
+        current_trajectory.actions.append(action)
+        current_trajectory.rewards.append(reward)
+        current_trajectory.states.append(next_state)
+        current_trajectory.done = done
+        for k, v in kwargs:
+            if k not in current_trajectory.additional_step_data.keys():
+                current_trajectory.additional_step_data[k] = []
+            current_trajectory.additional_step_data[k].append(v)
         self.increment_step()
 
     def increment_step(self):
@@ -110,10 +118,12 @@ class ReplayBuffer:
 
 
 class SequenceReplayBuffer(ReplayBuffer):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, initial_replay_buffer=None):
+        super().__init__(config, initial_replay_buffer)
         self.sequence_lookup = []
         self.sequence_length = config.lstm_sequence_length
+        if initial_replay_buffer is not None:
+            self.sequence_lookup = initial_replay_buffer.sequence_lookup
 
     def __len__(self):
         return len(self.sequence_lookup)
@@ -153,14 +163,11 @@ class MixedReplayBuffer(ReplayBuffer):
 
     def __init__(self, expert_dataset, config,
                  batch_size, initial_replay_buffer=None):
+        super().__init__(config, initial_replay_buffer)
         self.batch_size = batch_size
         self.expert_sample_fraction = config.method.expert_sample_fraction
         self.expert_batch_size = math.floor(batch_size * self.expert_sample_fraction)
         self.replay_batch_size = self.batch_size - self.expert_batch_size
-        super().__init__(config)
-        if initial_replay_buffer is not None:
-            self.trajectories = initial_replay_buffer.trajectories
-            self.step_lookup = initial_replay_buffer.step_lookup
         self.expert_dataset = expert_dataset
         self.expert_dataloader = self._initialize_dataloader()
 
@@ -182,7 +189,7 @@ class MixedReplayBuffer(ReplayBuffer):
             batch = next(self.expert_dataloader)
         return batch
 
-    def sample(self, batch_size, include_idx=False):
+    def sample(self, batch_size):
         return self.sample_expert(), self.sample_replay()
 
 
