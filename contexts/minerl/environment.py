@@ -267,7 +267,7 @@ class ObservationWrapper(gym.ObservationWrapper):
 
     def _obs_to_nonspatial(self, obs):
         if self.context.environment == 'MineRLTreechop-v0':
-            items = th.zeros(2, dtype=th.uint8)
+            nonspatial = th.zeros(2, dtype=th.uint8)
         elif self.context.environment in ['MineRLNavigateDense-v0',
                                           'MineRLNavigateExtremeDense-v0']:
             if 'compassAngle' in obs.keys():

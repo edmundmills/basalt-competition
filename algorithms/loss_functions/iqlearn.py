@@ -11,11 +11,11 @@ class IQLearnLoss:
         self.discount_factor = config.method.discount_factor
         self.drq = config.method.drq
 
-    def __call__(self, expert_batch, replay_batch):
+    def __call__(self, expert, policy, expert_no_aug=None, policy_no_aug=None):
         expert_states, expert_actions, _expert_rewards, expert_next_states, \
-            expert_done = expert_batch
+            expert_done = expert
         replay_states, replay_actions, _replay_rewards, replay_next_states, \
-            replay_done = replay_batch
+            replay_done = policy
 
         if self.target_q is None:
             batch_states = expert_states, replay_states, \

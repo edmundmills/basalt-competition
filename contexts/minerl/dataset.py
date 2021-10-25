@@ -42,7 +42,8 @@ class MineRLDatasetBuilder:
             if self.context.items_available and use_actions[i] == 1:
                 actions[i] = self.context.action_name_list.index('Use')
             elif self.context.items_available and equip_actions in self.context.items:
-                actions[i] = len(self.actions) - 1 + self.items.index(equip_actions)
+                actions[i] = len(self.context.actions) - 1 + \
+                    self.context.items.index(equip_actions)
             elif camera_actions[i][0] < -self.camera_margin:
                 actions[i] = self.context.action_name_list.index('Look Up')
             elif camera_actions[i][0] > self.camera_margin:

@@ -20,15 +20,12 @@ class Trajectory:
         self.done = False
 
     def __len__(self):
-        return len(self.actions)
+        return max(0, len(self.states) - 1)
 
     def __getitem__(self, idx):
         is_last_step = idx + 1 == len(self)
         done = is_last_step and self.done
-        if is_last_step:
-            next_state = self.states[idx]
-        else:
-            next_state = self.states[idx + 1]
+        next_state = self.states[idx + 1]
         reward = self.rewards[idx]
         return Transition(self.states[idx], self.actions[idx], reward, next_state, done)
 

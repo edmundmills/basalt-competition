@@ -1,4 +1,5 @@
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
+from algorithms.loss_functions.sqil import SQILLoss
 from core.algorithm import Algorithm
 from core.data_augmentation import DataAugmentation
 from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
@@ -62,7 +63,7 @@ class OnlineImitation(Algorithm):
 
     def _initialize_loss_function(self, model, config):
         if config.method.loss_function == 'sqil':
-            self.loss_function = SqilLoss(model, config)
+            self.loss_function = SQILLoss(model, config)
         elif config.method.loss_function == 'iqlearn' and self.drq:
             self.loss_function = IQLearnLossDRQ(model, config)
         elif config.method.loss_function == 'iqlearn':
@@ -75,29 +76,18 @@ class OnlineImitation(Algorithm):
         aug_expert_batch = self.augmentation(expert_batch)
         aug_replay_batch = self.augmentation(replay_batch)
 
-        if self.drq:
-            loss, metrics, final_hidden = self.loss_function(
-                expert_batch, replay_batch, aug_expert_batch, aug_replay_batch)
-        else:
-            loss, metrics, final_hidden = self.loss_function(
-                aug_expert_batch, aug_replay_batch)
-
+        loss, metrics, final_hidden = self.loss_function(aug_expert_batch,
+                                                         aug_replay_batch,
+                                                         expert_batch,
+                                                         replay_batch)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        if self.cyclic_learning_rate:
-            self.scheduler.step()
-            metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
 
         if final_hidden.size()[0] != 0:
             final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
                                              expert_idx, final_hidden_expert)
-
-        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
-            alpha_tuning_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
-            metrics = {**metrics, **alpha_tuning_metrics}
 
         return metrics
 
@@ -157,6 +147,14 @@ class OnlineImitation(Algorithm):
                 training_metrics = self.train_one_batch(batch)
                 metrics = {**metrics, **training_metrics}
 
+                if self.cyclic_learning_rate:
+                    self.scheduler.step()
+                    metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
+
+                if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
+                    alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
+                    metrics = {**metrics, **alpha_metrics}
+
             self.log_step(metrics, profiler)
 
             if self.shutdown_time_reached():
@@ -165,7 +163,7 @@ class OnlineImitation(Algorithm):
             self.save_checkpoint(replay_buffer=replay_buffer, model=model)
 
             self.conditionally_increment_episode(step, replay_buffer.current_trajectory(),
-                                     suppressed_snowball=suppressed_snowball)
+                                                 suppressed_snowball=suppressed_snowball)
 
         print(f'{self.algorithm_name}: Training complete')
         return model, replay_buffer

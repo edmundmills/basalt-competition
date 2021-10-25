@@ -1,30 +1,21 @@
 from networks.base_network import Network
+
+import numpy as np
 import torch as th
 import torch.nn.functional as F
-import numpy as np
-
-import math
-import os
 
 
-class BC(Network):
+class BCAgent(Network):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def action_probabilities(self, states):
-        logits = self.forward(states)
+        logits, hidden = self.forward(states)
         probabilities = F.softmax(logits, dim=1)
-        return probabilities
+        return probabilities, hidden
 
     def get_action(self, state):
         with th.no_grad():
-            Q, _hidden = self.get_Q(states)
-            probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
+            probabilities = self.action_probabilities(state).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
         return action
-
-    def loss(self, states, actions):
-        action_probabilities, _hidden = self.forward(states)
-        actions = actions.squeeze()
-        loss = F.cross_entropy(action_probabilities, actions)
-        return loss
