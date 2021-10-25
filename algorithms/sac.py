@@ -36,11 +36,7 @@ class SoftActorCritic(OnlineTraining):
         disable_gradients(self.target_q)
 
         # Loss functions
-        if self.drq:
-            self._q_loss = SACQLossDRQ(self.online_q, self.target_q, self.config)
-        else:
-            self._q_loss = SACQLoss(self.online_q, self.target_q, self.config)
-        self._policy_loss = SACPolicyLoss(self.agent, self.online_q, self.config)
+        self._initialize_loss_functions()
 
         # Optimizers
         self.q_optimizer = th.optim.Adam(self.online_q.parameters(),
@@ -62,9 +58,19 @@ class SoftActorCritic(OnlineTraining):
         self.alpha_tuner = AlphaTuner([self.agent, self.online_q, self.target_q],
                                       config, self.context)
 
-        self.curriculum_training = config.curriculum_training
-        self.curriculum_scheduler = CurriculumScheduler(config) \
-            if self.curriculum_training else None
+    def _initialize_loss_functions(self):
+        if self.drq:
+            self._q_loss = SACQLossDRQ(self.online_q, self.target_q, self.config)
+        else:
+            self._q_loss = SACQLoss(self.online_q, self.target_q, self.config)
+        self._policy_loss = SACPolicyLoss(self.agent, self.online_q, self.config)
+
+    def pre_train_step_modules(self, step):
+        metrics = {}
+        if self.alpha_tuner:
+            self.alpha_tuner.update_model_alpha(step)
+            metrics['alpha'] = self.agent.alpha
+        return metrics
 
     def _update_q(self, batch, batch_no_aug=None):
         q_loss, metrics = self._q_loss(batch, batch_no_aug=batch_no_aug)

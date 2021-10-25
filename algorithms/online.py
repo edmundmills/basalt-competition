@@ -16,7 +16,6 @@ class OnlineTraining(Algorithm):
         self.training_steps = config.method.training_steps
         self.updates_per_step = config.method.updates_per_step
 
-        self.lr = config.method.learning_rate
         self.batch_size = config.method.batch_size
 
         self.min_training_episode_length = config.env.min_training_episode_length

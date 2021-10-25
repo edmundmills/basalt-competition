@@ -14,6 +14,7 @@ class OnlineImitation(OnlineTraining):
         super().__init__(config, expert_dataset=expert_dataset,
                          initial_replay_buffer=initial_replay_buffer, **kwargs)
         self.agent = agent
+        self.lr = config.method.learning_rate
 
         self.drq = config.method.drq
         if config.method.loss_function == 'sqil':

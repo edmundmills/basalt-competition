@@ -1,10 +1,21 @@
 from train_submission_code import *
+from utility.config import get_config, parse_args
 
 import copy
 
 
-def test_default_config(default_args, default_config):
-    main(default_args, default_config)
+# def test_default_config(default_args, default_config):
+#     main(default_args, default_config)
+
+
+def test_sac():
+    args = parse_args()
+    args.virtual_display = False
+    args.debug_env = True
+    args.wandb = False
+    args.overrides.append('method=iqlearn_sac')
+    config = get_config(args)
+    main(args, config)
 
 
 # def test_no_lstm(default_args, default_config):

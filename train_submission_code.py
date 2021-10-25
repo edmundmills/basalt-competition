@@ -1,7 +1,7 @@
 from agents.soft_q import SoftQAgent
 import aicrowd_helper
 from algorithms.online_imitation import OnlineImitation
-from algorithms.iqlearn_sac import IQLearnSAC
+from algorithms.sac_demonstrations import SACwithDemonstrations
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
 from core.datasets import ReplayBuffer, SequenceReplayBuffer
 from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset
@@ -119,10 +119,10 @@ def main(args=None, config=None):
     #     training_algorithm = CuriousIQ(expert_dataset, config,
     #                                    initial_replay_buffer=replay_buffer,
     #                                    initial_iter_count=iter_count)
-    # if config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
-    #     training_algorithm = IQLearnSAC(expert_dataset, config,
-    #                                     initial_replay_buffer=replay_buffer,
-    #                                     initial_iter_count=iter_count)
+    if config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
+        training_algorithm = SACwithDemonstrations(expert_dataset, config,
+                                                   initial_replay_buffer=replay_buffer,
+                                                   initial_iter_count=iter_count)
     if config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, agent, config,
                                              initial_replay_buffer=replay_buffer,
