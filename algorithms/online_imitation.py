@@ -164,7 +164,7 @@ class OnlineImitation(Algorithm):
 
             self.save_checkpoint(replay_buffer=replay_buffer, model=model)
 
-            self.new_episode_if_time(step, replay_buffer.current_trajectory(),
+            self.conditionally_increment_episode(step, replay_buffer.current_trajectory(),
                                      suppressed_snowball=suppressed_snowball)
 
         print(f'{self.algorithm_name}: Training complete')

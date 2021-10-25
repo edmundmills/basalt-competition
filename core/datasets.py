@@ -102,6 +102,8 @@ class ReplayBuffer:
     def sample(self, batch_size):
         replay_batch_size = min(batch_size, len(self.step_lookup))
         sample_indices = random.sample(range(len(self.step_lookup)), replay_batch_size)
+        print(self.step_lookup)
+        print(sample_indices)
         replay_batch = [self[idx] for idx in sample_indices]
         batch = default_collate(replay_batch)
         return batch

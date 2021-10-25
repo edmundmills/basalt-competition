@@ -126,7 +126,7 @@ class Algorithm:
         else:
             return False
 
-    def new_episode_if_time(self, step, current_trajectory, suppressed_snowball=False):
+    def conditionally_increment_episode(self, step, current_trajectory, suppressed_snowball=False):
         eval = self.eval_frequency > 0 and ((step + 1) % self.eval_frequency == 0)
         training_done = self.training_done(step)
         max_episode_length_reached = \

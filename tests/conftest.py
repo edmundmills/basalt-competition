@@ -13,8 +13,8 @@ args.virtual_display = False
 args.debug_env = True
 args.wandb = False
 config = get_config(args)
-config.method.starting_steps = 200
-config.method.training_steps = 5
+config.method.starting_steps = 100
+config.method.training_steps = 3
 config.method.batch_size = 4
 config.lstm_sequence_length = 3
 

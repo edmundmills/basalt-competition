@@ -25,10 +25,8 @@ class Trajectory:
     def __getitem__(self, idx):
         is_last_step = idx + 1 == len(self)
         done = is_last_step and self.done
-        if done:
+        if is_last_step:
             next_state = self.states[idx]
-        elif is_last_step:
-            next_state = None
         else:
             next_state = self.states[idx + 1]
         reward = self.rewards[idx]
