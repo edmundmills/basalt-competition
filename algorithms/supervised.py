@@ -1,11 +1,10 @@
+from algorithms.loss_functions.bc import BCLoss
+from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
+from algorithms.loss_functions.sqil import SQILLoss
+from core.algorithm import Algorithm
+from core.state import update_hidden
 from modules.curriculum import CurriculumScheduler
 from modules.alpha_tuning import AlphaTuner
-from core.trajectories import TrajectoryGenerator
-from core.state import update_hidden
-from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
-from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
-from core.algorithm import Algorithm
-from core.data_augmentation import DataAugmentation
 
 import os
 import wandb

@@ -2,25 +2,15 @@ from agents.soft_q import SoftQAgent, TwinnedSoftQAgent
 from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
 from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
     SACPolicyLoss, CuriousIQPolicyLoss
-from core.algorithm import Algorithm
-from core.data_augmentation import DataAugmentation
-from core.datasets import ReplayBuffer, MixedReplayBuffer
+from algorithms.online import OnlineTraining
 from core.networks import disable_gradients
-from core.state import cat_transitions
-from core.trajectories import TrajectoryGenerator
-from networks.intrinsic_curiosity import CuriosityModule
+from modules.alpha_tuning import AlphaTuner
+from modules.curriculum import CurriculumScheduler
 
-from collections import deque
-import os
-from pathlib import Path
-
-import numpy as np
 import torch as th
-from torch.utils.data import DataLoader
-import wandb
 
 
-class SoftActorCritic(Algorithm):
+class SoftActorCritic(OnlineTraining):
     def __init__(self, config, actor=None, **kwargs):
         super().__init__(config, **kwargs)
         self.drq = config.method.drq
