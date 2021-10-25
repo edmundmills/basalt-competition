@@ -22,7 +22,7 @@ class IQLearnLoss:
                 expert_next_states, replay_next_states
             batch_states, state_lengths = cat_states(batch_states)
             batch_Qs, final_hidden = self.model.get_Q(batch_states)
-            if final_hidden is not th.zeros(0):
+            if final_hidden.size()[0] != 0:
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
             Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)
 
@@ -141,7 +141,7 @@ class IQLearnLossDRQ(IQLearnLoss):
 
             batch_states, state_lengths = cat_states(batch_states)
             batch_Qs, final_hidden = self.model.get_Q(batch_states)
-            if final_hidden is not th.zeros(0):
+            if final_hidden.size()[0] != 0:
                 final_hidden, _, _, _ = final_hidden.chunk(4, dim=0)
             Q_expert, _, _, _, Q_expert_aug, _, _, _ = th.split(batch_Qs,
                                                                 state_lengths, dim=0)
@@ -163,7 +163,7 @@ class IQLearnLossDRQ(IQLearnLoss):
                                                                 expert_states_aug,
                                                                 replay_states_aug))
             current_Qs, final_hidden = self.model.get_Q(current_states)
-            if final_hidden is not th.zeros(0):
+            if final_hidden.size()[0] != 0:
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
             current_Vs = self.model.get_V(current_Qs)
             Q_expert, Q_replay, Q_expert_aug, Q_replay_aug = th.split(

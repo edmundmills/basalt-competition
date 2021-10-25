@@ -62,7 +62,7 @@ class GPULoader:
             transitions = sequence_to_transitions(transitions)
         states, actions, rewards, next_states, dones = transitions
         states, next_states = self.states_to_device((states, next_states))
-        actions = actions.unsqueeze(-1).to(self.device)
+        actions = actions.unsqueeze(-1).long().to(self.device)
         rewards = th.as_tensor(rewards).unsqueeze(-1).float().to(self.device)
-        dones = th.as_tensor(dones).unsqueeze(-1).float().to(self.device)
+        dones = th.as_tensor(dones).unsqueeze(-1).long().to(self.device)
         return Transition(states, actions, rewards, next_states, dones)
