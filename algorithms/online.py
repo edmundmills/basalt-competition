@@ -101,8 +101,7 @@ class OnlineTraining(Algorithm):
                 self.eval()
 
             reset_env = not (training_done or suppressed_snowball)
-            self.trajectory_generator.start_new_trajectory(
-                reset_env=reset_env, current_state=current_trajectory.current_state())
+            self.trajectory_generator.start_new_trajectory(reset_env=reset_env)
 
     def eval(self):
         eval_path = Path('eval')
