@@ -90,7 +90,7 @@ class OnlineImitation(Algorithm):
             self.scheduler.step()
             metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
 
-        if final_hidden is not None:
+        if final_hidden is not th.zeros(0):
             final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
                                              expert_idx, final_hidden_expert)

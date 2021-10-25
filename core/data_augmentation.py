@@ -53,12 +53,12 @@ class RandomTranslate:
 
     def random_translate(self, spatial):
         *n, c, h, w = spatial.size()
-        pov = spatial.reshape(-1, c, h, w)
+        spatial = spatial.reshape(-1, c, h, w)
         new_spatial = self.transform(spatial).reshape(*n, c, h, w)
         return new_spatial
 
     def __call__(self, transition):
-        state, action, next_state, done, reward = transition
+        state, action, reward, next_state, done = transition
         state = list(state)
         next_state = list(next_state)
         state[0] = self.random_translate(state[0])
@@ -88,7 +88,7 @@ class RandomHorizontalMirror:
         if np.random.choice([True, False]):
             return sample
 
-        state, action, next_state, done, reward = transition
+        state, action, reward, next_state, done = transition
         state = list(state)
         next_state = list(next_state)
         state[0] = self.mirror_pov(state[0])
@@ -114,7 +114,7 @@ class InventoryNoise:
         return new_items
 
     def __call__(self, transition):
-        state, action, next_state, done, reward = transition
+        state, action, reward, next_state, done = transition
         state = list(state)
         next_state = list(next_state)
         state[1] = self.transform(state[1])

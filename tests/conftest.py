@@ -2,6 +2,7 @@ from contexts.minerl.environment import MineRLContext
 from core.state import State, Transition, Sequence
 from utility.config import get_config, parse_args
 
+import copy
 
 import numpy as np
 import pytest
@@ -12,19 +13,20 @@ args.virtual_display = False
 args.debug_env = True
 args.wandb = False
 config = get_config(args)
-config.method.starting_steps = 100
-config.method.training_steps = 10
+config.method.starting_steps = 200
+config.method.training_steps = 5
 config.method.batch_size = 4
+config.lstm_sequence_length = 3
 
 
 @pytest.fixture
 def default_args():
-    return args
+    return copy.deepcopy(args)
 
 
 @pytest.fixture
 def default_config():
-    return config
+    return copy.deepcopy(config)
 
 
 context = MineRLContext(config)

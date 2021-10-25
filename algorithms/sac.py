@@ -135,7 +135,7 @@ class SoftActorCritic(Algorithm):
         else:
             q_metrics = self.update_q(aug_batch)
         policy_metrics, final_hidden = self.update_policy(step, aug_batch)
-        if final_hidden is not None:
+        if final_hidden is not th.zeros(0):
             self.replay_buffer.update_hidden(batch_idx, final_hidden)
         metrics = {**policy_metrics, **q_metrics}
         return metrics

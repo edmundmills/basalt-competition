@@ -14,9 +14,6 @@ from torch.utils.data.dataloader import default_collate
 class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
         self.debug_dataset = debug_dataset
-        self.lstm_hidden_size = config.lstm_hidden_size
-        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
-            if self.lstm_hidden_size > 0 else None
         if config.context.name == 'MineRL':
             dataset_builder = MineRLDatasetBuilder(config, debug_dataset)
         self.trajectories, self.step_lookup = dataset_builder.load_data()
@@ -81,9 +78,9 @@ class TrajectorySequenceDataset(TrajectoryStepDataset):
         self.filtered_lookup, master_indices = \
             zip(*[[(t_idx, sequence_idx), master_idx]
                   for master_idx, (t_idx, sequence_idx) in enumerate(self.sequence_lookup)
-                  if (sequence_idx <= (len(self.trajectories[t_idx]) * curriculum_fraction)
+                  if (sequence_idx <= (len(self.trajectories[t_idx])*curriculum_fraction)
                       or sequence_idx < self.initial_curriculum_size
-                      or (sequence_idx + random_seed) % self.extracurricular_sparsity == 0)
+                      or (sequence_idx+random_seed) % self.extracurricular_sparsity == 0)
                   ])
         self.filtered_lookup = list(self.filtered_lookup)
         master_indices = list(master_indices)

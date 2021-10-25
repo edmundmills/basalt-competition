@@ -155,8 +155,7 @@ class MineRLContext:
         self.nonspatial_normalization = th.cat((starting_count, ones), dim=1)
         self.nonspatial_size = self.nonspatial_normalization.size()[1]
         self.lstm_hidden_size = config.lstm_hidden_size
-        self.initial_hidden = th.zeros(self.lstm_hidden_size*2) \
-            if self.lstm_hidden_size > 0 else None
+        self.initial_hidden = th.zeros(self.lstm_hidden_size*2)
         self.snowball_helper = SnowballHelper(self, config)
 
     def action_name(self, action_number):

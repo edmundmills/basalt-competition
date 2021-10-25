@@ -12,17 +12,17 @@ class IQLearnLoss:
         self.drq = config.method.drq
 
     def __call__(self, expert_batch, replay_batch):
-        expert_states, expert_actions, expert_next_states, \
-            expert_done, _expert_rewards = expert_batch
-        replay_states, replay_actions, replay_next_states, \
-            replay_done, _replay_rewards = replay_batch
+        expert_states, expert_actions, _expert_rewards, expert_next_states, \
+            expert_done = expert_batch
+        replay_states, replay_actions, _replay_rewards, replay_next_states, \
+            replay_done = replay_batch
 
         if self.target_q is None:
             batch_states = expert_states, replay_states, \
                 expert_next_states, replay_next_states
             batch_states, state_lengths = cat_states(batch_states)
             batch_Qs, final_hidden = self.model.get_Q(batch_states)
-            if final_hidden is not None:
+            if final_hidden is not th.zeros(0):
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
             Q_expert, _, _, _ = th.split(batch_Qs, state_lengths, dim=0)
 
@@ -124,14 +124,14 @@ class IQLearnLossDRQ(IQLearnLoss):
         super().__init__(model, config, target_q=target_q)
 
     def __call__(self, expert_batch, replay_batch, aug_exp_batch, aug_rep_batch):
-        expert_states, expert_actions, expert_next_states, \
-            expert_done, _expert_rewards = expert_batch
-        replay_states, replay_actions, replay_next_states, \
-            replay_done, _replay_rewards = replay_batch
-        expert_states_aug, expert_actions_aug, expert_next_states_aug, \
-            _expert_done_aug, _expert_rewards = expert_batch
-        replay_states_aug, replay_actions_aug, replay_next_states_aug, \
-            _replay_done_aug, _replay_rewards = replay_batch
+        expert_states, expert_actions, _expert_rewards, expert_next_states, \
+            expert_done = expert_batch
+        replay_states, replay_actions, _replay_rewards, replay_next_states, \
+            replay_done = replay_batch
+        expert_states_aug, expert_actions_aug, _expert_rewards, expert_next_states_aug, \
+            _expert_done_aug = expert_batch
+        replay_states_aug, replay_actions_aug, _replay_rewards, replay_next_states_aug, \
+            _replay_done_aug = replay_batch
 
         if self.target_q is None:
             batch_states = expert_states, replay_states, \
@@ -141,7 +141,7 @@ class IQLearnLossDRQ(IQLearnLoss):
 
             batch_states, state_lengths = cat_states(batch_states)
             batch_Qs, final_hidden = self.model.get_Q(batch_states)
-            if final_hidden is not None:
+            if final_hidden is not th.zeros(0):
                 final_hidden, _, _, _ = final_hidden.chunk(4, dim=0)
             Q_expert, _, _, _, Q_expert_aug, _, _, _ = th.split(batch_Qs,
                                                                 state_lengths, dim=0)
@@ -163,7 +163,7 @@ class IQLearnLossDRQ(IQLearnLoss):
                                                                 expert_states_aug,
                                                                 replay_states_aug))
             current_Qs, final_hidden = self.model.get_Q(current_states)
-            if final_hidden is not None:
+            if final_hidden is not th.zeros(0):
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
             current_Vs = self.model.get_V(current_Qs)
             Q_expert, Q_replay, Q_expert_aug, Q_replay_aug = th.split(

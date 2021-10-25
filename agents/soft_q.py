@@ -73,8 +73,7 @@ class SoftQAgent(Network):
         #         print('Tried to throw snowball, but only had a confidence of',
         #               probabilities[11])
 
-        if hidden is not None:
-            hidden = hidden.cpu().squeeze()
+        hidden = hidden.cpu().squeeze()
         return action, hidden
 
     def save(self, path):

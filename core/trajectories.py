@@ -54,7 +54,8 @@ class Trajectory:
             self.actions[last_step_idx - sequence_length:last_step_idx])
         states = self.states[last_step_idx - sequence_length:last_step_idx + 1]
         states = State(*[th.stack(state_component) for state_component in zip(*states)])
-        rewards = self.rewards[last_step_idx - sequence_length:last_step_idx]
+        rewards = th.FloatTensor(
+            self.rewards[last_step_idx - sequence_length:last_step_idx])
         return Sequence(states, actions, rewards, dones)
 
 

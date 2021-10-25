@@ -131,8 +131,8 @@ class Algorithm:
         training_done = self.training_done(step)
         max_episode_length_reached = \
             len(current_trajectory) >= self.max_episode_length(step)
-        end_episode = done or suppressed_snowball or eval or training_done \
-            or max_episode_length_reached
+        end_episode = current_trajectory.done or suppressed_snowball or eval \
+            or training_done or max_episode_length_reached
 
         if end_episode:
             print(f'Trajectory completed at iteration {self.iter_count}')
@@ -147,5 +147,5 @@ class Algorithm:
                 self.eval(env, model)
 
             reset_env = not (training_done or suppressed_snowball)
-            self.trajectory_generator.new_trajectory(
+            self.trajectory_generator.start_new_trajectory(
                 reset_env=reset_env, current_state=current_trajectory.current_state())

@@ -103,22 +103,21 @@ class Network(nn.Module):
         self.to(self.device)
 
     def initial_hidden(self):
-        initial_hidden = self.lstm.initial_hidden if self.lstm else None
+        initial_hidden = self.lstm.initial_hidden if self.lstm else th.zeros(0)
         return initial_hidden
 
     def forward(self, state):
         spatial, nonspatial, hidden = state
-        if hidden is not None:
+        visual_features = self.visual_feature_extractor(spatial)
+        features = th.cat((visual_features, nonspatial), dim=-1)
+        if self.lstm is not None:
             # only use initial hidden state
             hidden = hidden[:, 0, :].squeeze(dim=1)
             # add dimension D for non-bidirectional
             hidden = hidden.unsqueeze(0)
-        visual_features = self.visual_feature_extractor(spatial)
-        features = th.cat((visual_features, nonspatial), dim=-1)
-        if self.lstm is not None:
             features, hidden = self.lstm(features, hidden)
         else:
-            hidden = None
+            hidden = th.zeros(0)
         return self.linear(features), hidden
 
     def print_model_param_count(self):
