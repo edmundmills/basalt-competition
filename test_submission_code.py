@@ -89,5 +89,4 @@ class MineRLAgent():
         """
         # An implementation of a random agent
         # YOUR CODE GOES HERE
-        generator = TrajectoryGenerator(single_episode_env)
-        trajectory = generator.generate(self.model)
+        TrajectoryGenerator(single_episode_env, self.model, self.model.config).generate()

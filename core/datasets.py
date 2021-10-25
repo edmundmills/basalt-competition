@@ -92,15 +92,7 @@ class ReplayBuffer:
         self.trajectories.append(Trajectory())
 
     def append_step(self, action, reward, next_state, done, **kwargs):
-        current_trajectory = self.current_trajectory()
-        current_trajectory.actions.append(action)
-        current_trajectory.rewards.append(reward)
-        current_trajectory.states.append(next_state)
-        current_trajectory.done = done
-        for k, v in kwargs:
-            if k not in current_trajectory.additional_step_data.keys():
-                current_trajectory.additional_step_data[k] = []
-            current_trajectory.additional_step_data[k].append(v)
+        self.current_trajectory().append_step(action, reward, next_state, done, **kwargs)
         self.increment_step()
 
     def increment_step(self):

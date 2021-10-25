@@ -123,7 +123,8 @@ class OnlineTraining(Algorithm):
         print((f'{self.algorithm_name}: training actor / critic'
                f' for {self.training_steps}'))
 
-        self.trajectory_generator = TrajectoryGenerator(env, actor, self.replay_buffer)
+        self.trajectory_generator = TrajectoryGenerator(env, actor,
+                                                        self.config, self.replay_buffer)
         self.trajectory_generator.start_new_trajectory()
 
         for step in range(self.training_steps):

@@ -100,20 +100,9 @@ def main(args=None, config=None):
     iter_count = 0
     if config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, replay_buffer,
-            config=config).random_trajectories(config.method.starting_steps)
+            env, None, config, replay_buffer,
+        ).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
-
-    if config.pretraining.name == 'curiosity_pretraining':
-        print('Starting Pretraining')
-        pretraining_algorithm = IntrinsicCuriosityTraining(
-            config, initial_replay_buffer=replay_buffer, initial_iter_count=iter_count)
-        pretrained_model, replay_buffer = pretraining_algorithm(env)
-        iter_count = pretraining_algorithm.iter_count
-        print('Pretraining Completed')
-    else:
-        print('No Pretraining')
-        pretrained_model = None
 
     # initialize dataset, model, algorithm
     if config.method.expert_dataset:
@@ -122,19 +111,10 @@ def main(args=None, config=None):
                                                    debug_dataset=args.debug_env)
         else:
             expert_dataset = TrajectorySequenceDataset(config,
-                                                      debug_dataset=args.debug_env)
+                                                       debug_dataset=args.debug_env)
 
-    if pretrained_model is not None:
-        model = pretrained_model
     elif config.method.algorithm in ['online_imitation', 'supervised_learning']:
-        model = SoftQAgent(config)
-
-    # if config.env.termination_critic:
-    #     print('Training Termination Critic')
-    #     model.termination_critic.train(expert_dataset)
-    #     disable_gradients(model.termination_critic)
-    #     iter_count += model.termination_critic.steps_trained
-    #     print('Trained Termination Critic')
+        agent = SoftQAgent(config)
 
     if config.method.algorithm == 'curious_IQ':
         training_algorithm = CuriousIQ(expert_dataset, config,
@@ -145,11 +125,11 @@ def main(args=None, config=None):
                                         initial_replay_buffer=replay_buffer,
                                         initial_iter_count=iter_count)
     elif config.method.algorithm == 'online_imitation':
-        training_algorithm = OnlineImitation(expert_dataset, model, config,
+        training_algorithm = OnlineImitation(expert_dataset, agent, config,
                                              initial_replay_buffer=replay_buffer,
                                              initial_iter_count=iter_count)
     elif config.method.algorithm == 'supervised_learning':
-        training_algorithm = SupervisedLearning(expert_dataset, model, config)
+        training_algorithm = SupervisedLearning(expert_dataset, agent, config)
 
     # run algorithm
     if not args.profile:
