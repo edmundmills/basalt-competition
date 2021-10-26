@@ -1,5 +1,5 @@
 from core.trajectories import Trajectory
-from networks.termination_critic import TerminationCritic
+from modules.termination_critic import TerminationCritic
 from pathlib import Path
 import os
 

@@ -9,7 +9,7 @@ from core.datasets import ReplayBuffer, SequenceReplayBuffer
 from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset
 from core.environment import start_env
 from core.trajectory_generator import TrajectoryGenerator
-from networks.termination_critic import TerminationCritic
+from modules.termination_critic import TerminationCritic
 from utility.config import get_config, parse_args
 from utility.parser import Parser
 
