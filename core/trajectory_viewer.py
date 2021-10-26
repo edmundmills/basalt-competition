@@ -1,29 +1,34 @@
+from core.environment import create_context
+
+from collections import OrderedDict, deque
 import math
 import os
-import shutil
 from pathlib import Path
-from collections import OrderedDict, deque
+import shutil
 
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.widgets import Slider
 import numpy as np
 import torch as th
 
 
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib.widgets import Slider
-import cv2
-
-
 class TrajectoryViewer:
-    def __init__(self, trajectory):
+    def __init__(self, trajectory, config):
         self.trajectory = trajectory
         self.current_step = 0
         self.manual_control = False
+        self.context = create_context(config)
 
-    def get_pov(state):
-        return state.spatial[-3:, :, :]
+    def get_image(state):
+        return state.spatial[-3:, :, :].numpy().astype(np.uint8)
 
-    def dataset_recent_frames(self, dataset, number_of_steps):
+    def get_image(self, idx):
+        state = self.trajectory[idx].state
+        return TrajectoryViewer.get_image(state)
+
+    def dataset_recent_frames(dataset, number_of_steps):
         total_steps = len(dataset.step_lookup)
         steps = min(number_of_steps, total_steps)
         frame_skip = 2
@@ -34,14 +39,13 @@ class TrajectoryViewer:
                             total_steps - 1)
                         for frame in range(frames)]
         indices = [dataset.step_lookup[step_index] for step_index in step_indices]
-        images = [dataset.trajectories[trajectory_idx].get_pov(step_idx)
+        states = [dataset.trajectories[trajectory_idx][step_idx].state
                   for trajectory_idx, step_idx in indices]
-        images = [(image.numpy()).astype(np.uint8)
-                  for image in images]
+        images = [TrajectoryViewer.get_image(state) for state in states]
         images = np.stack(images, 0)
         return images, frame_rate
 
-    def save_as_video(self, save_dir_path, filename):
+    def to_video(self, save_dir_path, filename):
         save_dir_path = Path(save_dir_path)
         save_dir_path.mkdir(exist_ok=True)
         images, frame_rate = self.as_video_frames()
@@ -56,16 +60,17 @@ class TrajectoryViewer:
         return video_path
 
     def as_video_frames(self):
-        total_steps = len(self)
+        trajectory = self.trajectory
+        total_steps = len(trajectory)
         frame_skip = 2
         frames = min(int(round(total_steps / (frame_skip + 1))), total_steps)
         step_rate = 20  # steps / second
         frame_rate = int(round(step_rate / (frame_skip + 1)))
         duration = frames / frame_rate
         step_indices = [frame * (frame_skip + 1) for frame in range(frames)]
-        images = [(self.get_pov(idx).numpy()).astype(
-            np.uint8).transpose(1, 2, 0)[..., ::-1]
-            for idx in step_indices]
+        states = [trajectory[idx].state for idx in step_indices]
+        images = [TrajectoryViewer.get_image(state).transpose(1, 2, 0)[..., ::-1]
+                  for state in states]
         return images, frame_rate
 
     def view(self):
@@ -102,11 +107,9 @@ class TrajectoryViewer:
             render_frame(step)
 
         def render_frame(step):
-            frame = self.trajectory.obs[step]["pov"]
+            frame = self.get_image(step)
             action = self.trajectory.actions[step]
-            if not isinstance(action, (int, np.int64)):
-                action = ActionSpace.dataset_action_batch_to_actions(action)[0]
-            action_name = ActionSpace.action_name(action)
+            action_name = self.context.action_name(action)
             txt_action.set_text(f'Action: {action_name}')
             img.set_array(frame)
             if first_plot_marker:
@@ -144,7 +147,7 @@ class TrajectoryViewer:
         ax_pov = plt.subplot2grid((9, 8), (0, 0), colspan=5, rowspan=5)
         ax_pov.get_xaxis().set_visible(False)
         ax_pov.get_yaxis().set_visible(False)
-        img = ax_pov.imshow(self.trajectory.obs[self.current_step]["pov"], animated=True)
+        img = ax_pov.imshow(self.get_image(self.current_step), animated=True)
         ax_text = plt.subplot2grid((9, 8), (6, 0), colspan=8, rowspan=2)
         ax_text.get_xaxis().set_visible(False)
         ax_text.get_yaxis().set_visible(False)
