@@ -1,5 +1,7 @@
+from agents.bc import BCAgent
 from agents.soft_q import SoftQAgent
 import aicrowd_helper
+from algorithms.offline import SupervisedLearning
 from algorithms.online_imitation import OnlineImitation
 from algorithms.sac_demonstrations import SACwithDemonstrations
 from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
@@ -112,8 +114,10 @@ def main(args=None, config=None):
             expert_dataset = TrajectorySequenceDataset(config,
                                                        debug_dataset=args.debug_env)
 
-    if config.method.algorithm in ['online_imitation', 'supervised_learning']:
+    if config.method.algorithm in ['online_imitation']:
         agent = SoftQAgent(config)
+    elif config.method.algorithm == 'supervised_learning':
+        agent = BCAgent(config)
 
     # if config.method.algorithm == 'curious_IQ':
     #     training_algorithm = CuriousIQ(expert_dataset, config,

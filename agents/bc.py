@@ -6,12 +6,12 @@ import torch.nn.functional as F
 
 
 class BCAgent(Network):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, config,):
+        super().__init__(config)
 
     def action_probabilities(self, states):
         logits, hidden = self.forward(states)
-        probabilities = F.softmax(logits, dim=1)
+        probabilities = F.softmax(logits, dim=-1)
         return probabilities, hidden
 
     def get_action(self, state):

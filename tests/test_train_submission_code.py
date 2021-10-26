@@ -8,13 +8,30 @@ import copy
 #     main(default_args, default_config)
 
 
-def test_sac():
+# def test_sac():
+#     args = parse_args()
+#     args.virtual_display = False
+#     args.debug_env = True
+#     args.wandb = False
+#     args.overrides.append('method=iqlearn_sac')
+#     config = get_config(args)
+#     config.method.starting_steps = 100
+#     config.method.training_steps = 3
+#     config.method.batch_size = 4
+#     config.lstm_sequence_length = 3
+#     main(args, config)
+
+
+def test_bc():
     args = parse_args()
     args.virtual_display = False
     args.debug_env = True
     args.wandb = False
-    args.overrides.append('method=iqlearn_sac')
+    args.overrides.append('method=bc')
     config = get_config(args)
+    config.method.max_training_steps = 3
+    config.method.batch_size = 4
+    config.lstm_sequence_length = 3
     main(args, config)
 
 

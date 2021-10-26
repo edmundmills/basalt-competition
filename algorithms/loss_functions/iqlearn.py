@@ -123,15 +123,15 @@ class IQLearnLossDRQ(IQLearnLoss):
     def __init__(self, model, config, target_q=None):
         super().__init__(model, config, target_q=target_q)
 
-    def __call__(self, expert_batch, replay_batch, aug_exp_batch, aug_rep_batch):
-        expert_states, expert_actions, _expert_rewards, expert_next_states, \
-            expert_done = expert_batch
-        replay_states, replay_actions, _replay_rewards, replay_next_states, \
-            replay_done = replay_batch
+    def __call__(self, aug_exp_batch, aug_rep_batch, expert_no_aug, replay_no_aug):
         expert_states_aug, expert_actions_aug, _expert_rewards, expert_next_states_aug, \
-            _expert_done_aug = expert_batch
+            _expert_done_aug = aug_exp_batch
         replay_states_aug, replay_actions_aug, _replay_rewards, replay_next_states_aug, \
-            _replay_done_aug = replay_batch
+            _replay_done_aug = aug_rep_batch
+        expert_states, expert_actions, _expert_rewards, expert_next_states, \
+            expert_done = expert_no_aug
+        replay_states, replay_actions, _replay_rewards, replay_next_states, \
+            replay_done = replay_no_aug
 
         if self.target_q is None:
             batch_states = expert_states, replay_states, \

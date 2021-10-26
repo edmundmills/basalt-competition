@@ -1,7 +1,5 @@
 from agents.soft_q import SoftQAgent, TwinnedSoftQAgent
-from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
-from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, \
-    SACPolicyLoss, CuriousIQPolicyLoss
+from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, SACPolicyLoss
 from algorithms.online import OnlineTraining
 from core.networks import disable_gradients
 from modules.alpha_tuning import AlphaTuner
@@ -79,7 +77,7 @@ class SoftActorCritic(OnlineTraining):
         self.q_optimizer.step()
         return metrics
 
-    def _update_policy(self, step, batch):
+    def _update_policy(self, batch):
         policy_loss, final_hidden, metrics = self._policy_loss(batch)
         self.policy_optimizer.zero_grad(set_to_none=True)
         policy_loss.backward()

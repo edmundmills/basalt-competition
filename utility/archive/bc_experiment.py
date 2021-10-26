@@ -1,7 +1,7 @@
 from omegaconf import DictConfig, OmegaConf
 from hydra import compose, initialize
 from core.datasets import TrajectoryStepDataset
-from algorithms.supervised import SupervisedLearning
+from algorithms.offline import SupervisedLearning
 from networks.bc import BC
 from core.environment import start_env
 

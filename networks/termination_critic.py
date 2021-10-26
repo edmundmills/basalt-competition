@@ -1,5 +1,5 @@
 from networks.base_network import Network
-from algorithms.supervised import SupervisedLearning
+from algorithms.offline import SupervisedLearning
 from core.gpu import GPULoader
 
 import os

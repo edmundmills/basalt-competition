@@ -20,6 +20,7 @@ class SupervisedLearning(Algorithm):
         self.epochs = config.method.epochs
         self.batch_size = config.method.batch_size
         self.training_steps = len(train_dataset) * self.epochs / self.batch_size
+        self.max_training_steps = config.method.max_training_steps
 
         self.drq = config.method.drq
         self.cyclic_learning_rate = config.cyclic_learning_rate
@@ -60,9 +61,11 @@ class SupervisedLearning(Algorithm):
     def pre_train_step_modules(self, step):
         metrics = {}
         if self.curriculum_scheduler:
+            curriculum_fraction = \
+                self.curriculum_scheduler.curriculum_fraction(self, step)
             metrics['Curriculum/inclusion_fraction'] = \
-                self.curriculum_scheduler.update_replay_buffer(self,
-                                                               self.replay_buffer, step)
+                self.curriculum_scheduler.update_expert_dataset(self.train_dataset,
+                                                                curriculum_fraction)
         return metrics
 
     def train_one_batch(self, batch):
@@ -78,7 +81,7 @@ class SupervisedLearning(Algorithm):
         self.optimizer.step()
 
         if final_hidden.size()[0] != 0:
-            self.train_dataset.update_hidden(expert_idx, final_hidden_expert)
+            self.train_dataset.update_hidden(expert_idx, final_hidden)
 
         return metrics
 
@@ -122,6 +125,7 @@ class SupervisedLearning(Algorithm):
         test_dataset = self.test_dataset
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size,
                                       shuffle=True, num_workers=4)
+        step = 0
         for epoch in range(self.epochs):
             for batch in train_dataloader:
 
@@ -135,10 +139,11 @@ class SupervisedLearning(Algorithm):
 
                 self.increment_step(metrics, profiler)
 
-                if self.shutdown_time_reached():
-                    break
+                if self.shutdown_time_reached() or step > self.max_training_steps:
+                    return agent, None
 
-                self.save_checkpoint(agent=agent)
+                self.save_checkpoint(model=agent)
+                step += 1
 
             print(f'Epoch #{epoch + 1} completed')
             self.eval()

@@ -1,8 +1,15 @@
 name: 'bc'
 algorithm: 'supervised_learning'
+loss_function: 'bc'
 
 expert_dataset: true
 
 epochs: 20
 learning_rate: .001
 batch_size: 128
+
+max_training_steps: 1000000
+
+starting_steps: 0
+drq: false
+entropy_tuning: false
