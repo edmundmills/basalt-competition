@@ -39,14 +39,17 @@ class OnlineTraining(Algorithm):
             replay_buffer = SequenceReplayBuffer(**kwargs)
         return replay_buffer
 
+    def pretraining_modules(self):
+        return
+
     def pre_train_step_modules(self, step):
-        raise NotImplementedError
+        return
 
     def train_one_batch(self, batch):
         raise NotImplementedError
 
     def post_train_step_modules(self, step):
-        raise NotImplementedError
+        return
 
     def training_step(self):
         training_metrics = None
@@ -117,6 +120,8 @@ class OnlineTraining(Algorithm):
             wandb.log({'Rewards/eval': rewards/self.eval_episodes}, step=self.iter_count)
 
     def __call__(self, env, profiler=None):
+        self.pretraining_modules()
+
         print((f'{self.algorithm_name}: training for {self.training_steps}'))
 
         self.trajectory_generator = TrajectoryGenerator(env, self.agent,

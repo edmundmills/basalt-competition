@@ -1,6 +1,7 @@
 from torchvision.models.mobilenetv3 import mobilenet_v3_large, mobilenet_v3_small
+from core.environment import create_context
 from core.gpu import GPULoader
-from core.state import cat_states
+from core.state import Transition, cat_states
 
 import numpy as np
 import torch as th
@@ -9,7 +10,7 @@ import torch.nn.functional as F
 
 
 class FeatureExtractor(nn.Module):
-    def __init__(self, n_observation_frames):
+    def __init__(self, n_observation_frames, cnn_layers):
         super().__init__()
         self.n_observation_frames = n_observation_frames
         mobilenet_features = mobilenet_v3_small(pretrained=True, progress=True).features
@@ -19,7 +20,7 @@ class FeatureExtractor(nn.Module):
                           nn.BatchNorm2d(16, eps=0.001, momentum=0.01,
                                          affine=True, track_running_stats=True),
                           nn.Hardswish()),
-            *nn.Sequential(*mobilenet_features[1:4]),
+            *nn.Sequential(*mobilenet_features[1:cnn_layers]),
             nn.AvgPool2d(2)
         )
 
@@ -85,7 +86,8 @@ class CuriosityModule(nn.Module):
         self.beta = 0.1
         self.actions = context.actions
         self.frame_shape = context.frame_shape
-        self.features = FeatureExtractor(self.n_observation_frames)
+        self.cnn_layers = config.method.curiosity_cnn_layers
+        self.features = FeatureExtractor(self.n_observation_frames, self.cnn_layers)
         self.feature_dim = self.features._visual_features_dim() + context.nonspatial_size
         self.inverse_dynamics = InverseDynamicsModel(self.feature_dim, len(self.actions))
         self.forward_dynamics = ForwardDynamicsModel(self.feature_dim, len(self.actions))
@@ -102,9 +104,8 @@ class CuriosityModule(nn.Module):
         x = th.cat((features, one_hot_actions), dim=-1)
         return self.forward_dynamics(x)
 
-    def reward(self, batch):
+    def reward(self, batch, return_transition=False):
         state, actions, _reward, next_state, _done = batch
-        actions = actions.reshape(-1)
         states, _ = cat_states((state, next_state))
         with th.no_grad():
             features = self.get_features(states)
@@ -113,6 +114,8 @@ class CuriosityModule(nn.Module):
                                                                  actions)
             reward = F.mse_loss(next_features, predicted_next_features, reduction='none')
             reward = th.mean(reward, dim=-1, keepdim=True)
+        if return_transition:
+            return Transition(state, actions, reward, next_state, _done)
         return reward.squeeze().tolist()
 
     def loss(self, batch):

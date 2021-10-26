@@ -1,0 +1,5 @@
+
+
+curiosity_pretraining_steps: 500
+curiosity_cnn_layers: 4
+curiosity_lr: 1e-3
