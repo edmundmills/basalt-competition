@@ -1,4 +1,5 @@
 from core.state import State, Transition, Sequence
+from core.trajectory_viewer import TrajectoryViewer
 
 import torch as th
 
@@ -54,3 +55,9 @@ class Trajectory:
             if k not in self.additional_step_data.keys():
                 self.additional_step_data[k] = []
             self.additional_step_data[k].append(v)
+
+    def save_video(self, save_dir_path, filename):
+        return TrajectoryViewer(self).to_video(save_dir_path, filename)
+
+    def view(self):
+        return TrajectoryViewer(self).view()

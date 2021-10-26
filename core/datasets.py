@@ -1,4 +1,5 @@
 from core.trajectories import Trajectory
+from core.trajectory_viewer import TrajectoryViewer
 from contexts.minerl.dataset import MineRLDatasetBuilder
 
 from collections import deque
@@ -107,6 +108,9 @@ class ReplayBuffer:
         replay_batch = [self[idx] for idx in sample_indices]
         batch = default_collate(replay_batch)
         return batch
+
+    def recent_frames(self, number_of_steps):
+        return TrajectoryViewer.dataset_recent_frames(self, number_of_steps)
 
 
 class SequenceReplayBuffer(ReplayBuffer):
