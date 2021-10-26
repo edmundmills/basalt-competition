@@ -1,5 +1,5 @@
 from agents.soft_q import SoftQAgent, TwinnedSoftQAgent
-from algorithms.loss_functions.sac import SACQLoss, SACQLossDRQ, SACPolicyLoss
+from algorithms.loss_functions.sac import SACQLoss, SACPolicyLoss
 from algorithms.online import OnlineTraining
 from core.networks import disable_gradients
 from modules.alpha_tuning import AlphaTuner

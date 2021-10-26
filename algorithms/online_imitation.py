@@ -1,4 +1,4 @@
-from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
+from algorithms.loss_functions.iqlearn import IQLearnLoss
 from algorithms.loss_functions.sqil import SQILLoss
 from algorithms.online import OnlineTraining
 from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer

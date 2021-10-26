@@ -4,8 +4,8 @@ from utility.config import get_config, parse_args
 import copy
 
 
-def test_default_config(default_args, default_config):
-    main(default_args, default_config)
+# def test_default_config(default_args, default_config):
+#     main(default_args, default_config)
 
 
 def test_sac():
@@ -21,25 +21,38 @@ def test_sac():
     config.lstm_sequence_length = 3
     main(args, config)
 
-
-def test_bc():
-    args = parse_args()
-    args.virtual_display = False
-    args.debug_env = True
-    args.wandb = False
-    args.overrides.append('method=bc')
-    config = get_config(args)
-    config.method.max_training_steps = 3
-    config.method.batch_size = 4
-    config.lstm_sequence_length = 3
-    main(args, config)
-
-
-def test_no_lstm(default_args, default_config):
-    config = default_config
-    config.lstm_layers = 0
-    config.lstm_hidden_size = 0
-    main(default_args, config)
+#
+# def test_bc():
+#     args = parse_args()
+#     args.virtual_display = False
+#     args.debug_env = True
+#     args.wandb = False
+#     args.overrides.append('method=bc')
+#     config = get_config(args)
+#     config.method.max_training_steps = 3
+#     config.method.batch_size = 4
+#     config.lstm_sequence_length = 3
+#     main(args, config)
+#
+#
+# def test_iqlearn_offline():
+#     args = parse_args()
+#     args.virtual_display = False
+#     args.debug_env = True
+#     args.wandb = False
+#     args.overrides.append('method=iqlearn_offline')
+#     config = get_config(args)
+#     config.method.max_training_steps = 3
+#     config.method.batch_size = 4
+#     config.lstm_sequence_length = 3
+#     main(args, config)
+#
+#
+# def test_no_lstm(default_args, default_config):
+#     config = default_config
+#     config.lstm_layers = 0
+#     config.lstm_hidden_size = 0
+#     main(default_args, config)
 
 
 # def test_waterfall(default_args, default_config):

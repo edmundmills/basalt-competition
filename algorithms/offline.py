@@ -1,5 +1,5 @@
 from algorithms.loss_functions.bc import BCLoss
-from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
+from algorithms.loss_functions.iqlearn import IQLearnLoss
 from algorithms.loss_functions.sqil import SQILLoss
 from core.algorithm import Algorithm
 from core.state import update_hidden

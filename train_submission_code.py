@@ -100,7 +100,7 @@ def main(args=None, config=None):
     replay_buffer = ReplayBuffer(config) if config.lstm_layers == 0 \
         else SequenceReplayBuffer(config)
     iter_count = 0
-    if config.method.starting_steps > 0:
+    if config.method.online and config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
             env, None, config, replay_buffer,
         ).random_trajectories(config.method.starting_steps)
@@ -115,9 +115,9 @@ def main(args=None, config=None):
             expert_dataset = TrajectorySequenceDataset(config,
                                                        debug_dataset=args.debug_env)
 
-    if config.method.algorithm in ['online_imitation']:
+    if config.method.loss_function == 'iqlearn':
         agent = SoftQAgent(config)
-    elif config.method.algorithm == 'supervised_learning':
+    elif config.method.loss_function == 'bc':
         agent = BCAgent(config)
 
     # if config.method.algorithm == 'curious_IQ':
@@ -125,9 +125,9 @@ def main(args=None, config=None):
     #                                    initial_replay_buffer=replay_buffer,
     #                                    initial_iter_count=iter_count)
     if config.method.algorithm == 'sac' and config.method.loss_function == 'iqlearn':
-        training_algorithm = SACwithDemonstrations(expert_dataset, config,
-                                                   initial_replay_buffer=replay_buffer,
-                                                   initial_iter_count=iter_count)
+        training_algorithm = IQLearnSAC(expert_dataset, config,
+                                        initial_replay_buffer=replay_buffer,
+                                        initial_iter_count=iter_count)
     if config.method.algorithm == 'online_imitation':
         training_algorithm = OnlineImitation(expert_dataset, agent, config,
                                              initial_replay_buffer=replay_buffer,

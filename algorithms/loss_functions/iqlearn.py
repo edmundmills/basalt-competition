@@ -5,7 +5,7 @@ import torch as th
 
 class IQLearnLoss:
     def __init__(self, model, config, target_q=None):
-        self.agent = model
+        self.model = model
         self.online_q = model
         self.config = config
         self.target_q = target_q
@@ -18,15 +18,15 @@ class IQLearnLoss:
         return x - 1/2 * x**2
 
     def average_across_augmentation(self, tensor):
-        aug, no_aug = tensor.split(2, dim=0)
+        aug, no_aug = tensor.chunk(2, dim=0)
         avg = (aug + no_aug) / 2
         return th.cat((avg, avg), dim=0)
 
     def __call__(self, expert, policy=None, expert_aug=None, policy_aug=None):
         if self.drq:
-            expert = cat_transitions(expert, expert_aug)
+            expert = cat_transitions((expert, expert_aug))
             if self.online:
-                policy = cat_transitions(policy, policy_aug)
+                policy = cat_transitions((policy, policy_aug))
 
         expert_states, expert_actions, _expert_rewards, expert_next_states, \
             expert_done = expert
@@ -37,13 +37,13 @@ class IQLearnLoss:
         if not self.online:
             batch_states, state_lengths = cat_states((expert_states,
                                                       expert_next_states))
-            batch_Qs, final_hidden = self.agent.get_Q(batch_states)
+            batch_Qs, final_hidden = self.model.get_Q(batch_states)
             if final_hidden.size()[0] != 0:
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
 
             current_Qs_expert, _ = th.split(batch_Qs, state_lengths, dim=0)
 
-            batch_Vs = self.agent.get_V(batch_Qs)
+            batch_Vs = self.model.get_V(batch_Qs)
             V_expert, V_next_expert = th.split(batch_Vs, state_lengths, dim=0)
         elif self.target_q:
             # get current Q, V with online q
@@ -64,31 +64,33 @@ class IQLearnLoss:
                 next_Vs = self.target_q.get_V(next_Qs)
 
             V_next_expert, V_next_policy = th.split(next_Vs, next_state_lengths, dim=0)
+            batch_Qs = th.cat((current_Qs, next_Qs))
+
         else:
+            # standard online IQ-Learn
             batch_states, state_lengths = cat_states((expert_states, policy_states,
                                                       expert_next_states,
                                                       policy_next_states))
-            batch_Qs, final_hidden = self.agent.get_Q(batch_states)
+            batch_Qs, final_hidden = self.model.get_Q(batch_states)
             if final_hidden.size()[0] != 0:
                 final_hidden, _ = final_hidden.chunk(2, dim=0)
 
             current_Qs_expert, current_Qs_policy, _, _ = \
                 th.split(batch_Qs, state_lengths, dim=0)
 
-            batch_Vs = self.agent.get_V(batch_Qs)
+            batch_Vs = self.model.get_V(batch_Qs)
             V_expert, V_policy, V_next_expert, V_next_policy = th.split(
                 batch_Vs, state_lengths, dim=0)
 
         Q_s_a_expert = th.gather(current_Qs_expert, dim=-1, index=expert_actions)
-        Q_s_a_policy = th.gather(current_Qs_policy, dim=-1, index=policy_actions)
-
         target_Q_expert = (1 - expert_done) * self.discount_factor * V_next_expert
-        if self.online:
-            target_Q_policy = (1 - policy_done) * self.discount_factor * V_next_policy
-
         if self.drq:
             target_Q_expert = self.average_across_augmentation(target_Q_expert)
-            if self.online:
+
+        if self.online:
+            Q_s_a_policy = th.gather(current_Qs_policy, dim=-1, index=policy_actions)
+            target_Q_policy = (1 - policy_done) * self.discount_factor * V_next_policy
+            if self.drq:
                 target_Q_policy = self.average_across_augmentation(target_Q_policy)
 
         metrics = {}
@@ -100,8 +102,8 @@ class IQLearnLoss:
 
         # keep track of entropy
         with th.no_grad():
-            entropies = self.agent.entropies(batch_Qs)
-            action_probabilities = self.agent.action_probabilities(batch_Qs)
+            entropies = self.model.entropies(batch_Qs)
+            action_probabilities = self.model.action_probabilities(batch_Qs)
             entropy = th.sum(action_probabilities.detach() * entropies.detach(),
                              dim=1, keepdim=True).mean()
         metrics['entropy'] = entropy

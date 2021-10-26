@@ -1,5 +1,5 @@
 from algorithms.sac import SoftActorCritic
-from algorithms.loss_functions.iqlearn import IQLearnLoss, IQLearnLossDRQ
+from algorithms.loss_functions.iqlearn import IQLearnLoss
 from algorithms.loss_functions.sac import SACPolicyLoss
 from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
 from core.state import cat_transitions

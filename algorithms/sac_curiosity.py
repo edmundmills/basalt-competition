@@ -1,7 +1,7 @@
 from agents.soft_q import SoftQAgent
 from algorithms.sac import SoftActorCritic
 from algorithms.loss_functions.curious_iq import CuriousIQPolicyLoss
-from algorithms.loss_functions.iqlearn import IQLearnLossDRQ
+from algorithms.loss_functions.iqlearn import IQLearnLoss
 from modules.intrinsic_curiosity import CuriosityModule
 from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
 from core.state import cat_transitions
