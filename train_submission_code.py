@@ -4,7 +4,8 @@ import aicrowd_helper
 from algorithms.offline import SupervisedLearning
 from algorithms.online_imitation import OnlineImitation
 from algorithms.sac_demonstrations import SACwithDemonstrations
-from algorithms.curiosity import IntrinsicCuriosityTraining, CuriousIQ
+from algorithms.sac_curiosity import SACCuriosity
+from algorithms.curious_iq import CuriousIQ
 from core.datasets import ReplayBuffer, SequenceReplayBuffer
 from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset
 from core.environment import start_env

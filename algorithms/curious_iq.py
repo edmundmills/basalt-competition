@@ -1,6 +1,7 @@
+from algorithms.online_imitation import OnlineImitation
 
 
-class CuriousIQ(IntrinsicCuriosityTraining):
+class CuriousIQ(OnlineImitation):
     def __init__(self, expert_dataset, config, **kwargs):
         super().__init__(config, pretraining=False, **kwargs)
         self.online_curiosity_training = config.method.online_curiosity_training
