@@ -1,7 +1,13 @@
+from algorithms.loss_functions.iqlearn import IQLearnLoss
 from core.state import cat_states
 
 import torch as th
 import torch.nn.functional as F
+
+
+class CuriousIQLoss(IQLearnLoss):
+    def __init__(self, agent, config):
+        super().__init__(agent, config)
 
 
 class CuriousIQPolicyLoss:
