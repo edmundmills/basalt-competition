@@ -6,7 +6,7 @@ from core.state import cat_transitions
 from modules.curriculum import CurriculumScheduler
 
 
-class SACwithDemonstrations(SoftActorCritic):
+class IQLearnSAC(SoftActorCritic):
     def __init__(self, expert_dataset, config, **kwargs):
         super().__init__(config, pretraining=False, **kwargs)
         kwargs = dict(
@@ -24,10 +24,7 @@ class SACwithDemonstrations(SoftActorCritic):
             if self.curriculum_training else None
 
     def _initialize_loss_functions(self):
-        if self.drq:
-            self._q_loss = IQLearnLossDRQ(self.online_q, self.config, self.target_q)
-        else:
-            self._q_loss = IQLearnLoss(self.online_q, self.config, self.target_q)
+        self._q_loss = IQLearnLoss(self.online_q, self.config, self.target_q)
         self._policy_loss = SACPolicyLoss(self.agent, self.online_q, self.config)
 
     def pre_train_step_modules(self, step):
@@ -44,9 +41,10 @@ class SACwithDemonstrations(SoftActorCritic):
 
     def _update_q(self, expert_batch, replay_batch,
                   expert_batch_aug=None, replay_batch_aug=None):
-        loss, metrics, _ = self._q_loss(expert_batch_aug, replay_batch_aug,
-                                        expert_no_aug=expert_batch,
-                                        replay_no_aug=replay_batch_aug)
+        loss, metrics, _ = self._q_loss(expert=expert_batch_aug,
+                                        policy=replay_batch_aug,
+                                        expert_aug=expert_batch,
+                                        policy_aug=replay_batch)
         self.q_optimizer.zero_grad(set_to_none=True)
         loss.backward()
         self.q_optimizer.step()

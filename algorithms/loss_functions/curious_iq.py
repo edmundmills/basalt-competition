@@ -20,7 +20,7 @@ class CuriousIQPolicyLoss:
         self.curiosity_only_steps = config.method.curiosity_only_steps
         self.curiosity_fade_out_steps = config.method.curiosity_fade_out_steps
 
-    def __call__(self, step, batch):
+    def __call__(self, batch):
         steps_in_fade = step - self.curiosity_only_steps
         if steps_in_fade == self.curiosity_fade_out_steps:
             print('Updating actor with iqlearn only')

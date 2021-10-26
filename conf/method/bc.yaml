@@ -3,6 +3,7 @@ algorithm: 'supervised_learning'
 loss_function: 'bc'
 
 expert_dataset: true
+online: false
 
 epochs: 20
 learning_rate: .001

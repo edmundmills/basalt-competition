@@ -3,8 +3,8 @@ from agents.soft_q import SoftQAgent
 import aicrowd_helper
 from algorithms.offline import SupervisedLearning
 from algorithms.online_imitation import OnlineImitation
-from algorithms.sac_demonstrations import SACwithDemonstrations
-from algorithms.sac_curiosity import SACCuriosity
+from algorithms.sac_iqlearn import IQLearnSAC
+from algorithms.sac_curiosity import CuriositySAC
 from algorithms.curious_iq import CuriousIQ
 from core.datasets import ReplayBuffer, SequenceReplayBuffer
 from core.datasets import TrajectoryStepDataset, TrajectorySequenceDataset

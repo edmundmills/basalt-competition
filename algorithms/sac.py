@@ -57,10 +57,7 @@ class SoftActorCritic(OnlineTraining):
                                       config, self.context)
 
     def _initialize_loss_functions(self):
-        if self.drq:
-            self._q_loss = SACQLossDRQ(self.online_q, self.target_q, self.config)
-        else:
-            self._q_loss = SACQLoss(self.online_q, self.target_q, self.config)
+        self._q_loss = SACQLoss(self.online_q, self.target_q, self.config)
         self._policy_loss = SACPolicyLoss(self.agent, self.online_q, self.config)
 
     def pre_train_step_modules(self, step):
@@ -70,8 +67,8 @@ class SoftActorCritic(OnlineTraining):
             metrics['alpha'] = self.agent.alpha
         return metrics
 
-    def _update_q(self, batch, batch_no_aug=None):
-        q_loss, metrics = self._q_loss(batch, batch_no_aug=batch_no_aug)
+    def _update_q(self, batch, batch_aug=None):
+        q_loss, metrics = self._q_loss(batch, batch_aug=batch_aug)
         self.q_optimizer.zero_grad(set_to_none=True)
         q_loss.backward()
         self.q_optimizer.step()
@@ -88,7 +85,7 @@ class SoftActorCritic(OnlineTraining):
         batch, batch_idx = batch
         batch = self.gpu_loader.transitions_to_device(batch)
         aug_batch = self.augmentation(batch)
-        q_metrics = self._update_q(aug_batch, batch_no_aug=batch)
+        q_metrics = self._update_q(aug_batch, batch_aug=batch)
         policy_metrics, final_hidden = self._update_policy(aug_batch)
         if final_hidden.size()[0] != 0:
             self.replay_buffer.update_hidden(batch_idx, final_hidden)

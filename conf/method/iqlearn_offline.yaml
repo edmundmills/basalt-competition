@@ -4,6 +4,7 @@ loss_function: 'iqlearn'
 loss: 'value'
 drq: false
 
+online: false
 expert_dataset: true
 batch_size: 64
 

@@ -6,7 +6,7 @@ class BCLoss:
         self.agent = agent
         self.config = config
 
-    def __call__(self, expert, expert_no_aug=None):
+    def __call__(self, expert, expert_aug=None):
         expert_states, expert_actions, _expert_rewards, _expert_next_states, \
             _expert_done = expert
 

@@ -22,7 +22,6 @@ class SupervisedLearning(Algorithm):
         self.training_steps = len(train_dataset) * self.epochs / self.batch_size
         self.max_training_steps = config.method.max_training_steps
 
-        self.drq = config.method.drq
         self.cyclic_learning_rate = config.cyclic_learning_rate
 
         self.train_dataset = train_dataset
@@ -34,8 +33,6 @@ class SupervisedLearning(Algorithm):
             self.loss_function = BCLoss(agent, config)
         elif config.method.loss_function == 'sqil':
             self.loss_function = SqilLoss(agent, config)
-        elif config.method.loss_function == 'iqlearn' and self.drq:
-            self.loss_function = IQLearnLossDRQ(agent, config)
         elif config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(agent, config)
 
@@ -74,7 +71,7 @@ class SupervisedLearning(Algorithm):
         aug_expert_batch = self.augmentation(expert_batch)
 
         loss, metrics, final_hidden = self.loss_function(expert=aug_expert_batch,
-                                                         expert_no_aug=expert_batch)
+                                                         expert_aug=expert_batch)
 
         self.optimizer.zero_grad()
         loss.backward()

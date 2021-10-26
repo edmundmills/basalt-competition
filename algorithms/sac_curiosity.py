@@ -16,7 +16,7 @@ from collections import deque
 import wandb
 
 
-class SACCuriosity(SoftActorCritic):
+class CuriositySAC(SoftActorCritic):
     def __init__(self, config, actor=None, pretraining=True, **kwargs):
         super().__init__(config, actor, **kwargs)
         self.curiosity_pretraining_steps = config.method.curiosity_pretraining_steps
@@ -50,7 +50,7 @@ class SACCuriosity(SoftActorCritic):
             batch = self.curiosity_module.rewards(batch, return_transition=True)
         aug_batch = self.augmentation(batch)
         if not curiosity_only:
-            q_metrics = self._update_q(aug_batch, batch_no_aug=batch)
+            q_metrics = self._update_q(aug_batch, batch_aug=batch)
             policy_metrics, final_hidden = self._update_policy(aug_batch)
         else:
             policy_metrics = {}

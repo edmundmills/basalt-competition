@@ -16,11 +16,8 @@ class OnlineImitation(OnlineTraining):
         self.agent = agent
         self.lr = config.method.learning_rate
 
-        self.drq = config.method.drq
         if config.method.loss_function == 'sqil':
             self.loss_function = SQILLoss(agent, config)
-        elif config.method.loss_function == 'iqlearn' and self.drq:
-            self.loss_function = IQLearnLossDRQ(agent, config)
         elif config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(agent, config)
 
@@ -79,10 +76,10 @@ class OnlineImitation(OnlineTraining):
         aug_expert_batch = self.augmentation(expert_batch)
         aug_replay_batch = self.augmentation(replay_batch)
 
-        loss, metrics, final_hidden = self.loss_function(aug_expert_batch,
-                                                         aug_replay_batch,
-                                                         expert_batch,
-                                                         replay_batch)
+        loss, metrics, final_hidden = self.loss_function(expert=aug_expert_batch,
+                                                         policy=aug_replay_batch,
+                                                         expert_aug=expert_batch,
+                                                         policy_aug=replay_batch)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
