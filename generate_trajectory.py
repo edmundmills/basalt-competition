@@ -37,22 +37,19 @@ if __name__ == "__main__":
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = False
     cfg.start_time = time.time()
-
     cfg.hydra_base_dir = os.getcwd()
-    environment = cfg.env.name
 
-    # training_run = f'artifacts/artifact.name'
-    # Get checkpoint from artifact_dir
-    training_run = glob.glob(f"{artifact_dir}/*.pth")[0][:-4]
-    print(training_run)
+    agent_file_path = Path(glob.glob(f"{artifact_dir}/*.pth")[0])
+    print(agent_file_path)
 
     env = start_env(cfg, debug_env=False)
     agent = SoftQAgent(cfg)
-    agent_file_name = training_run + '.pth'
-    agent.load_parameters(agent_file_name)
+    agent.load_parameters(agent_file_path)
     eval_path = Path('eval')
     eval_path.mkdir(exist_ok=True)
-    save_path = eval_path / training_run
+    save_path = eval_path / agent_file_path.stem
+    save_path.mkdir(exist_ok=True)
+    print(save_path)
     generator = TrajectoryGenerator(env, agent, cfg)
     for _ in range(3):
         trajectory = generator.generate(max_episode_length=2000)
