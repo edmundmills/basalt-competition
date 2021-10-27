@@ -21,12 +21,12 @@ class TrajectoryViewer:
         self.manual_control = False
         self.context = create_context(config)
 
-    def get_image(state):
+    def state_to_image(state):
         return state.spatial[-3:, :, :].numpy().astype(np.uint8)
 
     def get_image(self, idx):
         state = self.trajectory[idx].state
-        return TrajectoryViewer.get_image(state)
+        return TrajectoryViewer.state_to_image(state)
 
     def dataset_recent_frames(dataset, number_of_steps):
         total_steps = len(dataset.step_lookup)
@@ -41,7 +41,7 @@ class TrajectoryViewer:
         indices = [dataset.step_lookup[step_index] for step_index in step_indices]
         states = [dataset.trajectories[trajectory_idx][step_idx].state
                   for trajectory_idx, step_idx in indices]
-        images = [TrajectoryViewer.get_image(state) for state in states]
+        images = [TrajectoryViewer.state_to_image(state) for state in states]
         images = np.stack(images, 0)
         return images, frame_rate
 
@@ -60,17 +60,15 @@ class TrajectoryViewer:
         return video_path
 
     def as_video_frames(self):
-        trajectory = self.trajectory
-        total_steps = len(trajectory)
+        total_steps = len(self.trajectory)
         frame_skip = 2
         frames = min(int(round(total_steps / (frame_skip + 1))), total_steps)
         step_rate = 20  # steps / second
         frame_rate = int(round(step_rate / (frame_skip + 1)))
         duration = frames / frame_rate
         step_indices = [frame * (frame_skip + 1) for frame in range(frames)]
-        states = [trajectory[idx].state for idx in step_indices]
-        images = [TrajectoryViewer.get_image(state).transpose(1, 2, 0)[..., ::-1]
-                  for state in states]
+        images = [self.get_image(idx).transpose(1, 2, 0)[..., ::-1]
+                  for idx in step_indices]
         return images, frame_rate
 
     def view(self):

@@ -77,7 +77,7 @@ class Algorithm:
                 images,
                 format='gif', fps=frame_rate)},
                 step=self.iter_count)
-        if self.model is not None:
+        if model is not None:
             model_save_path = Path('train') / f'{self.name}.pth'
             model.save(model_save_path)
             if self.wandb:
