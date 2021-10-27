@@ -1,5 +1,3 @@
-from core.environment import create_context
-
 from collections import OrderedDict, deque
 import math
 import os
@@ -15,11 +13,10 @@ import torch as th
 
 
 class TrajectoryViewer:
-    def __init__(self, trajectory, config):
+    def __init__(self, trajectory):
         self.trajectory = trajectory
         self.current_step = 0
         self.manual_control = False
-        self.context = create_context(config)
 
     def state_to_image(state):
         return state.spatial[-3:, :, :].numpy().astype(np.uint8)
@@ -107,8 +104,7 @@ class TrajectoryViewer:
         def render_frame(step):
             frame = self.get_image(step)
             action = self.trajectory.actions[step]
-            action_name = self.context.action_name(action)
-            txt_action.set_text(f'Action: {action_name}')
+            txt_action.set_text(f'Action: {action}')
             img.set_array(frame)
             if first_plot_marker:
                 first_plot_marker.set_xdata(step)
