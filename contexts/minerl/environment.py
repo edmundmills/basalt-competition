@@ -154,7 +154,7 @@ class MineRLContext:
         ones = th.ones(starting_count.size())
         self.nonspatial_normalization = th.cat((starting_count, ones), dim=1)
         self.nonspatial_size = self.nonspatial_normalization.size()[1]
-        self.lstm_hidden_size = config.lstm_hidden_size
+        self.lstm_hidden_size = config.model.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2)
         self.snowball_helper = SnowballHelper(self, config)
 
@@ -237,7 +237,7 @@ class ObservationWrapper(gym.ObservationWrapper):
     def __init__(self, env, config):
         super().__init__(env)
         self.context = MineRLContext(config)
-        self.n_observation_frames = config.n_observation_frames
+        self.n_observation_frames = config.model.n_observation_frames
         self.framestack = deque(maxlen=self.n_observation_frames)
 
     def _obs_to_spatial(self, obs):

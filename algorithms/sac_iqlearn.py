@@ -14,12 +14,12 @@ class IQLearnSAC(SoftActorCritic):
             config=config,
             batch_size=config.method.batch_size,
             initial_replay_buffer=self.replay_buffer)
-        if self.config.lstm_layers == 0:
+        if self.config.model.lstm_layers == 0:
             self.replay_buffer = MixedReplayBuffer(**kwargs)
         else:
             self.replay_buffer = MixedSequenceReplayBuffer(**kwargs)
 
-        self.curriculum_training = config.curriculum_training
+        self.curriculum_training = config.dataset.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
             if self.curriculum_training else None
 

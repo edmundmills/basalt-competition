@@ -14,4 +14,7 @@ max_training_steps: 1000000
 learning_rate: 3e-4
 discount_factor: 0.99
 
+alpha: 1e-1
 entropy_tuning: false
+decay_alpha: false
+final_alpha: 1e-2

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 class SoftQAgent(Network):
     def __init__(self, config):
         super().__init__(config)
-        self.alpha = config.alpha
+        self.alpha = config.method.alpha
         # self.termination_critic = TerminationCritic(config) \
         #     if config.termination_critic else None
         # self.termination_confidence_threshhold \
@@ -89,7 +89,7 @@ class SoftQAgent(Network):
 class TwinnedSoftQAgent(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.alpha = config.alpha
+        self.alpha = config.method.alpha
         self._q_network_1 = SoftQAgent(config)
         self._q_network_2 = SoftQAgent(config)
 

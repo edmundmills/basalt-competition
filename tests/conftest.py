@@ -16,7 +16,7 @@ config = get_config(args)
 config.method.starting_steps = 100
 config.method.training_steps = 3
 config.method.batch_size = 4
-config.lstm_sequence_length = 3
+config.model.lstm_sequence_length = 3
 
 
 @pytest.fixture
@@ -35,7 +35,8 @@ obs = {"pov": np.random.randint(0, 255, context.frame_shape),
        "compassAngle": 0,
        "equipped_items": {"mainhand": {'type': 'snowball'}}}
 
-spatial = th.from_numpy(obs["pov"]).repeat(config.n_observation_frames, 1, 1).unsqueeze(0)
+spatial = th.from_numpy(obs["pov"]).repeat(
+    config.model.n_observation_frames, 1, 1).unsqueeze(0)
 nonspatial = th.zeros([context.nonspatial_size])
 hidden = context.initial_hidden
 

@@ -8,16 +8,16 @@ class AlphaTuner:
         self.models = models
         self.context = context
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
-        self.decay_alpha = config.decay_alpha
+        self.decay_alpha = config.method.decay_alpha
         self.entropy_tuning = config.method.entropy_tuning
-        self.initial_alpha = config.alpha
+        self.initial_alpha = config.method.alpha
         if self.decay_alpha:
             self._initialize_alpha_decay(config)
         elif self.entropy_tuning:
             self._initialize_alpha_optimization(config)
 
     def _initialize_alpha_decay(self, config):
-        self.final_alpha = config.final_alpha
+        self.final_alpha = config.method.final_alpha
 
     def _initialize_alpha_optimization(self, config):
         self.target_entropy_ratio = config.method.target_entropy_ratio

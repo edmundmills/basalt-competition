@@ -78,7 +78,7 @@ class CuriosityModule(nn.Module):
         context = create_context(config)
         self.gpu_loader = GPULoader(config)
 
-        self.n_observation_frames = config.n_observation_frames
+        self.n_observation_frames = config.model.n_observation_frames
         # scales the returned reward
         self.eta = 0.5
         # controls the relative weight of the two different loss loss_functions

@@ -10,9 +10,9 @@ class VisualFeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
         context = create_context(config)
-        self.n_observation_frames = config.n_observation_frames
+        self.n_observation_frames = config.model.n_observation_frames
         self.frame_shape = context.frame_shape
-        self.cnn_layers = config.cnn_layers
+        self.cnn_layers = config.model.cnn_layers
         mobilenet_features = mobilenet_v3_large(pretrained=True, progress=True).features
         if self.n_observation_frames == 1:
             self.cnn = mobilenet_features[0:self.cnn_layers]
@@ -45,11 +45,11 @@ class VisualFeatureExtractor(nn.Module):
 class LSTMLayer(nn.Module):
     def __init__(self, input_dim, config):
         super().__init__()
-        self.hidden_size = config.lstm_hidden_size
+        self.hidden_size = config.model.lstm_hidden_size
         self.initial_hidden = th.zeros(self.hidden_size * 2)
         self.lstm = nn.LSTM(input_size=input_dim,
                             hidden_size=self.hidden_size,
-                            num_layers=config.lstm_layers, batch_first=True)
+                            num_layers=config.model.lstm_layers, batch_first=True)
 
     def forward(self, features, hidden):
         hidden, cell = th.chunk(hidden, 2, dim=-1)
@@ -64,7 +64,7 @@ class LinearLayers(nn.Module):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.layer_size = config.linear_layer_size
+        self.layer_size = config.model.linear_layer_size
         self.linear = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Flatten(),
@@ -85,14 +85,14 @@ class Network(nn.Module):
         super().__init__()
         self.config = config
         context = create_context(config)
-        self.n_observation_frames = config.n_observation_frames
+        self.n_observation_frames = config.model.n_observation_frames
         self.actions = context.actions
         self.nonspatial_size = context.nonspatial_size
         self.output_dim = len(self.actions)
         self.visual_feature_extractor = VisualFeatureExtractor(config)
         linear_input_dim = sum([self.visual_feature_extractor.feature_dim,
                                 self.nonspatial_size])
-        if config.lstm_layers > 0:
+        if config.model.lstm_layers > 0:
             self.lstm = LSTMLayer(linear_input_dim, config)
             linear_input_dim = self.lstm.hidden_size
         else:

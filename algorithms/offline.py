@@ -48,10 +48,7 @@ class SupervisedLearning(Algorithm):
                                                             step_size_up=self.epochs/2,
                                                             cycle_momentum=False)
 
-        # modules
-        self.alpha_tuner = AlphaTuner([self.agent], config, self.context)
-
-        self.curriculum_training = config.curriculum_training
+        self.curriculum_training = config.dataset.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
             if self.curriculum_training else None
 
@@ -87,10 +84,6 @@ class SupervisedLearning(Algorithm):
         if self.cyclic_learning_rate:
             self.scheduler.step()
             metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
-
-        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
-            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
-            metrics = {**metrics, **alpha_metrics}
         return metrics
 
     def eval(self):

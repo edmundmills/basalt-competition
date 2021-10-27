@@ -97,7 +97,7 @@ def main(args=None, config=None):
     else:
         env = None
 
-    replay_buffer = ReplayBuffer(config) if config.lstm_layers == 0 \
+    replay_buffer = ReplayBuffer(config) if config.model.lstm_layers == 0 \
         else SequenceReplayBuffer(config)
     iter_count = 0
     if config.method.online and config.method.starting_steps > 0:
@@ -108,7 +108,7 @@ def main(args=None, config=None):
 
     # initialize dataset, agent, algorithm
     if config.method.expert_dataset:
-        if config.lstm_layers == 0:
+        if config.model.lstm_layers == 0:
             expert_dataset = TrajectoryStepDataset(config,
                                                    debug_dataset=args.debug_env)
         else:

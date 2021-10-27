@@ -6,3 +6,8 @@ curiosity_lr: 1e-3
 
 expert_dataset: false
 online: true
+
+
+alpha: 1e-1
+decay_alpha: false
+final_alpha: 1e-2

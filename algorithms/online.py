@@ -33,7 +33,7 @@ class OnlineTraining(Algorithm):
             config=self.config,
             initial_replay_buffer=initial_replay_buffer
         )
-        if self.config.lstm_layers == 0:
+        if self.config.model.lstm_layers == 0:
             replay_buffer = ReplayBuffer(**kwargs)
         else:
             replay_buffer = SequenceReplayBuffer(**kwargs)

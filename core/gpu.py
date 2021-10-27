@@ -9,20 +9,21 @@ class GPULoader:
     def __init__(self, config):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         if config.context.name == 'MineRL':
-            self.context = MineRLContext(config)
-        self.load_sequences = config.lstm_layers > 0
+            context = MineRLContext(config)
+        self.load_sequences = config.model.lstm_layers > 0
         self.normalize_obs = config.normalize_obs
-        means, stdevs = self.context.spatial_normalization
+        means, stdevs = context.spatial_normalization
         means = means.reshape(3, 1, 1).tile(
-            (config.n_observation_frames, 1, 1)).to(self.device)
+            (config.model.n_observation_frames, 1, 1)).to(self.device)
         stdevs = stdevs.reshape(3, 1, 1).tile(
-            (config.n_observation_frames, 1, 1)).to(self.device)
+            (config.model.n_observation_frames, 1, 1)).to(self.device)
         self.spatial_normalization = means, stdevs
+        self.nonspatial_normalization = context.nonspatial_normalization.to(self.device)
         self.mobilenet_normalization = (
             th.FloatTensor([0.485, 0.456, 0.406]).to(self.device).reshape(
-                3, 1, 1).tile((config.n_observation_frames, 1, 1)),
+                3, 1, 1).tile((config.model.n_observation_frames, 1, 1)),
             th.FloatTensor([0.229, 0.224, 0.225]).to(self.device).reshape(
-                3, 1, 1).tile((config.n_observation_frames, 1, 1)))
+                3, 1, 1).tile((config.model.n_observation_frames, 1, 1)))
 
     def normalize_state(self, state):
         state = list(state)
@@ -33,7 +34,7 @@ class GPULoader:
                 + self.mobilenet_normalization[0]
         else:
             state[0] /= 255.0
-        state[1] /= self.context.nonspatial_normalization
+        state[1] /= self.nonspatial_normalization
         return State(*state)
 
     def state_to_device(self, state):

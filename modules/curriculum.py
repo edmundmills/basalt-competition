@@ -4,17 +4,19 @@ import random
 class CurriculumScheduler:
     def __init__(self, config):
         self.current_curriculum_length = 0
-        self.initial_curriculum_size = config.initial_curriculum_size
-        self.curriculum_fraction_of_training = config.curriculum_fraction_of_training
-        self.curriculum_refresh_steps = config.curriculum_refresh_steps
-        self.variable_training_episode_length = config.variable_training_episode_length
-        self.extracurricular_sparsity = config.extracurricular_sparsity
+        self.initial_curriculum_size = config.dataset.initial_curriculum_size
+        self.curriculum_fraction_of_training = \
+            config.dataset.curriculum_fraction_of_training
+        self.curriculum_refresh_steps = config.dataset.curriculum_refresh_steps
+        self.variable_training_episode_length = \
+            config.dataset.variable_training_episode_length
+        self.extracurricular_sparsity = config.dataset.extracurricular_sparsity
 
         # emphasize recent samples
-        self.emphasize_new_samples = config.emphasize_new_samples
-        self.emphasized_fraction = config.emphasized_fraction
+        self.emphasize_new_samples = config.dataset.emphasize_new_samples
+        self.emphasized_fraction = config.dataset.emphasized_fraction
         self.emphasis_relative_sample_frequency = \
-            config.emphasis_relative_sample_frequency
+            config.dataset.emphasis_relative_sample_frequency
         self.final_curriculum_fraction = 1 + self.emphasized_fraction \
             if self.emphasize_new_samples else 1
 

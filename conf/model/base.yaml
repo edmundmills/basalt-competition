@@ -1,0 +1,10 @@
+# model attributes
+cnn_layers: 12  # max is 17
+linear_layer_size: 512
+n_observation_frames: 3  # includes current frame
+
+# lstm
+lstm: false
+lstm_layers: 0
+lstm_hidden_size: 0
+lstm_sequence_length: 10

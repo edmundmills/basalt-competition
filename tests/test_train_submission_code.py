@@ -18,7 +18,7 @@ def test_sac():
     config.method.starting_steps = 100
     config.method.training_steps = 3
     config.method.batch_size = 4
-    config.lstm_sequence_length = 3
+    config.model.lstm_sequence_length = 3
     main(args, config)
 
 
@@ -31,7 +31,7 @@ def test_bc():
     config = get_config(args)
     config.method.max_training_steps = 3
     config.method.batch_size = 4
-    config.lstm_sequence_length = 3
+    config.model.lstm_sequence_length = 3
     main(args, config)
 
 
@@ -44,15 +44,21 @@ def test_iqlearn_offline():
     config = get_config(args)
     config.method.max_training_steps = 3
     config.method.batch_size = 4
-    config.lstm_sequence_length = 3
+    config.model.lstm_sequence_length = 3
     main(args, config)
 
 
-def test_no_lstm(default_args, default_config):
-    config = default_config
-    config.lstm_layers = 0
-    config.lstm_hidden_size = 0
-    main(default_args, config)
+def test_no_lstm():
+    args = parse_args()
+    args.virtual_display = False
+    args.debug_env = True
+    args.wandb = False
+    args.overrides.append('model=base')
+    config = get_config(args)
+    config.method.starting_steps = 100
+    config.method.training_steps = 3
+    config.method.batch_size = 4
+    main(args, config)
 
 
 def test_waterfall(default_args, default_config):

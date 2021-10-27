@@ -2,7 +2,8 @@ defaults:
   - context: minerl
   - env: cave
   - method: iqlearn_online
-  - pretraining: none
+  - model: lstm
+  - dataset: curriculum
   - _self_
 
 exp_name: ''
@@ -16,41 +17,9 @@ wandb: ???
 cyclic_learning_rate: true
 training_timeout:  43200 # 12 hours
 
-# model attributes
-cnn_layers: 12  # max is 17
-linear_layer_size: 512
-n_observation_frames: 3  # includes current frame
-alpha: 1e-1
-decay_alpha: false
-final_alpha: 1e-2
-termination_confidence_threshhold: 0.15  # for either termination critic or action probability
-
-# lstm
-# set layers and hidden size to 0 to disable
-lstm_layers: 1
-lstm_hidden_size: 512
-lstm_sequence_length: 10
-
 # data augmentation
 normalize_obs: true
 random_translate: true
-
-# curriculum learning
-curriculum_training: true
-curriculum_fraction_of_training: 0.4
-initial_curriculum_size: 100
-curriculum_refresh_steps: 2000
-variable_training_episode_length: true
-emphasize_new_samples: false
-emphasized_fraction: 0.15
-emphasis_relative_sample_frequency: 3
-extracurricular_sparsity: 100
-
-
-# termination critic
-termination_critic: false
-termination_critic_training_epochs: 30
-
 
 # record keeping
 seed: 0

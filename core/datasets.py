@@ -37,7 +37,7 @@ class TrajectoryStepDataset(Dataset):
 class TrajectorySequenceDataset(TrajectoryStepDataset):
     def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
-        self.sequence_length = config.lstm_sequence_length
+        self.sequence_length = config.model.lstm_sequence_length
         self.sequence_lookup = self._identify_sequences()
         self.master_lookup = self.sequence_lookup
         self.active_lookup = self.sequence_lookup
@@ -117,7 +117,7 @@ class SequenceReplayBuffer(ReplayBuffer):
     def __init__(self, config, initial_replay_buffer=None):
         super().__init__(config, initial_replay_buffer)
         self.sequence_lookup = []
-        self.sequence_length = config.lstm_sequence_length
+        self.sequence_length = config.model.lstm_sequence_length
         if initial_replay_buffer is not None:
             self.sequence_lookup = initial_replay_buffer.sequence_lookup
 

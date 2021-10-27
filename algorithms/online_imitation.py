@@ -36,7 +36,7 @@ class OnlineImitation(OnlineTraining):
 
         self.alpha_tuner = AlphaTuner([self.agent], config, self.context)
 
-        self.curriculum_training = config.curriculum_training
+        self.curriculum_training = config.dataset.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
             if self.curriculum_training else None
 
@@ -51,7 +51,7 @@ class OnlineImitation(OnlineTraining):
             batch_size=self.batch_size,
             initial_replay_buffer=initial_replay_buffer
         )
-        if self.config.lstm_layers == 0:
+        if self.config.model.lstm_layers == 0:
             replay_buffer = MixedReplayBuffer(**kwargs)
         else:
             replay_buffer = MixedSequenceReplayBuffer(**kwargs)

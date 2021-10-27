@@ -9,6 +9,9 @@ online_curiosity_training: true
 normalize_reward: true  # for curiosity rewards
 entropy_tuning: true
 target_entropy_ratio: 0.1
+alpha: 1e-1
+decay_alpha: false
+final_alpha: 1e-2
 
 starting_steps: 10000
 curiosity_pretraining_steps: 15000  # training on the random data
