@@ -17,10 +17,6 @@ wandb: ???
 cyclic_learning_rate: true
 training_timeout:  43200 # 12 hours
 
-# data augmentation
-normalize_obs: true
-random_translate: true
-
 # record keeping
 seed: 0
 checkpoint_frequency: 5000  # save model

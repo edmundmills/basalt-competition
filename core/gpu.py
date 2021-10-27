@@ -11,7 +11,7 @@ class GPULoader:
         if config.context.name == 'MineRL':
             context = MineRLContext(config)
         self.load_sequences = config.model.lstm_layers > 0
-        self.normalize_obs = config.normalize_obs
+        self.normalize_obs = config.context.normalize_obs
         means, stdevs = context.spatial_normalization
         means = means.reshape(3, 1, 1).tile(
             (config.model.n_observation_frames, 1, 1)).to(self.device)
