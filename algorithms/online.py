@@ -83,9 +83,9 @@ class OnlineTraining(Algorithm):
             len(current_trajectory) >= self.max_episode_length(step)
 
         suppressed_snowball = False
-        if 'suppressed_snowball' in current_trajectory.additional_step_data.keys():
+        if 'suppressed_snowball' in current_trajectory.additional_step_data[-1].keys():
             suppressed_snowball = \
-                current_trajectory.additional_step_data['suppressed_snowball'][-1]
+                current_trajectory.additional_step_data[-1]['suppressed_snowball']
 
         end_episode = current_trajectory.done or eval or training_done \
             or max_episode_length_reached or suppressed_snowball
