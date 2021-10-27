@@ -1,6 +1,7 @@
 from contexts.minerl.environment import MineRLContext
 from core.gpu import GPULoader
 from core.state import update_hidden
+from core.trajectories import Trajectory
 
 import numpy as np
 

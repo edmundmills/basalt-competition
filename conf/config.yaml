@@ -13,9 +13,9 @@ env: ???
 method: ???
 wandb: ???
 
-# training params
+# general training params
 cyclic_learning_rate: true
-training_timeout:  43200 # 12 hours
+training_timeout:  86400 # 24 hours
 
 # record keeping
 seed: 0

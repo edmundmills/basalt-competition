@@ -1,27 +1,27 @@
-import ast
-import glob
-from networks.soft_q import SoftQAgent
-from core.trajectories import Trajectory, TrajectoryGenerator
+from agents.soft_q import SoftQAgent
+from core.trajectory_generator import TrajectoryGenerator
 from core.environment import start_env
-from pyvirtualdisplay import Display
-from flatten_dict import unflatten
 
+import glob
 import os
+from pathlib import Path
 import time
+
+from flatten_dict import unflatten
 import gym
 from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf
-from pathlib import Path
+from pyvirtualdisplay import Display
 import torch as th
-​import wandb
-​
+import wandb
+
 # display = Display(visible=0, size=(400, 300))
 # display.start()
 
 if __name__ == "__main__":
     run = wandb.init()
     artifact = run.use_artifact(
-        'basalt/MineRLBasaltCreateVillageAnimalPen-v0/agent:v164', type='model')
+        'basalt/debug/agent:v68', type='model')
     artifact_dir = artifact.download()
     print(artifact_dir)
     run = artifact.logged_by()
@@ -30,26 +30,23 @@ if __name__ == "__main__":
     cfg = unflatten(config, splitter='dot')
     cfg = OmegaConf.create(cfg)
     print(OmegaConf.to_yaml(cfg))
-    ​
+
     # with initialize(config_path='conf'):
     #     cfg = compose('config.yaml')
-    ​
+
     cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
     cfg.wandb = False
     cfg.start_time = time.time()
-    ​
+
     cfg.hydra_base_dir = os.getcwd()
     environment = cfg.env.name
-    # FIX: Currently needs to be manually set
-    cfg.alpha = 3.427
-    ​
+
     # training_run = f'artifacts/artifact.name'
     # Get checkpoint from artifact_dir
     training_run = glob.glob(f"{artifact_dir}/*.pth")[0][:-4]
     print(training_run)
-    ​
-    os.environ['MINERL_ENVIRONMENT'] = environment
-    env = start_env(debug_env=False)
+
+    env = start_env(cfg, debug_env=False)
     agent = SoftQAgent(cfg)
     agent_file_name = training_run + '.pth'
     agent.load_parameters(agent_file_name)
@@ -59,5 +56,5 @@ if __name__ == "__main__":
     generator = TrajectoryGenerator(env, agent, cfg)
     for _ in range(3):
         trajectory = generator.generate(max_episode_length=2000)
-        trajectory.save_as_video(save_path, f'trajectory_{int(round(time.time()))}')
+        trajectory.save_video(save_path, f'trajectory_{int(round(time.time()))}')
     env.close()
