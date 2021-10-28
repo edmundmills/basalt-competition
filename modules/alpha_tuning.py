@@ -18,6 +18,7 @@ class AlphaTuner:
 
     def _initialize_alpha_decay(self, config):
         self.final_alpha = config.method.final_alpha
+        self.decay_steps = config.method.training_steps
 
     def _initialize_alpha_optimization(self, config):
         self.target_entropy_ratio = config.method.target_entropy_ratio
@@ -33,8 +34,9 @@ class AlphaTuner:
         if self.entropy_tuning:
             alpha = self.log_alpha.detach().exp()
         elif self.decay_alpha:
-            alpha = self.initial_alpha - ((step / self.training_steps)
-                                          * (self.initial_alpha - self.final_alpha))
+            alpha = max(self.initial_alpha - ((step / self.decay_steps)
+                                              * (self.initial_alpha - self.final_alpha)),
+                        self.final_alpha)
         else:
             alpha = self.initial_alpha
         return alpha
