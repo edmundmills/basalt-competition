@@ -7,7 +7,7 @@ import numpy as np
 
 
 class TrajectoryGenerator:
-    def __init__(self, env, agent, config, replay_buffer=None):
+    def __init__(self, env, agent, config, replay_buffer=None, training=False):
         self.env = env
         self.agent = agent
         self.config = config
@@ -16,6 +16,7 @@ class TrajectoryGenerator:
         if config.context.name == 'MineRL':
             self.context = MineRLContext(config)
             self.snowball_helper = self.context.snowball_helper
+        self.training = training
 
     def new_trajectory(env, replay_buffer, reset_env=True):
         if len(replay_buffer.current_trajectory()) > 0:
@@ -48,7 +49,8 @@ class TrajectoryGenerator:
                 self.gpu_loader.state_to_device(current_state))
 
         suppressed_snowball = self.snowball_helper.suppressed_snowball(
-            step, current_state, action) if self.snowball_helper else False
+            step, current_state, action) \
+            if self.snowball_helper and self.training else False
 
         if suppressed_snowball:
             next_state, reward, done, _ = self.env.step(-1)
@@ -86,7 +88,8 @@ class TrajectoryGenerator:
         for step in range(steps):
             self.env_interaction_step(step, random_action=True)
             current_trajectory = self.replay_buffer.current_trajectory()
-            if current_trajectory.done or len(current_trajectory) > 1000:
+            if current_trajectory.done or current_trajectory.suppressed_snowball() \
+                    or len(current_trajectory) > 1000:
                 self.start_new_trajectory()
 
         trajectory_count = len(self.replay_buffer.trajectories)

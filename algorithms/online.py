@@ -82,13 +82,8 @@ class OnlineTraining(Algorithm):
         max_episode_length_reached = \
             len(current_trajectory) >= self.max_episode_length(step)
 
-        suppressed_snowball = False
-        if 'suppressed_snowball' in current_trajectory.additional_step_data[-1].keys():
-            suppressed_snowball = \
-                current_trajectory.additional_step_data[-1]['suppressed_snowball']
-
         end_episode = current_trajectory.done or eval or training_done \
-            or max_episode_length_reached or suppressed_snowball
+            or max_episode_length_reached or current_trajectory.suppressed_snowball()
 
         if end_episode:
             print(f'Trajectory completed at iteration {self.iter_count}')
@@ -125,7 +120,8 @@ class OnlineTraining(Algorithm):
         print((f'{self.algorithm_name}: training for {self.training_steps}'))
 
         self.trajectory_generator = TrajectoryGenerator(env, self.agent,
-                                                        self.config, self.replay_buffer)
+                                                        self.config, self.replay_buffer,
+                                                        training=True)
         self.trajectory_generator.start_new_trajectory()
 
         for step in range(self.training_steps):

@@ -102,7 +102,7 @@ def main(args=None, config=None):
     iter_count = 0
     if config.method.online and config.method.starting_steps > 0:
         replay_buffer = TrajectoryGenerator(
-            env, None, config, replay_buffer,
+            env, None, config, replay_buffer, training=True
         ).random_trajectories(config.method.starting_steps)
         iter_count += config.method.starting_steps
 
