@@ -34,7 +34,15 @@ class OnlineImitation(OnlineTraining):
                                                             step_size_up=2000,
                                                             cycle_momentum=False)
 
-        self.alpha_tuner = AlphaTuner([self.agent], config, self.context)
+        if config.method.entropy_tuning and config.method.match_expert_entropy:
+            target_entropy = expert_dataset.expert_policy_entropy
+        elif config.method.entropy_tuning:
+            target_entropy = AlphaTuner.target_entropy(
+                self.context, config.method.target_entropy_ratio)
+        else:
+            target_entropy = None
+        self.alpha_tuner = AlphaTuner([self.agent], config,
+                                      target_entropy=target_entropy)
 
         self.curriculum_training = config.dataset.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
@@ -64,7 +72,7 @@ class OnlineImitation(OnlineTraining):
                 self.curriculum_scheduler.update_replay_buffer(self,
                                                                self.replay_buffer, step)
 
-        if self.alpha_tuner:
+        if self.alpha_tuner and self.alpha_tuner.decay_alpha:
             self.alpha_tuner.update_model_alpha(step)
             metrics['alpha'] = self.agent.alpha
         return metrics
@@ -84,6 +92,10 @@ class OnlineImitation(OnlineTraining):
         loss.backward()
         self.optimizer.step()
 
+        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
+            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
+            metrics = {**metrics, **alpha_metrics}
+
         if final_hidden.size()[0] != 0:
             final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
@@ -96,8 +108,6 @@ class OnlineImitation(OnlineTraining):
         if self.cyclic_learning_rate:
             self.scheduler.step()
             metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
-
-        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
-            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
-            metrics = {**metrics, **alpha_metrics}
+        else:
+            metrics['learning_rate'] = self.lr
         return metrics

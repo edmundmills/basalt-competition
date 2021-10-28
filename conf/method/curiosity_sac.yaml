@@ -11,3 +11,5 @@ online: true
 alpha: 1e-1
 decay_alpha: false
 final_alpha: 1e-2
+entropy_tuning: false
+match_expert_entropy: false

@@ -4,9 +4,9 @@ import torch as th
 
 
 class AlphaTuner:
-    def __init__(self, models, config, context):
+    def __init__(self, models, config, target_entropy=None):
         self.models = models
-        self.context = context
+        self.target_entropy = target_entropy
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         self.decay_alpha = config.method.decay_alpha
         self.entropy_tuning = config.method.entropy_tuning
@@ -18,12 +18,10 @@ class AlphaTuner:
 
     def _initialize_alpha_decay(self, config):
         self.final_alpha = config.method.final_alpha
+        self.decay_steps = config.method.training_steps
 
     def _initialize_alpha_optimization(self, config):
-        self.target_entropy_ratio = config.method.target_entropy_ratio
         self.entropy_lr = config.method.entropy_lr
-        self.target_entropy = (-np.log(1.0 / len(self.context.actions))
-                               * self.target_entropy_ratio)
         print('Target entropy: ', self.target_entropy)
         self.log_alpha = th.tensor(np.log(self.initial_alpha),
                                    device=self.device, requires_grad=True)
@@ -33,8 +31,9 @@ class AlphaTuner:
         if self.entropy_tuning:
             alpha = self.log_alpha.detach().exp()
         elif self.decay_alpha:
-            alpha = self.initial_alpha - ((step / self.training_steps)
-                                          * (self.initial_alpha - self.final_alpha))
+            alpha = max(self.initial_alpha - ((step / self.decay_steps)
+                                              * (self.initial_alpha - self.final_alpha)),
+                        self.final_alpha)
         else:
             alpha = self.initial_alpha
         return alpha
@@ -48,6 +47,10 @@ class AlphaTuner:
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
         self.optimizer.step()
-        self.update_model_alphas()
+        self.update_model_alpha()
         metrics = {'alpha': self.current_alpha(), 'alpha_loss': loss.detach()}
         return metrics
+
+    def target_entropy(context, target_entropy_ratio):
+        target_entropy = (-np.log(1.0 / len(context.actions)) * target_entropy_ratio)
+        return target_entropy

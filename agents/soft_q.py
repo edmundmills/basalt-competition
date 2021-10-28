@@ -35,6 +35,12 @@ class SoftQAgent(Network):
         entropies = -F.log_softmax(Qs/self.alpha, dim=-1)
         return entropies
 
+    def batch_entropy(self, Qs):
+        Qs = Qs.reshape(-1, len(self.actions))
+        action_probabilities = self.action_probabilities(Qs).mean(dim=0, keepdim=False)
+        entropy = -th.sum(action_probabilities * th.log(action_probabilities))
+        return entropy
+
     def get_action(self, states):
         with th.no_grad():
             Q, hidden = self.get_Q(states)

@@ -102,10 +102,7 @@ class IQLearnLoss:
 
         # keep track of entropy
         with th.no_grad():
-            entropies = self.model.entropies(batch_Qs)
-            action_probabilities = self.model.action_probabilities(batch_Qs)
-            entropy = th.sum(action_probabilities.detach() * entropies.detach(),
-                             dim=1, keepdim=True).mean()
+            entropy = self.model.batch_entropy(batch_Qs)
         metrics['entropy'] = entropy
 
         # calculate loss

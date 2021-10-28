@@ -5,13 +5,13 @@ loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
 
-online_curiosity_training: true
-normalize_reward: true  # for curiosity rewards
-entropy_tuning: true
-target_entropy_ratio: 0.1
 alpha: 1e-1
 decay_alpha: false
 final_alpha: 1e-2
+entropy_tuning: true
+match_expert_entropy: true
+target_entropy_ratio: 0.2  # otherwise
+entropy_lr: 3e-5
 
 starting_steps: 10000
 curiosity_pretraining_steps: 15000  # training on the random data
