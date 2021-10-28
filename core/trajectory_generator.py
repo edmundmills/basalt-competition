@@ -86,11 +86,12 @@ class TrajectoryGenerator:
 
         # generate random trajectories
         for step in range(steps):
-            self.env_interaction_step(step, random_action=True)
+            self.env_interaction_step(step % max_length, random_action=True)
             current_trajectory = self.replay_buffer.current_trajectory()
-            if current_trajectory.done or current_trajectory.suppressed_snowball() \
-                    or len(current_trajectory) > 1000:
+            if current_trajectory.done or len(current_trajectory) > 1000:
                 self.start_new_trajectory()
+            elif current_trajectory.suppressed_snowball():
+                self.start_new_trajectory(reset_env=False)
 
         trajectory_count = len(self.replay_buffer.trajectories)
         print(f'Finished generating {trajectory_count} random trajectories')
