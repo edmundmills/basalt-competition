@@ -42,7 +42,7 @@ class MineRLDatasetBuilder:
             if self.context.items_available and use_actions[i] == 1:
                 actions[i] = self.context.action_name_list.index('Use')
             elif self.context.items_available and equip_actions in self.context.items:
-                actions[i] = len(self.context.actions) - 1 + \
+                actions[i] = len(self.context.action_name_list) - 1 + \
                     self.context.items.index(equip_actions)
             elif camera_actions[i][0] < -self.camera_margin:
                 actions[i] = self.context.action_name_list.index('Look Up')
@@ -92,20 +92,22 @@ class MineRLDatasetBuilder:
             trajectory = Trajectory()
             step_idx = 0
             print(trajectory_path)
-            for obs, action, reward, _next_obs, done \
+            for obs, action, reward, next_obs, done \
                     in data.load_data(str(trajectory_path)):
-                trajectory.done = done
                 action = self._dataset_action_to_action(action)[0]
                 if action == -1:
                     continue
-                state = self._dataset_obs_to_state(obs)
-                trajectory.states.append(state)
-                trajectory.actions.append(action)
-                trajectory.rewards.append(reward)
+                if len(trajectory.states) == 0:
+                    state = self._dataset_obs_to_state(obs)
+                    trajectory.states.append(state)
+                next_state = self._dataset_obs_to_state(next_obs)
+                trajectory.append_step(action, reward, next_state, done)
                 step_lookup.append((trajectory_idx, step_idx))
                 step_idx += 1
+                trajectory.done = done
             print(f'Loaded data from {trajectory_path.name} ({step_idx} steps)')
-            trajectories.append(trajectory)
+            if len(trajectory) > 0:
+                trajectories.append(trajectory)
             trajectory_idx += 1
             if self.debug_dataset and trajectory_idx >= 2:
                 break
