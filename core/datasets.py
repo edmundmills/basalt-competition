@@ -14,7 +14,6 @@ from torch.utils.data.dataloader import default_collate
 
 class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
-        self.debug_dataset = debug_dataset
         if config.context.name == 'MineRL':
             dataset_builder = MineRLDatasetBuilder(config, debug_dataset)
         self.trajectories, self.step_lookup = dataset_builder.load_data()
@@ -47,7 +46,7 @@ class TrajectorySequenceDataset(TrajectoryStepDataset):
     def _identify_sequences(self):
         sequences = []
         for trajectory_idx, step_idx in self.step_lookup:
-            if step_idx > self.sequence_length + 1:
+            if step_idx >= self.sequence_length - 1:
                 sequences.append((trajectory_idx, step_idx))
         return sequences
 
