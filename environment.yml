@@ -9,19 +9,20 @@ dependencies:
   - pytorch
   - torchvision>=0.4
   - pip:
-    - crowdai_api
-    - minerl
-    - coloredlogs
-    - matplotlib
-    - pyro4
-    - ipdb
-    - wandb
-    - moviepy
-    - imageio
     - argparse
+    - crowdai_api
+    - coloredlogs
+    - gym==0.19.0
+    - imageio
+    - flatten-dict
+    - hydra-core
+    - ipdb
+    - matplotlib
+    - minerl
+    - moviepy
     - numpy
     - opencv-python
-    - gym==0.19.0
+    - pyro4
+    - pytest
     - pyvirtualdisplay
-    - hydra-core
-    - flatten-dict
+    - wandb

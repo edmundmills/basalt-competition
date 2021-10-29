@@ -1,0 +1,15 @@
+
+
+curiosity_pretraining_steps: 500
+curiosity_cnn_layers: 4
+curiosity_lr: 1e-3
+
+expert_dataset: false
+online: true
+
+
+alpha: 1e-1
+decay_alpha: false
+final_alpha: 1e-2
+entropy_tuning: false
+match_expert_entropy: false
