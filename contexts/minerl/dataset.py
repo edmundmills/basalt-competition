@@ -70,6 +70,13 @@ class MineRLDatasetBuilder:
                 actions[i] = -1
         return actions
 
+    def entropy(self, action_counts):
+        action_counts = np.array(action_counts)
+        action_counts = action_counts[action_counts != 0]
+        action_probabilities = action_counts / action_counts.sum()
+        entropy = np.sum(-action_probabilities * np.log(action_probabilities))
+        return entropy
+
     def load_data(self):
         data = minerl.data.make(self.environment)
         trajectories = []
@@ -81,6 +88,7 @@ class MineRLDatasetBuilder:
                 self.environment_path / 'MineRLBasaltCreateAnimalPenPlains-v0'
             trajectory_paths.extend(list(animal_pen_plains_path.iterdir()))
         trajectory_idx = 0
+        action_counts = [0] * len(self.context.actions)
         for trajectory_path in trajectory_paths:
             if not trajectory_path.is_dir():
                 continue
@@ -97,6 +105,7 @@ class MineRLDatasetBuilder:
                 action = self._dataset_action_to_action(action)[0]
                 if action == -1:
                     continue
+                action_counts[action] += 1
                 if len(trajectory.states) == 0:
                     state = self._dataset_obs_to_state(obs)
                     trajectory.states.append(state)
@@ -115,4 +124,6 @@ class MineRLDatasetBuilder:
                                     'MineRLNavigateExtremeDense-v0'] \
                     and trajectory_idx >= 80:
                 break
-        return trajectories, step_lookup
+        dataset_stats = {'entropy': self.entropy(action_counts)}
+        print('Dataset stats:', dataset_stats)
+        return trajectories, step_lookup, dataset_stats

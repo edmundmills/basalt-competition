@@ -19,6 +19,9 @@ class IQLearnSAC(SoftActorCritic):
         else:
             self.replay_buffer = MixedSequenceReplayBuffer(**kwargs)
 
+        if config.method.entropy_tuning and config.method.match_expert_entropy:
+            self.alpha_tuner.target_entropy = expert_dataset.expert_policy_entropy
+
         self.curriculum_training = config.dataset.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
             if self.curriculum_training else None

@@ -6,7 +6,7 @@ import numpy as np
 
 def test_dataset_builder(default_config):
     builder = MineRLDatasetBuilder(default_config, debug_dataset=True)
-    trajectories, step_lookup = builder.load_data()
+    trajectories, step_lookup, _ = builder.load_data()
     all_actions = []
     all_rewards = []
     for trajectory in trajectories:
@@ -35,7 +35,7 @@ def test_envs(default_args, default_config):
         config = default_config
         config.env.name = env
         builder = MineRLDatasetBuilder(config, debug_dataset=True)
-        trajectories, step_lookup = builder.load_data()
+        trajectories, step_lookup, _ = builder.load_data()
         all_actions = []
         all_rewards = []
         for trajectory in trajectories:

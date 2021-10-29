@@ -53,8 +53,13 @@ class SoftActorCritic(OnlineTraining):
                                                             cycle_momentum=False)
 
         # Modules
-        self.alpha_tuner = AlphaTuner([self.agent, self.online_q, self.target_q],
-                                      config, self.context)
+        if config.method.entropy_tuning:
+            target_entropy = AlphaTuner.target_entropy(
+                self.context, config.method.target_entropy_ratio)
+        else:
+            target_entropy = None
+        self.alpha_tuner = AlphaTuner([self.agent, self.online_q, self.target_q], config,
+                                      target_entropy=target_entropy)
 
     def _initialize_loss_functions(self):
         self._q_loss = SACQLoss(self.online_q, self.target_q, self.config)

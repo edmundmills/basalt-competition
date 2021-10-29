@@ -16,7 +16,9 @@ class TrajectoryStepDataset(Dataset):
     def __init__(self, config, debug_dataset=False):
         if config.context.name == 'MineRL':
             dataset_builder = MineRLDatasetBuilder(config, debug_dataset)
-        self.trajectories, self.step_lookup = dataset_builder.load_data()
+        self.trajectories, self.step_lookup, self.stats = dataset_builder.load_data()
+        if 'entropy' in self.stats.keys():
+            self.expert_policy_entropy = self.stats['entropy']
         self.master_lookup = self.step_lookup
         self.active_lookup = self.step_lookup
         # to recover step index when using a different lookup array when sampling

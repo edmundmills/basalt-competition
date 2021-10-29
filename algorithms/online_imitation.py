@@ -34,7 +34,15 @@ class OnlineImitation(OnlineTraining):
                                                             step_size_up=2000,
                                                             cycle_momentum=False)
 
-        self.alpha_tuner = AlphaTuner([self.agent], config, self.context)
+        if config.method.entropy_tuning and config.method.match_expert_entropy:
+            target_entropy = expert_dataset.expert_policy_entropy
+        elif config.method.entropy_tuning:
+            target_entropy = AlphaTuner.target_entropy(
+                self.context, config.method.target_entropy_ratio)
+        else:
+            target_entropy = None
+        self.alpha_tuner = AlphaTuner([self.agent], config,
+                                      target_entropy=target_entropy)
 
         self.curriculum_training = config.dataset.curriculum_training
         self.curriculum_scheduler = CurriculumScheduler(config) \
