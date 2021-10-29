@@ -2,4 +2,4 @@ name: MineRLNavigateDense-v0
 demo: MineRLNavigateDense-v0_1000
 
 min_training_episode_length: 500
-max_training_episode_length: 3000
+max_training_episode_length: 5000
