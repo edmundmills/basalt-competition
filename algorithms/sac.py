@@ -62,7 +62,7 @@ class SoftActorCritic(OnlineTraining):
 
     def pre_train_step_modules(self, step):
         metrics = {}
-        if self.alpha_tuner:
+        if self.alpha_tuner and self.alpha_tuner.decay_alpha:
             self.alpha_tuner.update_model_alpha(step)
             metrics['alpha'] = self.agent.alpha
         return metrics
@@ -85,11 +85,19 @@ class SoftActorCritic(OnlineTraining):
         batch, batch_idx = batch
         batch = self.gpu_loader.transitions_to_device(batch)
         aug_batch = self.augmentation(batch)
+
         q_metrics = self._update_q(aug_batch, batch_aug=batch)
         policy_metrics, final_hidden = self._update_policy(aug_batch)
+
+        metrics = {**policy_metrics, **q_metrics}
+
         if final_hidden.size()[0] != 0:
             self.replay_buffer.update_hidden(batch_idx, final_hidden)
-        metrics = {**policy_metrics, **q_metrics}
+
+        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
+            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
+            metrics = {**metrics, **alpha_metrics}
+
         return metrics
 
     def _soft_update_target(self):
@@ -101,10 +109,6 @@ class SoftActorCritic(OnlineTraining):
         if self.cyclic_learning_rate:
             self.scheduler.step()
             metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
-
-        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
-            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
-            metrics = {**metrics, **alpha_metrics}
 
         if step % self.target_update_interval:
             self._soft_update_target()

@@ -4,9 +4,12 @@ import random
 class CurriculumScheduler:
     def __init__(self, config):
         self.current_curriculum_length = 0
+        self.complete = False
+
         self.initial_curriculum_size = config.dataset.initial_curriculum_size
         self.curriculum_fraction_of_training = \
             config.dataset.curriculum_fraction_of_training
+        self.final_curriculum_fraction = 1
         self.curriculum_refresh_steps = config.dataset.curriculum_refresh_steps
         self.variable_training_episode_length = \
             config.dataset.variable_training_episode_length
@@ -17,8 +20,8 @@ class CurriculumScheduler:
         self.emphasized_fraction = config.dataset.emphasized_fraction
         self.emphasis_relative_sample_frequency = \
             config.dataset.emphasis_relative_sample_frequency
-        self.final_curriculum_fraction = 1 + self.emphasized_fraction \
-            if self.emphasize_new_samples else 1
+        if self.emphasize_new_samples:
+            self.final_curriculum_fraction += self.emphasized_fraction
 
     def curriculum_fraction(self, algorithm, step):
         if not algorithm.curriculum_training:
@@ -81,10 +84,11 @@ class CurriculumScheduler:
         current_curriculum_inclusion = self.current_curriculum_length / \
             len(expert_dataset.master_lookup)
         if self.current_curriculum_length == 0 \
-            or (step % self.curriculum_refresh_steps == 0
-                and curriculum_fraction < self.final_curriculum_fraction):
+                or (step % self.curriculum_refresh_steps == 0 and not self.complete):
             self.update_expert_dataset(expert_dataset, curriculum_fraction)
             replay_buffer.expert_dataloader = replay_buffer._initialize_dataloader()
-        curriculum_inclusion = self.current_curriculum_length / \
-            len(expert_dataset.master_lookup)
+            if curriculum_fraction >= self.final_curriculum_fraction:
+                self.complete = True
+        curriculum_inclusion = self.current_curriculum_length \
+            / len(expert_dataset.master_lookup)
         return curriculum_inclusion

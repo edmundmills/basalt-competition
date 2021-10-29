@@ -34,7 +34,7 @@ class IQLearnSAC(SoftActorCritic):
                 self.curriculum_scheduler.update_replay_buffer(self,
                                                                self.replay_buffer, step)
 
-        if self.alpha_tuner:
+        if self.alpha_tuner and self.alpha_tuner.decay_alpha:
             self.alpha_tuner.update_model_alpha(step)
             metrics['alpha'] = self.agent.alpha
         return metrics
@@ -58,12 +58,20 @@ class IQLearnSAC(SoftActorCritic):
         replay_batch_aug = self.augmentation(replay_batch)
         combined_batch = cat_transitions((expert_batch, replay_batch,
                                           expert_batch_aug, replay_batch_aug))
+
         q_metrics = self._update_q(expert_batch_aug, replay_batch_aug,
                                    expert_batch, replay_batch)
         policy_metrics, final_hidden = self._update_policy(combined_batch)
+
+        metrics = {**policy_metrics, **q_metrics}
+
         if final_hidden.size()[0] != 0:
             final_hidden_expert, final_hidden_replay, _, _ = final_hidden.chunk(4, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
                                              expert_idx, final_hidden_expert)
-        metrics = {**policy_metrics, **q_metrics}
+
+        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
+            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
+            metrics = {**metrics, **alpha_metrics}
+
         return metrics

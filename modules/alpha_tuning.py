@@ -50,6 +50,6 @@ class AlphaTuner:
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
         self.optimizer.step()
-        self.update_model_alphas()
+        self.update_model_alpha()
         metrics = {'alpha': self.current_alpha(), 'alpha_loss': loss.detach()}
         return metrics

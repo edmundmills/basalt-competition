@@ -64,7 +64,7 @@ class OnlineImitation(OnlineTraining):
                 self.curriculum_scheduler.update_replay_buffer(self,
                                                                self.replay_buffer, step)
 
-        if self.alpha_tuner:
+        if self.alpha_tuner and self.alpha_tuner.decay_alpha:
             self.alpha_tuner.update_model_alpha(step)
             metrics['alpha'] = self.agent.alpha
         return metrics
@@ -84,6 +84,10 @@ class OnlineImitation(OnlineTraining):
         loss.backward()
         self.optimizer.step()
 
+        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
+            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
+            metrics = {**metrics, **alpha_metrics}
+
         if final_hidden.size()[0] != 0:
             final_hidden_expert, final_hidden_replay = final_hidden.chunk(2, dim=0)
             self.replay_buffer.update_hidden(replay_idx, final_hidden_replay,
@@ -96,8 +100,6 @@ class OnlineImitation(OnlineTraining):
         if self.cyclic_learning_rate:
             self.scheduler.step()
             metrics['learning_rate'] = self.scheduler.get_last_lr()[0]
-
-        if self.alpha_tuner and self.alpha_tuner.entropy_tuning:
-            alpha_metrics = self.alpha_tuner.update_alpha(metrics['entropy'])
-            metrics = {**metrics, **alpha_metrics}
+        else:
+            metrics['learning_rate'] = self.lr
         return metrics
