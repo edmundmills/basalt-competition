@@ -1,4 +1,4 @@
-from networks.base_network import Network
+from agents.base import Agent
 
 import numpy as np
 import torch as th
@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class SoftQAgent(Network):
+class SoftQAgent(Agent):
     def __init__(self, config):
         super().__init__(config)
         self.alpha = config.method.alpha
@@ -41,42 +41,12 @@ class SoftQAgent(Network):
         entropy = -th.sum(action_probabilities * th.log(action_probabilities))
         return entropy
 
-    def get_action(self, states):
+    def get_action(self, state):
         with th.no_grad():
-            Q, hidden = self.get_Q(states)
+            Q, hidden = self.get_Q(state)
             probabilities = self.action_probabilities(Q).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
-        # threw_snowball = ActionSpace.threw_snowball(states, action, device=self.device)
-        # if self.config.wandb and len(probabilities) >= 12:
-        #     wandb.log({'TerminationCritic/use_action_prob': probabilities[11]},
-        #               step=iter_count)
-        # if self.termination_critic is not None:
-        #     while threw_snowball:
-        #         action = np.random.choice(self.actions, p=probabilities)
-        #         threw_snowball = ActionSpace.threw_snowball(states, action,
-        #                                                     device=self.device)
-        #     if iter_count is None or iter_count % 10 == 0:
-        #         eval = self.termination_critic.evaluate(states)
-        #         if self.config.wandb:
-        #             wandb.log({'TerminationCritic/state_eval': eval},
-        #                       step=iter_count)
-        #         if eval > self.termination_confidence_threshhold:
-        #             print('termination_critic:', eval)
-        #             if ActionSpace.snowball_equipped(states, device=self.device):
-        #                 action = ActionSpace.use_action()
-        #                 print("Snowball thrown by termination_critic")
-        #             else:
-        #                 action = ActionSpace.equip_snowball_action()
-        #                 print("Snowball equipped by termination_critic")
-        # elif len(probabilities) >= 12 \
-        #         and probabilities[11] < self.termination_confidence_threshhold:
-        #     while threw_snowball:
-        #         action = np.random.choice(self.actions, p=probabilities)
-        #         threw_snowball = ActionSpace.threw_snowball(states, action,
-        #                                                     device=self.device)
-        #         print('Tried to throw snowball, but only had a confidence of',
-        #               probabilities[11])
-
+        action = self.suppress_unconfident_termination(state, action, probabilities)
         hidden = hidden.cpu().squeeze()
         return action, hidden
 

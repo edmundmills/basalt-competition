@@ -62,7 +62,7 @@ class Trajectory:
     def view(self):
         return TrajectoryViewer(self).view()
 
-    def suppressed_snowball(self):
+    def suppressed_termination(self):
         return (len(self.additional_step_data) > 0
-                and 'suppressed_snowball' in self.additional_step_data[-1].keys()
-                and self.additional_step_data[-1]['suppressed_snowball'])
+                and 'suppressed_termination' in self.additional_step_data[-1].keys()
+                and self.additional_step_data[-1]['suppressed_termination'])

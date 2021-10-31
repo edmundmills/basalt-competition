@@ -84,10 +84,10 @@ class Network(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        context = create_context(config)
+        self.context = create_context(config)
         self.n_observation_frames = config.model.n_observation_frames
-        self.actions = context.actions
-        self.nonspatial_size = context.nonspatial_size
+        self.actions = self.context.actions
+        self.nonspatial_size = self.context.nonspatial_size
         self.output_dim = len(self.actions)
         self.visual_feature_extractor = VisualFeatureExtractor(config)
         linear_input_dim = sum([self.visual_feature_extractor.feature_dim,

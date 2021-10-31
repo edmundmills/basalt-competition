@@ -145,10 +145,12 @@ class MineRLContext:
             self.actions = list(range(len(self.action_name_list)))
             self.use_action = -1
             self.n_non_equip_actions = len(self.actions)
+            self.voluntary_termination = False
         else:
             self.items_available = True
             self.use_action = 11
             self.n_non_equip_actions = len(self.action_name_list) - 1
+            self.voluntary_termination = True
         starting_count = th.FloatTensor(
             list(self.starting_inventory.values())).reshape(1, -1)
         ones = th.ones(starting_count.size())
@@ -156,7 +158,7 @@ class MineRLContext:
         self.nonspatial_size = self.nonspatial_normalization.size()[1]
         self.lstm_hidden_size = config.model.lstm_hidden_size
         self.initial_hidden = th.zeros(self.lstm_hidden_size*2)
-        self.snowball_helper = SnowballHelper(self, config)
+        self.termination_helper = TerminationHelper(self, config)
 
     def action_name(self, action_number):
         if action_number >= self.n_non_equip_actions:
@@ -178,7 +180,7 @@ class MineRLContext:
         return equipped_item_name
 
 
-class SnowballHelper:
+class TerminationHelper:
     def __init__(self, context, config):
         self.context = context
         if self.context.items_available:
@@ -189,27 +191,20 @@ class SnowballHelper:
                 + self.snowball_number
         else:
             self.equip_snowball_action = -1
-        self.suppress_snowball_steps = config.context.suppress_snowball_steps
+        self.suppress_voluntary_termination_steps = \
+            config.context.suppress_voluntary_termination_steps
 
-    def snowball_equipped(self, state, device='cpu'):
+    def snowball_equipped(self, state):
         if not self.context.items_available:
             return False
         nonspatial = state.nonspatial
         _inventory, equipped_item = th.chunk(nonspatial.reshape(1, -1), 2, dim=1)
-        snowball_equipped = th.all(th.eq(equipped_item, self.one_hot_snowball.to(device)))
+        snowball_equipped = th.all(th.eq(
+            equipped_item, self.one_hot_snowball.to(state.nonspatial.device)))
         return snowball_equipped.item()
 
-    def threw_snowball(self, state, action, device='cpu'):
-        return self.snowball_equipped(state, device) and action == self.context.use_action
-
-    # def threw_snowball_list(self, obs, actions):
-    #     if not self.context.items_available:
-    #         return [False for action in actions]
-    #     equipped_items = obs['equipped_items']['mainhand']['type']
-    #     if isinstance(actions, th.Tensor):
-    #         actions = actions.squeeze().tolist()
-    #     return [item == 'snowball' and action == 11
-    #             for item, action in zip(equipped_items, actions)]
+    def terminated(self, state, action):
+        return self.snowball_equipped(state) and action == self.context.use_action
 
     def threw_snowball_tensor(self, states, actions, device='cpu'):
         use_actions = th.eq(actions, self.context.use_action).reshape(-1, 1)
@@ -220,17 +215,15 @@ class SnowballHelper:
         threw_snowball = use_actions * snowball_equipped
         return threw_snowball.type(th.uint8)
 
-    def suppressed_snowball(self, step, state, action):
-        if step == 0 and self.suppress_snowball_steps > 0:
-            print(('Suppressing throwing snowball for'
-                   f' {self.suppress_snowball_steps} steps'))
-        elif step == self.suppress_snowball_steps and step != 0:
-            print('No longer suppressing snowball')
-        suppressed_snowball = step < self.suppress_snowball_steps \
-            and self.threw_snowball(state, action)
-        if suppressed_snowball:
-            print('Suppressed Snowball')
-        return suppressed_snowball
+    def suppressed_termination(self, step, state, action):
+        if step == 0 and self.suppress_voluntary_termination_steps > 0:
+            print(('Suppressing voluntary termination for'
+                   f' {self.suppress_voluntary_termination_steps} steps'))
+        elif step == self.suppress_voluntary_termination_steps and step != 0:
+            print('No longer suppressing voluntary termination')
+        suppressed_termination = step < self.suppress_voluntary_termination_steps \
+            and self.terminated(state, action)
+        return suppressed_termination
 
 
 class ObservationWrapper(gym.ObservationWrapper):

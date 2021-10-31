@@ -83,7 +83,7 @@ class OnlineTraining(Algorithm):
             len(current_trajectory) >= self.max_episode_length(step)
 
         end_episode = current_trajectory.done or eval or training_done \
-            or max_episode_length_reached or current_trajectory.suppressed_snowball()
+            or max_episode_length_reached or current_trajectory.suppressed_termination()
 
         if end_episode:
             print(f'Trajectory completed at iteration {self.iter_count}')
@@ -97,7 +97,7 @@ class OnlineTraining(Algorithm):
             if eval:
                 self.eval()
 
-            reset_env = not (training_done or current_trajectory.suppressed_snowball())
+            reset_env = not (training_done or current_trajectory.suppressed_termination())
             self.trajectory_generator.start_new_trajectory(reset_env=reset_env)
 
     def eval(self):

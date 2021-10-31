@@ -15,7 +15,7 @@ class TrajectoryGenerator:
         self.gpu_loader = GPULoader(config)
         if config.context.name == 'MineRL':
             self.context = MineRLContext(config)
-            self.snowball_helper = self.context.snowball_helper
+            self.termination_helper = self.context.termination_helper
         self.training = training
 
     def new_trajectory(env, replay_buffer, reset_env=True):
@@ -48,12 +48,13 @@ class TrajectoryGenerator:
             action, hidden = self.agent.get_action(
                 self.gpu_loader.state_to_device(current_state))
 
-        suppressed_snowball = self.snowball_helper.suppressed_snowball(
+        suppressed_termination = self.termination_helper.suppressed_termination(
             step, current_state, action) \
-            if self.snowball_helper and self.training else False
+            if self.termination_helper and self.training else False
 
-        if suppressed_snowball:
+        if suppressed_termination:
             next_state, reward, done, _ = self.env.step(-1)
+            done = True
         else:
             next_state, reward, done, _ = self.env.step(action)
 
@@ -62,10 +63,10 @@ class TrajectoryGenerator:
 
         if trajectory is None:
             self.replay_buffer.append_step(action, reward, next_state, done,
-                                           suppressed_snowball=suppressed_snowball)
+                                           suppressed_termination=suppressed_termination)
         else:
             trajectory.append_step(action, reward, next_state, done,
-                                   suppressed_snowball=suppressed_snowball)
+                                   suppressed_termination=suppressed_termination)
         return metrics
 
     def generate(self, max_episode_length=100000, print_actions=False):
@@ -88,10 +89,10 @@ class TrajectoryGenerator:
         for step in range(steps):
             self.env_interaction_step(step % max_length, random_action=True)
             current_trajectory = self.replay_buffer.current_trajectory()
-            if current_trajectory.done or len(current_trajectory) > 1000:
-                self.start_new_trajectory()
-            elif current_trajectory.suppressed_snowball():
+            if current_trajectory.suppressed_termination():
                 self.start_new_trajectory(reset_env=False)
+            elif current_trajectory.done or len(current_trajectory) > 1000:
+                self.start_new_trajectory()
 
         trajectory_count = len(self.replay_buffer.trajectories)
         print(f'Finished generating {trajectory_count} random trajectories')

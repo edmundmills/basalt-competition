@@ -1,11 +1,11 @@
-from networks.base_network import Network
+from agents.base import Agent
 
 import numpy as np
 import torch as th
 import torch.nn.functional as F
 
 
-class BCAgent(Network):
+class BCAgent(Agent):
     def __init__(self, config,):
         super().__init__(config)
 
@@ -18,4 +18,5 @@ class BCAgent(Network):
         with th.no_grad():
             probabilities = self.action_probabilities(state).cpu().numpy().squeeze()
         action = np.random.choice(self.actions, p=probabilities)
+        action = self.suppress_unconfident_termination(state, action, probabilities)
         return action

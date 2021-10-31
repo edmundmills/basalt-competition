@@ -128,11 +128,15 @@ class TestAdditionalData:
         reward = transition.reward.item()
         next_state = transition.next_state
         done = transition.done.item()
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        assert trajectory.additional_step_data['throw_snowball'] \
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        assert trajectory.additional_step_data['voluntary_termination'] \
             == [False, False, False, False]
 
     def test_always_with_key(self, state, transition):
@@ -142,8 +146,12 @@ class TestAdditionalData:
         reward = transition.reward.item()
         next_state = transition.next_state
         done = transition.done.item()
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        trajectory.append_step(action, reward, next_state, done, throw_snowball=False)
-        assert trajectory.additional_step_data[3] == {'throw_snowball': False}
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        trajectory.append_step(action, reward, next_state, done,
+                               voluntary_termination=False)
+        assert trajectory.additional_step_data[3] == {'voluntary_termination': False}
