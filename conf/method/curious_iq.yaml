@@ -4,6 +4,8 @@ loss_function: 'iqlearn'
 loss: 'value'
 drq: true
 target_q: true  # for iqlearn q function
+expert_done_value: 1
+policy_done_value: 0
 
 alpha: 1e-1
 decay_alpha: false

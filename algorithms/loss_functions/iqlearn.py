@@ -13,6 +13,9 @@ class IQLearnLoss:
         self.drq = config.method.drq
         self.loss_type = config.method.loss
         self.online = config.method.online
+        self.expert_done_value = config.method.expert_done_value
+        if self.online:
+            self.policy_done_value = config.method.policy_done_value
 
     def distance_function(self, x):
         return x - 1/2 * x**2
@@ -83,13 +86,15 @@ class IQLearnLoss:
                 batch_Vs, state_lengths, dim=0)
 
         Q_s_a_expert = th.gather(current_Qs_expert, dim=-1, index=expert_actions)
-        target_Q_expert = (1 - expert_done) * self.discount_factor * V_next_expert
+        target_Q_expert = (1 - expert_done) * self.discount_factor * V_next_expert \
+            + self.expert_done_value * expert_done
         if self.drq:
             target_Q_expert = self.average_across_augmentation(target_Q_expert)
 
         if self.online:
             Q_s_a_policy = th.gather(current_Qs_policy, dim=-1, index=policy_actions)
-            target_Q_policy = (1 - policy_done) * self.discount_factor * V_next_policy
+            target_Q_policy = (1 - policy_done) * self.discount_factor * V_next_policy \
+                + self.policy_done_value * policy_done
             if self.drq:
                 target_Q_policy = self.average_across_augmentation(target_Q_policy)
 

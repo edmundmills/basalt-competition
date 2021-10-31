@@ -3,6 +3,8 @@ algorithm: 'sac'
 loss_function: 'iqlearn'
 loss: 'value'
 drq: true
+expert_done_value: 1
+policy_done_value: 0
 
 online: true
 expert_dataset: true

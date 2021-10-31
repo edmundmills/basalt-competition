@@ -3,6 +3,7 @@ algorithm: 'supervised_learning'
 loss_function: 'iqlearn'
 loss: 'value_expert'
 drq: true
+expert_done_value: 1
 
 online: false
 expert_dataset: true
