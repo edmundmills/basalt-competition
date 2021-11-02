@@ -38,3 +38,13 @@ def get_config(args):
     cfg.hydra_base_dir = os.getcwd()
     print(OmegaConf.to_yaml(cfg))
     return cfg
+
+def debug_config(overrides=[]):
+    with initialize(config_path='../conf'):
+        cfg = compose('config.yaml', overrides=overrides)
+    cfg.device = "cuda:0" if th.cuda.is_available() else "cpu"
+    cfg.wandb = False
+    cfg.start_time = time.time()
+    cfg.hydra_base_dir = os.getcwd()
+    print(OmegaConf.to_yaml(cfg))
+    return cfg

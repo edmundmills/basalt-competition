@@ -1,16 +1,11 @@
 from core.datasets import *
 from core.state import Transition, Sequence
-from utility.config import parse_args, get_config
+from utility.config import debug_config
 
 
 class TestTrajectoryStepDataset:
     def test_dataset_with_no_lstm(self):
-        args = parse_args()
-        args.virtual_display = False
-        args.debug_env = True
-        args.wandb = False
-        args.overrides.append('model=base')
-        config = get_config(args)
+        config = debug_config(['model=base'])
         dataset = TrajectoryStepDataset(config, debug_dataset=True)
         assert len(dataset) > 0
         assert len(dataset.trajectories) > 0
@@ -23,12 +18,7 @@ class TestTrajectoryStepDataset:
 
 class TestTrajectorySequenceDataset:
     def test_dataset_with_lstm(self):
-        args = parse_args()
-        args.virtual_display = False
-        args.debug_env = True
-        args.wandb = False
-        args.overrides.append('model=lstm')
-        config = get_config(args)
+        config = debug_config(['model=lstm'])
         lstm_sequence_length = 5
         config.model.lstm_sequence_length = lstm_sequence_length
         dataset = TrajectorySequenceDataset(config, debug_dataset=True)

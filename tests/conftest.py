@@ -1,6 +1,7 @@
 from contexts.minerl.environment import MineRLContext
 from core.state import State, Transition, Sequence
-from utility.config import get_config, parse_args
+from utility.config import debug_config
+from argparse import Namespace
 
 import copy
 
@@ -8,27 +9,28 @@ import numpy as np
 import pytest
 import torch as th
 
-args = parse_args()
-args.virtual_display = False
-args.debug_env = True
-args.wandb = False
-config = get_config(args)
-config.method.starting_steps = 100
-config.method.training_steps = 3
-config.method.batch_size = 4
-config.model.lstm_sequence_length = 3
-
 
 @pytest.fixture
 def default_args():
-    return copy.deepcopy(args)
+    args = Namespace(virtual_display=False, wandb=False, profile=False,
+                     debug_env=True, overrides=[])
+    return args
 
 
 @pytest.fixture
 def default_config():
-    return copy.deepcopy(config)
+    config = debug_config()
+    config.method.starting_steps = 100
+    config.method.training_steps = 3
+    config.method.batch_size = 4
+    config.model.lstm_sequence_length = 3
+    return config
 
-
+config = debug_config()
+config.method.starting_steps = 100
+config.method.training_steps = 3
+config.method.batch_size = 4
+config.model.lstm_sequence_length = 3
 context = MineRLContext(config)
 obs = {"pov": np.random.randint(0, 255, context.frame_shape),
        "inventory": context.starting_inventory,
