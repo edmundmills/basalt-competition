@@ -1,5 +1,5 @@
 from agents.soft_q import SoftQAgent
-from contexts.minerl.environment import MineRLContext
+from contexts.minerl.environment import ObservationWrapper, ActionShaping
 from core.trajectory_generator import TrajectoryGenerator
 
 import os
@@ -21,6 +21,7 @@ class Episode(gym.Env):
 
     def __init__(self, env):
         self.env = ActionShaping(env)
+        self.env = ObservationWrapper(env)
         self.action_space = env.action_space
         self.observation_space = env.observation_space
         self._done = False

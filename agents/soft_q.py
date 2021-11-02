@@ -10,10 +10,6 @@ class SoftQAgent(Agent):
     def __init__(self, config):
         super().__init__(config)
         self.alpha = config.method.alpha
-        # self.termination_critic = TerminationCritic(config) \
-        #     if config.termination_critic else None
-        # self.termination_confidence_threshhold \
-        # = config.termination_confidence_threshhold
 
     def get_Q(self, state):
         return self.forward(state)
