@@ -32,7 +32,7 @@ class SupervisedLearning(Algorithm):
         if config.method.loss_function == 'bc':
             self.loss_function = BCLoss(agent, config)
         elif config.method.loss_function == 'sqil':
-            self.loss_function = SqilLoss(agent, config)
+            self.loss_function = SQILLoss(agent, config)
         elif config.method.loss_function == 'iqlearn':
             self.loss_function = IQLearnLoss(agent, config)
 

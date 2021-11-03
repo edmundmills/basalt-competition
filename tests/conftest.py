@@ -1,10 +1,10 @@
 from contexts.minerl.environment import MineRLContext
 from core.state import State, Transition, Sequence
 from utility.config import debug_config
-from argparse import Namespace
 
 import copy
 
+from argparse import Namespace
 import numpy as np
 import pytest
 import torch as th

@@ -1,23 +1,11 @@
-from agents.soft_q import SoftQAgent
 from algorithms.sac import SoftActorCritic
-from algorithms.loss_functions.curious_iq import CuriousIQPolicyLoss
-from algorithms.loss_functions.iqlearn import IQLearnLoss
 from modules.intrinsic_curiosity import CuriosityModule
-from core.datasets import MixedReplayBuffer, MixedSequenceReplayBuffer
-from core.state import cat_transitions
 
-import numpy as np
 import torch as th
-from torch import nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-
-from collections import deque
-import wandb
 
 
 class CuriositySAC(SoftActorCritic):
-    def __init__(self, config, actor=None, pretraining=True, **kwargs):
+    def __init__(self, config, actor=None, **kwargs):
         super().__init__(config, actor, **kwargs)
         self.curiosity_pretraining_steps = config.method.curiosity_pretraining_steps
         self.curiosity_module = CuriosityModule(config).to(self.device)

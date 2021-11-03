@@ -4,6 +4,7 @@ from core.trajectory_generator import TrajectoryGenerator
 
 from collections import deque
 from pathlib import Path
+import time
 
 import numpy as np
 import wandb
