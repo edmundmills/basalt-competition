@@ -62,3 +62,7 @@ If you use this repo in your research, please consider citing the IQ-Learn paper
 
 ## Testing
 - Tests are implemented with `pytest`.
+
+## License
+
+Please see the [LICENSE](LICENSE.pdf) for the licensing terms for this code.
