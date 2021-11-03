@@ -2,11 +2,10 @@ from core.state import State, Transition
 
 from collections import OrderedDict, deque
 import copy
-import os
-import random
 
 import gym
 import minerl
+from omegaconf import OmegaConf
 import numpy as np
 import torch as th
 import torch.nn.functional as F
@@ -81,7 +80,8 @@ environment_items = {'MineRLBasaltBuildVillageHouse-v0': OrderedDict([
 }
 
 
-def start_env(config, debug_env=False):
+def start_env(config: OmegaConf, debug_env=False) -> gym.Env:
+    """Starts the chosen environment and applies action and observation wrappers."""
     if debug_env:
         env = MineRLDebugEnv(config)
     else:
@@ -93,6 +93,8 @@ def start_env(config, debug_env=False):
 
 
 class MineRLDebugEnv(gym.Env):
+    """Simulates a MineRL environment to reduce debug time."""
+
     def __init__(self, config):
         self.context = MineRLContext(config)
         self.action_list = self.context.actions
@@ -115,8 +117,17 @@ class MineRLDebugEnv(gym.Env):
     def close(self):
         return
 
+class Context(object):
+    """Contexts inherit from this class."""
 
-class MineRLContext:
+class MineRLContext(Context):
+    """
+    Processes the raw config and provides helper functions for the context.
+    
+    Stores information about the inventory, normaliztion factors, voluntary termination,
+    state space dimensionality.
+    """
+
     def __init__(self, config):
         self.environment = config.env.name
         self.frame_shape = (3, 64, 64)

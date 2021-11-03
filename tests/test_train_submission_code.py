@@ -1,5 +1,5 @@
 from train_submission_code import *
-from utility.config import get_config, parse_args
+from utility.config import debug_config
 
 import copy
 
@@ -9,51 +9,35 @@ class TestIntegration:
         main(default_args, default_config)
 
     class TestMethods:
-        def test_sac(self):
-            args = parse_args()
-            args.virtual_display = False
-            args.debug_env = True
-            args.wandb = False
-            args.overrides.append('method=iqlearn_sac')
-            config = get_config(args)
+        def test_sac(self, default_args):
+            args = default_args
+            config = debug_config(['method=iqlearn_sac'])
             config.method.starting_steps = 100
             config.method.training_steps = 3
             config.method.batch_size = 4
             config.model.lstm_sequence_length = 3
             main(args, config)
 
-        def test_bc(self):
-            args = parse_args()
-            args.virtual_display = False
-            args.debug_env = True
-            args.wandb = False
-            args.overrides.append('method=bc')
-            config = get_config(args)
+        def test_bc(self, default_args):
+            args = default_args
+            config = debug_config(['method=bc'])
             config.method.max_training_steps = 3
             config.method.batch_size = 4
             config.model.lstm_sequence_length = 3
             main(args, config)
 
-        def test_iqlearn_offline(self):
-            args = parse_args()
-            args.virtual_display = False
-            args.debug_env = True
-            args.wandb = False
-            args.overrides.append('method=iqlearn_offline')
-            config = get_config(args)
+        def test_iqlearn_offline(self, default_args):
+            args = default_args
+            config = debug_config(['method=iqlearn_offline'])
             config.method.max_training_steps = 3
             config.method.batch_size = 4
             config.model.lstm_sequence_length = 3
             main(args, config)
 
     class TestModels:
-        def test_no_lstm(self):
-            args = parse_args()
-            args.virtual_display = False
-            args.debug_env = True
-            args.wandb = False
-            args.overrides.append('model=base')
-            config = get_config(args)
+        def test_no_lstm(self, default_args):
+            args = default_args
+            config = debug_config(['model=base'])
             config.method.starting_steps = 100
             config.method.training_steps = 3
             config.method.batch_size = 4

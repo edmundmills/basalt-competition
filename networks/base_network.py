@@ -7,6 +7,20 @@ from torchvision.models.mobilenetv3 import mobilenet_v3_large
 
 
 class VisualFeatureExtractor(nn.Module):
+    """
+    Converts an image tensor into an abstract feature space.
+
+    Input tensor must have the dimensions (sample, (optional sequence dim), channels,
+    width, height). Channels covers three color dimensions * the number of stacked frames.
+
+    Number of observation frames and number of cnn layers are specified through
+    config. Uses a pretrained MobileNetv3 for the cnn layers.
+    
+    The size of the abstract feature dimension varies with the number of
+    cnn_layers, not always in intuitive ways. The _visual_features_dim function returns
+    the size of the feature space. The returned tensor has dimensions
+    (sample, (optional sequence dim), features).
+    """
     def __init__(self, config):
         super().__init__()
         context = create_context(config)
@@ -43,6 +57,15 @@ class VisualFeatureExtractor(nn.Module):
 
 
 class LSTMLayer(nn.Module):
+    """
+    Converts features and a hidden state to updated features and next hidden state.
+
+    Input feature state is a concatenation of extracted visual features and the
+    nonspacial component of a state. In the feature space, batch precedes the sequence
+    dimension.
+
+    Output features have dimension equal to the LSTM hidden size.
+    """
     def __init__(self, input_dim, config):
         super().__init__()
         self.hidden_size = config.model.lstm_hidden_size
@@ -60,6 +83,8 @@ class LSTMLayer(nn.Module):
 
 
 class LinearLayers(nn.Module):
+    """Takes features and returns values with the specified output dimension size."""
+
     def __init__(self, input_dim, output_dim, config):
         super().__init__()
         self.input_dim = input_dim
@@ -81,6 +106,13 @@ class LinearLayers(nn.Module):
 
 
 class Network(nn.Module):
+    """
+    The base module that agents inherit from.
+
+    Takes as input a spacial observation, nonspatial observation, and possible hidden
+    state and returns a set of values with dimension equal to the dimension of the
+    discrete action space. Also returns the next hidden state.
+    """
     def __init__(self, config):
         super().__init__()
         self.config = config

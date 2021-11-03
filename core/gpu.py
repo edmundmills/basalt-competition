@@ -1,11 +1,23 @@
-from core.state import State, Transition, Sequence, cat_states, cat_transitions, \
-    sequence_to_transitions
+from core.state import State, Transition, sequence_to_transitions
 from contexts.minerl.environment import MineRLContext
+
+from typing import Iterable, NamedTuple, Tuple
 
 import torch as th
 
 
 class GPULoader:
+    """
+    Handles loading of tensors onto the gpu.
+
+    Initialized with normalization tensors to avoid recreating them on the gpu.
+
+    Can load:
+    Individual state: state_to_device
+    Batch of states: states_to_device
+    Batch of transitions: transitions_to_device
+    Batch of sequences: transitions_to_device
+    """
     def __init__(self, config):
         self.device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
         if config.context.name == 'MineRL':
@@ -25,7 +37,8 @@ class GPULoader:
             th.FloatTensor([0.229, 0.224, 0.225]).to(self.device).reshape(
                 3, 1, 1).tile((config.model.n_observation_frames, 1, 1)))
 
-    def normalize_state(self, state):
+    def normalize_state(self, state: State) -> State:
+        """Normalizes a state on the gpu according to config"""
         state = list(state)
         if self.normalize_obs:
             state[0] = (state[0] - self.spatial_normalization[0]) \
@@ -37,7 +50,8 @@ class GPULoader:
         state[1] /= self.nonspatial_normalization
         return State(*state)
 
-    def state_to_device(self, state):
+    def state_to_device(self, state: State) -> State:
+        """Loads the multiple components of a state to the gpu."""
         state = [state_component.unsqueeze(0).to(self.device, dtype=th.float)
                  for state_component in state]
         # add sequence dimension
@@ -47,7 +61,8 @@ class GPULoader:
         state = self.normalize_state(state)
         return state
 
-    def states_to_device(self, tuple_of_states):
+    def states_to_device(self, tuple_of_states: Iterable) -> Tuple:
+        """Loads a tuple of states or batches of states onto the gpu."""
         states = []
         for state in tuple_of_states:
             if len(state) != 0:
@@ -58,7 +73,12 @@ class GPULoader:
             states.append(state)
         return tuple(states)
 
-    def transitions_to_device(self, transitions):
+    def transitions_to_device(self, transitions: NamedTuple) -> Transition:
+        """
+        Loads a batch of transitions or sequences onto the gpu.
+        
+        If loading sequences, converts the sequence into transitions.
+        """
         if self.load_sequences:
             transitions = sequence_to_transitions(transitions)
         states, actions, rewards, next_states, dones = transitions
