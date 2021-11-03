@@ -1,10 +1,27 @@
-# Imitation Learning
+# BASALT Competition
 
-This repository is aims to be a flexible, extensible framework for imitation learning. It is implemented in pytorch.
+This repository was developed as a submission for the [2021 NeurIPS MineRL BASALT competition](https://minerl.io/basalt/):
 
+> The MineRL Benchmark for Agents that Solve Almost-Lifelike Tasks (MineRL BASALT) competition aims to promote research in the area of learning from human feedback, in order to enable agents that can pursue tasks that do not have crisp, easily defined reward functions.
 
-## Environments
+This developed in collaboration with [Divyansh Garg](https://github.com/Div99). Our general approach was to use [IQ-Learn](https://arxiv.org/abs/2106.12142) for online imitation learning. It is implemented using PyTorch.
 
+## Citation
+If you use this repo in your research, please consider citing the IQ-Learn paper as follows:
+
+```
+@article{
+    title={IQ-Learn: Inverse soft-Q Learning for Imitation},
+    author={Divyansh Garg, Shuvam Chakraborty, Chris Cundy, Jiaming Song, Stefano Ermon},
+    year={2021},
+    eprint={2106.12142},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
+```
+
+## Contents
+### Environments
 [MineRL](https://www.minerl.io)
 - MineRLNavigateDense-v0
 - MineRLNavigateExtremeDense-v0
@@ -14,64 +31,34 @@ This repository is aims to be a flexible, extensible framework for imitation lea
 - MineRLBasaltCreateVillageAnimalPen-v0
 - MineRLBasaltBuildVillageHouse-v0
 
-## Algorithms
-- IQ-Learn [1]
-- SQIL [2]
+### Algorithms
+- [IQ-Learn](https://arxiv.org/abs/2106.12142) (Online and Offline)
+- [SQIL](https://arxiv.org/abs/1905.11108) (Online and Offline)
 - Behavioral Cloning
 
-## Other References
-- Intrinsic Curiosity Module [3]
-- Data Regularized Q (DRQ) [4]
+### Other Elements
+- [Intrinsic Curiosity Module](https://pathak22.github.io/noreward-rl/)
+- [Data Regularized Q (DRQ)](https://sites.google.com/view/data-regularized-q)
 
-# Setup
-- wandb
+## Setup
+### Options
+- Locally: Package dependencies can be found in `environment.yml`, which can be set up with conda.
+- Docker: you can generate a Docker image with `utility/docker_build.sh`
+- Google Colab: You can run training via the `utility/colab.ipynb` file. It expects that you have this repository in a google drive folder
 
-## Installation
+### Other Requirements
+- MineRL: To set up MineRL, follow the setup instructions [here](https://minerl.readthedocs.io/en/latest/tutorials/index.html).
+- WandB: We use [Weights & Biases](https://wandb.ai/) to track training metrics. You'll need to set up an account and log in when running training.
 
-## Downloading Datasets
+### Datasets
+- Follow the instructions [here](https://minerl.readthedocs.io/en/latest/tutorials/data_sampling.html#downloading-the-minerl-dataset-with-minerl-data-download) to download and set up the BASALT competition datasets.
 
-# Training
-`python train_submission_code.py`
-- Explore the config files in conf/ to see the parameters available for modification and their default values.
+## Training
+- To train locally, run `python train_submission_code.py`. Helpful flags include `--virtual-display-false`, `--debug-env`, and `--wandb-false`.
+- Explore the config files in `conf/` to see the parameters available for modification and their default values. These can be overridden with additional arguments, e.g. `env=waterfall method.training_steps=100000`
 
-# Evaluation
+## Evaluation
+- Use `generate_trajectory.py` to download a model from wandb and generate trajectories.
 
-# Contributing
-- pytest
-- debug flags
-
-# References
-[1] @article{
-    title={IQ-Learn: Inverse soft-Q Learning for Imitation},
-    author={Divyansh Garg, Shuvam Chakraborty, Chris Cundy, Jiaming Song, Stefano Ermon},
-    year={2021},
-    eprint={2106.12142},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
-
-[2] @article{
-    title={SQIL: Imitation Learning via Reinforcement Learning with Sparse Rewards},
-    author={Siddharth Reddy, Anca D. Dragan, Sergey Levine},
-    year={2019},
-    eprint={1905.11108},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
-
-[3] @inproceedings{pathakICMl17curiosity,
-    Author = {Pathak, Deepak and Agrawal, Pulkit and
-              Efros, Alexei A. and Darrell, Trevor},
-    Title = {Curiosity-driven Exploration by Self-supervised Prediction},
-    Booktitle = {International Conference on Machine Learning ({ICML})},
-    Year = {2017}
-}
-
-[4] @article{kostrikov2020image,
-    title={Image Augmentation Is All You Need: Regularizing Deep Reinforcement Learning from Pixels},
-    author={Ilya Kostrikov and Denis Yarats and Rob Fergus},
-    year={2020},
-    eprint={2004.13649},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
+## Testing
+- Tests are implemented with `pytest`.
