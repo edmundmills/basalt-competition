@@ -24,6 +24,10 @@ class MineRLDatasetBuilder:
         return state
 
     def _dataset_action_to_action(self, dataset_action):
+        """
+        This method is based on the one provided in the competition baseline here:
+        https://colab.research.google.com/drive/1qfjHCQkukFcR9w1aPvGJyQxOa-Gv7Gt_?usp=sharing
+        """
         camera_actions = dataset_action["camera"].reshape((-1, 2))
         attack_actions = dataset_action["attack"].reshape(-1)
         forward_actions = dataset_action["forward"].reshape(-1)

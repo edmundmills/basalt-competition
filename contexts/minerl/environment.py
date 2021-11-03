@@ -300,6 +300,9 @@ class ObservationWrapper(gym.ObservationWrapper):
 
 class ActionShaping(gym.ActionWrapper):
     """
+    This wrapper is based on the one provided in the competition baseline here:
+    https://colab.research.google.com/drive/1qfjHCQkukFcR9w1aPvGJyQxOa-Gv7Gt_?usp=sharing
+    
     The default MineRL action space is the following dict:
 
     Dict(attack:Discrete(2),
