@@ -86,7 +86,7 @@ class RandomHorizontalMirror:
 
     def __call__(self, transition):
         if np.random.choice([True, False]):
-            return sample
+            return transition
 
         state, action, reward, next_state, done = transition
         state = list(state)

@@ -45,7 +45,6 @@ class VisualFeatureExtractor(nn.Module):
     def forward(self, spatial):
         *n, c, h, w = spatial.size()
         spatial = spatial.reshape(-1, c, h, w)
-        features = self.cnn(spatial)
         return self.cnn(spatial).reshape(*n, -1)
 
     def _visual_features_dim(self):
