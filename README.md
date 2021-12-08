@@ -1,6 +1,6 @@
 # BASALT Competition
 
-This repository was developed as a submission for the [2021 NeurIPS MineRL BASALT competition](https://minerl.io/basalt/):
+This approach won second place in the [2021 NeurIPS MineRL BASALT competition](https://minerl.io/basalt/):
 
 > The MineRL Benchmark for Agents that Solve Almost-Lifelike Tasks (MineRL BASALT) competition aims to promote research in the area of learning from human feedback, in order to enable agents that can pursue tasks that do not have crisp, easily defined reward functions.
 
